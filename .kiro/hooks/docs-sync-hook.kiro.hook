@@ -1,0 +1,21 @@
+{
+  "enabled": true,
+  "name": "Documentation Sync",
+  "description": "Listens to Python source files and configuration changes to automatically update project documentation in README.md",
+  "version": "1",
+  "when": {
+    "type": "fileEdited",
+    "patterns": [
+      "infenix/**/*.py",
+      "tests/**/*.py",
+      "pyproject.toml",
+      "requirements.txt",
+      "requirements-dev.txt",
+      "noxfile.py"
+    ]
+  },
+  "then": {
+    "type": "askAgent",
+    "prompt": "The Python source code or configuration files in this repository have been modified. Please review the changes and update the documentation in README.md to reflect any new functionality, API changes, configuration updates, or usage instructions. Ensure the documentation stays current with the codebase changes."
+  }
+}

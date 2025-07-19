@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "infenix": {
+      "command": "uvx",
+      "args": [
+        "infenix@latest"
+      ],
+      "env": {
+        "FASTMCP_LOG_LEVEL": "ERROR"
+      },
+      "disabled": false,
+      "autoApprove": [
+        "get_all_hardware",
+        "get_cpu_info",
+        "get_memory_info",
+        "get_storage_info",
+        "get_pci_devices",
+        "get_usb_devices",
+        "get_network_info",
+        "get_graphics_info"
+      ]
+    }
+  }
+}
