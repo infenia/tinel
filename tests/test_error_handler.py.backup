@@ -1,0 +1,421 @@
+#!/usr/bin/env python3
+"""Tests for Infenix CLI Error Handler.
+
+Copyright 2025 Infenia Private Limited
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
+"""
+
+import unittest
+import sys
+import os
+import tempfile
+import json
+from unittest.mock import Mock, patch, MagicMock
+from io import StringIO
+
+# Add the parent directory to the path to import infenix modules
+sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
+
+from infenix.cli.error_handler import (
+    ExitCode,
+    CLIError,
+    CommandNotFoundError,
+    InvalidArgumentError,
+    PermissionError,
+    FileNotFoundError,
+    NetworkError,
+    ConfigurationError,
+    HardwareError,
+    KernelError,
+    LogAnalysisError,
+    DiagnosticsError,
+    CLIErrorHandler,
+)
+from infenix.cli.formatters import OutputFormatter
+
+
+class TestExitCodes(unittest.TestCase):
+    """Test exit code definitions."""
+
+    def test_exit_code_values(self):
+        """Test that exit codes have expected values."""
+        self.assertEqual(ExitCode.SUCCESS, 0)
+        self.assertEqual(ExitCode.GENERAL_ERROR, 1)
+        self.assertEqual(ExitCode.MISUSE_OF_SHELL_BUILTINS, 2)
+        self.assertEqual(ExitCode.COMMAND_NOT_FOUND, 127)
+        self.assertEqual(ExitCode.INVALID_ARGUMENT, 128)
+        self.assertEqual(ExitCode.KEYBOARD_INTERRUPT, 130)
+
+        # Custom exit codes
+        self.assertEqual(ExitCode.PERMISSION_DENIED, 10)
+        self.assertEqual(ExitCode.FILE_NOT_FOUND, 11)
+        self.assertEqual(ExitCode.NETWORK_ERROR, 12)
+        self.assertEqual(ExitCode.CONFIGURATION_ERROR, 13)
+        self.assertEqual(ExitCode.HARDWARE_ERROR, 14)
+        self.assertEqual(ExitCode.KERNEL_ERROR, 15)
+        self.assertEqual(ExitCode.LOG_ANALYSIS_ERROR, 16)
+        self.assertEqual(ExitCode.DIAGNOSTICS_ERROR, 17)
+
+
+class TestCLIErrors(unittest.TestCase):
+    """Test CLI error classes."""
+
+    def test_cli_error_basic(self):
+        """Test basic CLIError functionality."""
+        error = CLIError("Test error message")
+
+        self.assertEqual(str(error), "Test error message")
+        self.assertEqual(error.message, "Test error message")
+        self.assertEqual(error.exit_code, ExitCode.GENERAL_ERROR)
+        self.assertEqual(error.details, {})
+
+    def test_cli_error_with_details(self):
+        """Test CLIError with details and custom exit code."""
+        details = {"key": "value", "number": 42}
+        error = CLIError("Test error", ExitCode.CONFIGURATION_ERROR, details)
+
+        self.assertEqual(error.message, "Test error")
+        self.assertEqual(error.exit_code, ExitCode.CONFIGURATION_ERROR)
+        self.assertEqual(error.details, details)
+
+    def test_command_not_found_error(self):
+        """Test CommandNotFoundError."""
+        error = CommandNotFoundError("test-command")
+
+        self.assertEqual(error.message, "Command 'test-command' not found")
+        self.assertEqual(error.exit_code, ExitCode.COMMAND_NOT_FOUND)
+        self.assertEqual(error.details, {"command": "test-command"})
+
+    def test_invalid_argument_error(self):
+        """Test InvalidArgumentError."""
+        error = InvalidArgumentError("Invalid value for argument", "test-arg")
+
+        self.assertEqual(error.message, "Invalid value for argument")
+        self.assertEqual(error.exit_code, ExitCode.INVALID_ARGUMENT)
+        self.assertEqual(error.details, {"argument": "test-arg"})
+
+    def test_permission_error(self):
+        """Test PermissionError."""
+        error = PermissionError("Access denied", "/test/path")
+
+        self.assertEqual(error.message, "Access denied")
+        self.assertEqual(error.exit_code, ExitCode.PERMISSION_DENIED)
+        self.assertEqual(error.details, {"resource": "/test/path"})
+
+    def test_file_not_found_error(self):
+        """Test FileNotFoundError."""
+        error = FileNotFoundError("/test/file.txt")
+
+        self.assertEqual(error.message, "File not found: /test/file.txt")
+        self.assertEqual(error.exit_code, ExitCode.FILE_NOT_FOUND)
+        self.assertEqual(error.details, {"file_path": "/test/file.txt"})
+
+    def test_network_error(self):
+        """Test NetworkError."""
+        error = NetworkError("Connection failed", "example.com:80")
+
+        self.assertEqual(error.message, "Connection failed")
+        self.assertEqual(error.exit_code, ExitCode.NETWORK_ERROR)
+        self.assertEqual(error.details, {"endpoint": "example.com:80"})
+
+    def test_configuration_error(self):
+        """Test ConfigurationError."""
+        error = ConfigurationError("Invalid config value", "test.setting")
+
+        self.assertEqual(error.message, "Invalid config value")
+        self.assertEqual(error.exit_code, ExitCode.CONFIGURATION_ERROR)
+        self.assertEqual(error.details, {"config_key": "test.setting"})
+
+    def test_hardware_error(self):
+        """Test HardwareError."""
+        error = HardwareError("Hardware detection failed", "cpu")
+
+        self.assertEqual(error.message, "Hardware detection failed")
+        self.assertEqual(error.exit_code, ExitCode.HARDWARE_ERROR)
+        self.assertEqual(error.details, {"component": "cpu"})
+
+    def test_kernel_error(self):
+        """Test KernelError."""
+        error = KernelError("Kernel config analysis failed", "config_parse")
+
+        self.assertEqual(error.message, "Kernel config analysis failed")
+        self.assertEqual(error.exit_code, ExitCode.KERNEL_ERROR)
+        self.assertEqual(error.details, {"operation": "config_parse"})
+
+    def test_log_analysis_error(self):
+        """Test LogAnalysisError."""
+        error = LogAnalysisError("Log parsing failed", "/var/log/syslog")
+
+        self.assertEqual(error.message, "Log parsing failed")
+        self.assertEqual(error.exit_code, ExitCode.LOG_ANALYSIS_ERROR)
+        self.assertEqual(error.details, {"log_source": "/var/log/syslog"})
+
+    def test_diagnostics_error(self):
+        """Test DiagnosticsError."""
+        error = DiagnosticsError("Diagnostics engine failed", "system_analysis")
+
+        self.assertEqual(error.message, "Diagnostics engine failed")
+        self.assertEqual(error.exit_code, ExitCode.DIAGNOSTICS_ERROR)
+        self.assertEqual(error.details, {"diagnostic_type": "system_analysis"})
+
+
+class TestCLIErrorHandler(unittest.TestCase):
+    """Test CLI error handler functionality."""
+
+    def setUp(self):
+        """Set up test fixtures."""
+        self.formatter = Mock(spec=OutputFormatter)
+        self.formatter.verbose = 0
+        self.error_handler = CLIErrorHandler(self.formatter)
+
+    @patch("sys.exit")
+    @patch("sys.stderr", new_callable=StringIO)
+    def test_handle_error_basic(self, mock_stderr, mock_exit):
+        """Test basic error handling."""
+        self.error_handler.handle_error("Test error message")
+
+        self.formatter.print_error.assert_called_once_with("Test error message")
+        mock_exit.assert_called_once_with(ExitCode.GENERAL_ERROR)
+
+    @patch("sys.exit")
+    @patch("sys.stderr", new_callable=StringIO)
+    def test_handle_error_with_details(self, mock_stderr, mock_exit):
+        """Test error handling with details in verbose mode."""
+        self.formatter.verbose = 1
+        details = {"key": "value"}
+
+        self.error_handler.handle_error(
+            "Test error", ExitCode.CONFIGURATION_ERROR, details, "Try this suggestion"
+        )
+
+        self.formatter.print_error.assert_called_once_with("Test error")
+        self.formatter.print_debug.assert_called_once_with(f"Details: {details}")
+        mock_exit.assert_called_once_with(ExitCode.CONFIGURATION_ERROR)
+
+        stderr_output = mock_stderr.getvalue()
+        self.assertIn("Try this suggestion", stderr_output)
+
+    @patch("sys.exit")
+    def test_handle_cli_error(self, mock_exit):
+        """Test handling CLIError instances."""
+        cli_error = CommandNotFoundError("test-cmd")
+
+        self.error_handler.handle_cli_error(cli_error)
+
+        self.formatter.print_error.assert_called_once_with(cli_error.message)
+        mock_exit.assert_called_once_with(cli_error.exit_code)
+
+    @patch("sys.exit")
+    @patch("infenix.cli.error_handler.logger")
+    def test_handle_exception(self, mock_logger, mock_exit):
+        """Test handling unexpected exceptions."""
+        exception = ValueError("Test exception")
+
+        self.error_handler.handle_exception(exception, "test context")
+
+        mock_logger.exception.assert_called_once_with("Unexpected exception occurred")
+        self.formatter.print_error.assert_called_once()
+        mock_exit.assert_called_once_with(ExitCode.GENERAL_ERROR)
+
+    def test_validate_file_access_success(self):
+        """Test successful file access validation."""
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.access", return_value=True),
+        ):
+
+            # Should not raise any exception
+            self.error_handler.validate_file_access("/test/file.txt", "read")
+
+    def test_validate_file_access_not_found(self):
+        """Test file access validation when file doesn't exist."""
+        with patch("os.path.exists", return_value=False):
+
+            with self.assertRaises(FileNotFoundError) as cm:
+                self.error_handler.validate_file_access("/test/file.txt", "read")
+
+            self.assertEqual(cm.exception.details["file_path"], "/test/file.txt")
+
+    def test_validate_file_access_permission_denied(self):
+        """Test file access validation when permission is denied."""
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.access", return_value=False),
+        ):
+
+            with self.assertRaises(PermissionError) as cm:
+                self.error_handler.validate_file_access("/test/file.txt", "read")
+
+            self.assertIn("Permission denied reading file", cm.exception.message)
+
+    def test_validate_command_availability_success(self):
+        """Test successful command availability validation."""
+        with patch("shutil.which", return_value="/usr/bin/test-cmd"):
+
+            # Should not raise any exception
+            self.error_handler.validate_command_availability("test-cmd")
+
+    def test_validate_command_availability_not_found(self):
+        """Test command availability validation when command not found."""
+        with patch("shutil.which", return_value=None):
+
+            with self.assertRaises(CommandNotFoundError) as cm:
+                self.error_handler.validate_command_availability("test-cmd")
+
+            self.assertEqual(cm.exception.details["command"], "test-cmd")
+
+    @patch("socket.socket")
+    def test_validate_network_connectivity_success(self, mock_socket_class):
+        """Test successful network connectivity validation."""
+        mock_socket = Mock()
+        mock_socket.connect_ex.return_value = 0
+        mock_socket_class.return_value = mock_socket
+
+        # Should not raise any exception
+        self.error_handler.validate_network_connectivity("example.com", 80)
+
+        mock_socket.connect_ex.assert_called_once_with(("example.com", 80))
+        mock_socket.close.assert_called_once()
+
+    @patch("socket.socket")
+    def test_validate_network_connectivity_failure(self, mock_socket_class):
+        """Test network connectivity validation when connection fails."""
+        mock_socket = Mock()
+        mock_socket.connect_ex.return_value = 1  # Connection failed
+        mock_socket_class.return_value = mock_socket
+
+        with self.assertRaises(NetworkError) as cm:
+            self.error_handler.validate_network_connectivity("example.com", 80)
+
+        self.assertIn("Cannot connect to example.com:80", cm.exception.message)
+
+    def test_create_error_report(self):
+        """Test error report creation."""
+        exception = ValueError("Test exception")
+        context = {"operation": "test", "data": "value"}
+
+        with patch("traceback.format_exc", return_value="Mock traceback"):
+            report = self.error_handler.create_error_report(exception, context)
+
+        self.assertIn("timestamp", report)
+        self.assertIn("error", report)
+        self.assertIn("system", report)
+        self.assertIn("context", report)
+
+        self.assertEqual(report["error"]["type"], "ValueError")
+        self.assertEqual(report["error"]["message"], "Test exception")
+        self.assertEqual(report["context"], context)
+
+    @patch("tempfile.gettempdir")
+    @patch("builtins.open", create=True)
+    @patch("json.dump")
+    def test_save_error_report_success(self, mock_json_dump, mock_open, mock_tempdir):
+        """Test successful error report saving."""
+        mock_tempdir.return_value = "/tmp"
+        mock_file = Mock()
+        mock_open.return_value.__enter__.return_value = mock_file
+
+        exception = ValueError("Test exception")
+
+        with patch.object(self.error_handler, "create_error_report") as mock_create:
+            mock_create.return_value = {"test": "report"}
+
+            filepath = self.error_handler.save_error_report(exception)
+
+        self.assertTrue(filepath.startswith("/tmp/infenix_error_"))
+        self.assertTrue(filepath.endswith(".json"))
+        mock_json_dump.assert_called_once_with({"test": "report"}, mock_file, indent=2)
+
+    @patch("tempfile.gettempdir")
+    @patch("builtins.open", side_effect=OSError("Permission denied"))
+    @patch("infenix.cli.error_handler.logger")
+    def test_save_error_report_failure(self, mock_logger, mock_open, mock_tempdir):
+        """Test error report saving when file write fails."""
+        mock_tempdir.return_value = "/tmp"
+        exception = ValueError("Test exception")
+
+        with patch.object(self.error_handler, "create_error_report"):
+            filepath = self.error_handler.save_error_report(exception)
+
+        self.assertEqual(filepath, "")
+        mock_logger.warning.assert_called_once()
+
+    def test_validate_system_requirements_success(self):
+        """Test successful system requirements validation."""
+        with (
+            patch("platform.system", return_value="Linux"),
+            patch("sys.version_info", (3, 11, 0)),
+            patch.object(
+                self.error_handler, "validate_command_availability"
+            ) as mock_validate_cmd,
+        ):
+
+            # Should not raise any exception
+            self.error_handler.validate_system_requirements()
+
+            # Should check for required commands
+            expected_commands = ["lscpu", "lspci", "lsusb", "lsblk", "df", "ip"]
+            for cmd in expected_commands:
+                mock_validate_cmd.assert_any_call(cmd)
+
+    @patch("platform.system", return_value="Windows")
+    def test_validate_system_requirements_wrong_os(self, mock_system):
+        """Test system requirements validation on wrong OS."""
+        with self.assertRaises(ConfigurationError) as cm:
+            self.error_handler.validate_system_requirements()
+
+        self.assertIn("Infenix requires Linux", cm.exception.message)
+
+    def test_validate_system_requirements_wrong_python(self):
+        """Test system requirements validation with wrong Python version."""
+        with (
+            patch("platform.system", return_value="Linux"),
+            patch("sys.version_info", (3, 10, 0)),
+        ):
+
+            with self.assertRaises(ConfigurationError) as cm:
+                self.error_handler.validate_system_requirements()
+
+            self.assertIn("Python 3.11+ required", cm.exception.message)
+
+    @patch("platform.system", return_value="Linux")
+    @patch("sys.version_info", (3, 11, 0))
+    @patch.object(CLIErrorHandler, "validate_command_availability")
+    def test_validate_system_requirements_missing_commands(self, mock_validate_cmd):
+        """Test system requirements validation with missing commands."""
+
+        def side_effect(cmd):
+            if cmd in ["lscpu", "lspci"]:
+                raise CommandNotFoundError(cmd)
+
+        mock_validate_cmd.side_effect = side_effect
+
+        with self.assertRaises(ConfigurationError) as cm:
+            self.error_handler.validate_system_requirements()
+
+        self.assertIn("Required system utilities not found", cm.exception.message)
+        self.assertIn("lscpu, lspci", cm.exception.message)
+
+    def test_handle_permission_escalation(self):
+        """Test permission escalation handling."""
+        with self.assertRaises(PermissionError) as cm:
+            self.error_handler.handle_permission_escalation("hardware", "/dev/mem")
+
+        self.assertIn("Permission denied for hardware", cm.exception.message)
+        self.assertIn("elevated privileges", cm.exception.message)
+        self.assertEqual(cm.exception.details["resource"], "/dev/mem")
+
+
+if __name__ == "__main__":
+    unittest.main()

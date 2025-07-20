@@ -23,9 +23,13 @@ limitations under the License.
 from .log_parser import LogParser
 from .pattern_detector import PatternDetector
 from .log_analyzer import LogAnalyzer
+from .streaming_parser import StreamingLogParser, StreamingConfig, IncrementalLogAnalyzer
 
 __all__ = [
     "LogParser",
     "PatternDetector",
     "LogAnalyzer",
+    "StreamingLogParser",
+    "StreamingConfig",
+    "IncrementalLogAnalyzer",
 ]

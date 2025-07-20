@@ -50,9 +50,8 @@ server = Server("infenix")
 
 
 
-# Initialize system interface and hardware analyzer
+# Initialize system interface
 system = LinuxSystemInterface()
-device_analyzer = DeviceAnalyzer(system)
 
 
 # Import tool providers
@@ -73,6 +72,20 @@ from .tools.kernel_tools import (
     KernelModulesToolProvider,
     KernelParametersToolProvider,
 )
+from .tools.log_tools import (
+    SystemLogsToolProvider,
+    LogAnalysisToolProvider,
+    LogSummaryToolProvider,
+    LogEntryAnalysisToolProvider,
+    HardwareLogPatternToolProvider,
+    KernelLogPatternToolProvider,
+)
+from .tools.diagnostics_tools import (
+    SystemDiagnosticsToolProvider,
+    QueryProcessorToolProvider,
+    RecommendationGeneratorToolProvider,
+    HardwareDiagnosticsToolProvider,
+)
 
 # Initialize tool providers
 tool_providers = [
@@ -89,6 +102,16 @@ tool_providers = [
     KernelConfigAnalysisToolProvider(system),
     KernelModulesToolProvider(system),
     KernelParametersToolProvider(system),
+    SystemLogsToolProvider(system),
+    LogAnalysisToolProvider(system),
+    LogSummaryToolProvider(system),
+    LogEntryAnalysisToolProvider(system),
+    HardwareLogPatternToolProvider(system),
+    KernelLogPatternToolProvider(system),
+    SystemDiagnosticsToolProvider(system),
+    QueryProcessorToolProvider(system),
+    RecommendationGeneratorToolProvider(system),
+    HardwareDiagnosticsToolProvider(system),
 ]
 
 # Create tool mapping for easy lookup
