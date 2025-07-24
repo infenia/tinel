@@ -5,14 +5,27 @@ build-backend = "hatchling.build"
 [project]
 name = "tinel"
 version = "0.1.0"
-description = "Tool designed to control, optimize, and analyze Linux-based systems using AI"
-authors = [
-    {name = "tinel Contributors"}
-]
-license = {text = "Apache-2.0"}
+description = "Next-generation open-source platform designed to control, optimize, and analyze Linux-based systems using AI and LLMs"
+authors = [{ name = "Infenia Private Limited", email = "arun@infenia.com" }]
+license = { text = "Apache-2.0" }
 readme = "README.md"
 requires-python = ">=3.11,<4.0"
-keywords = ["ai", "llm", "linux", "hardware", "system", "kernel", "model-context-protocol"]
+keywords = [
+    "ai",
+    "llm",
+    "linux",
+    "hardware",
+    "system",
+    "kernel",
+    "model-context-protocol",
+    "ai-tooling",
+    "devops",
+    "cloud-native",
+    "open-source",
+    "tuning",
+    "diagnostics",
+    "optimization",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
@@ -21,15 +34,15 @@ classifiers = [
     "Programming Language :: Python :: 3",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Hardware :: Hardware Drivers",
     "Topic :: System :: Hardware",
     "Topic :: System :: Systems Administration",
     "Topic :: Software Development :: Libraries :: Python Modules",
-    "Typing :: Typed"
+    "Typing :: Typed",
 ]
-dependencies = [
-    "mcp>=1.0.0",
-    "psutil>=5.9.0",
-]
+
+dependencies = ["mcp>=1.0.0", "psutil>=5.9.0", "cryptography>=41.0.0"]
 
 [project.optional-dependencies]
 dev = [
@@ -40,39 +53,88 @@ dev = [
     "mypy>=1.5.1",
     "build>=1.0.0",
     "nox>=2023.4.22",
+    "coverage[toml]>=7.3.0",
 ]
+docs = ["pdoc>=14.0.0"]
+
 
 [project.urls]
 Homepage = "https://github.com/infenia/tinel"
 Repository = "https://github.com/infenia/tinel"
 Documentation = "https://github.com/infenia/tinel#readme"
+Issues = "https://github.com/infenia/tinel/issues"
+Changelog = "https://github.com/infenia/tinel/blob/main/CHANGELOG.md"
 
 [project.scripts]
-tinel = "tinel.server:main"
+tinel = "tinel.__main__:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["tinel"]
+
+[tool.hatch.build.targets.sdist]
+include = [
+    "tinel",
+    "tests",
+    "README.md",
+    "LICENSE",
+    "CHANGELOG.md",
+    "pyproject.toml",
+]
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.version]
+path = "tinel/__init__.py"
 
 [tool.black]
 line-length = 88
-target-version = ["py311"]
+target-version = ["py311", "py312"]
 include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
+exclude = [".git", ".ruff_cache", ".venv", "__pypackages__", "dist", "build"]
+
+[tool.ruff.isort]
+known-first-party = ["tinel"]
+
+[tool.ruff.lint]
+# Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
 select = ["E", "F", "I", "N", "W", "B", "C4", "SIM", "ERA", "PL"]
 ignore = []
 fixable = ["ALL"]
 unfixable = []
-exclude = [
-    ".git",
-    ".ruff_cache",
-    ".venv",
-    "__pypackages__",
-    "dist",
-    "build",
-]
 
-[tool.ruff.isort]
-known-first-party = ["tinel"]
+# Allow unused variables when underscore-prefixed.
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.format]
+# Like Black, use double quotes for strings.
+quote-style = "double"
+
+# Like Black, indent with spaces, rather than tabs.
+indent-style = "space"
+
+# Like Black, respect magic trailing commas.
+skip-magic-trailing-comma = false
+
+# Like Black, automatically detect the appropriate line ending.
+line-ending = "auto"
 
 [tool.mypy]
 python_version = "3.11"
@@ -94,3 +156,22 @@ disallow_incomplete_defs = false
 testpaths = ["tests"]
 python_files = "test_*.py"
 python_functions = "test_*"
+addopts = "--cov=tinel --cov-report=term --cov-report=xml"
+
+[tool.coverage.run]
+source = ["tinel"]
+omit = ["tests/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
+
+[tool.pdoc]
+modules = ["tinel"]
+output_directory = "docs"
