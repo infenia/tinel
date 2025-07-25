@@ -12,15 +12,14 @@ from unittest.mock import Mock, patch
 
 import pytest
 
-from tinel.system import LinuxSystemInterface
-from tinel.cli.main import _validate_and_sanitize_argv
-from tinel.cli.error_handler import CLIErrorHandler
 from tests.utils import (
-    security_test,
-    SecurityTestHelpers,
     AssertionHelpers,
-    TestDataBuilder,
+    SecurityTestHelpers,
+    security_test,
 )
+from tinel.cli.error_handler import CLIErrorHandler
+from tinel.cli.main import _validate_and_sanitize_argv
+from tinel.system import LinuxSystemInterface
 
 
 class TestCommandInjectionPrevention:

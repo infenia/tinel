@@ -6,22 +6,19 @@ Copyright 2025 Infenia Private Limited
 Licensed under the Apache License, Version 2.0
 """
 
-import json
 from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.utils import (
+    AssertionHelpers,
+    integration_test,
+)
+from tinel.cli.commands.hardware import HardwareCommands
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.hardware.device_analyzer import DeviceAnalyzer
-from tinel.tools.hardware_tools import CPUInfoToolProvider, AllHardwareToolProvider
-from tinel.cli.commands.hardware import HardwareCommands
 from tinel.interfaces import CommandResult
-from tests.utils import (
-    integration_test,
-    AssertionHelpers,
-    IntegrationTestHelpers,
-    TestDataBuilder,
-)
+from tinel.tools.hardware_tools import AllHardwareToolProvider, CPUInfoToolProvider
 
 
 class TestCPUAnalyzerIntegration:
@@ -474,7 +471,7 @@ class TestEndToEndWorkflow:
 
         # Verify specific data integrity
         assert "Intel" in result["model_name"]
-        assert "GenuineIntel" == result["vendor_id"]
+        assert result["vendor_id"] == "GenuineIntel"
         assert len(result["cpu_flags"]) > 50  # Should have many flags
 
         # Verify feature analysis

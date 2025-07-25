@@ -17,7 +17,6 @@ limitations under the License.
 
 import re
 import time
-from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from ..interfaces import SystemInterface

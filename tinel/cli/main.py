@@ -15,15 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import sys
 import logging
-from typing import Optional, List
+import sys
+from typing import List, Optional
 
-from .parser import parse_arguments
-
-from .formatters import OutputFormatter
-from .error_handler import CLIErrorHandler
 from .config import CLIConfig
+from .error_handler import CLIErrorHandler
+from .formatters import OutputFormatter
+from .parser import parse_arguments
 
 
 # Lazy import for CommandRouter to improve startup time

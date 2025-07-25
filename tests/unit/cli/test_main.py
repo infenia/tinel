@@ -7,24 +7,24 @@ Licensed under the Apache License, Version 2.0
 """
 
 import logging
-import sys
 import subprocess
+import sys
 from io import StringIO
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.utils import unit_test
 from tinel.cli.main import (
-    setup_logging,
+    _execute_main_logic,
+    _get_command_router,
+    _handle_keyboard_interrupt,
+    _handle_unexpected_error,
     _validate_and_sanitize_argv,
     display_banner,
     main,
-    _execute_main_logic,
-    _handle_keyboard_interrupt,
-    _handle_unexpected_error,
-    _get_command_router,
+    setup_logging,
 )
-from tests.utils import unit_test
 
 
 class TestSetupLogging:

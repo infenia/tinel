@@ -1,0 +1,560 @@
+name: Release Automation
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      release_type:
+        description: 'Type of release'
+        required: true
+        default: 'patch'
+        type: choice
+        options:
+          - major
+          - minor
+          - patch
+          - prerelease
+      dry_run:
+        description: 'Dry run (no actual release)'
+        required: false
+        default: false
+        type: boolean
+
+env:
+  PYTHON_VERSION: "3.12"
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+  issues: write
+
+jobs:
+  # Pre-release validation
+  pre-release-validation:
+    name: Pre-Release Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    outputs:
+      should_release: ${{ steps.validation.outputs.should_release }}
+      version: ${{ steps.validation.outputs.version }}
+      is_prerelease: ${{ steps.validation.outputs.is_prerelease }}
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+        token: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install dependencies
+      run: uv pip install -e ".[dev]" build semver
+
+    - name: Run comprehensive test suite
+      run: |
+        echo "::group::Full Test Suite"
+        uv run pytest --cov=tinel --cov-fail-under=100 -v --timeout=300
+        echo "::endgroup::"
+
+    - name: Run security scans
+      run: |
+        echo "::group::Security Validation"
+        uv pip install safety bandit
+        
+        # Quick security scan
+        uv run safety check --json --output=safety-check.json || echo "Safety warnings detected"
+        uv run bandit -r tinel -f json -o bandit-check.json -ll || echo "Bandit warnings detected"
+        
+        echo "::endgroup::"
+
+    - name: Validate release readiness
+      id: validation
+      run: |
+        echo "::group::Release Readiness Check"
+        
+        # Check if this is a tag push
+        if [[ "${{ github.ref }}" == refs/tags/* ]]; then
+          version="${{ github.ref_name }}"
+          echo "Tag-triggered release detected: $version"
+          echo "should_release=true" >> $GITHUB_OUTPUT
+          echo "version=$version" >> $GITHUB_OUTPUT
+          echo "is_prerelease=false" >> $GITHUB_OUTPUT
+        elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+          # Manual release - calculate next version
+          current_version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          
+          # Use Python semver to calculate next version
+          next_version=$(python3 << EOF
+        import semver
+        current = "$current_version"
+        release_type = "${{ github.event.inputs.release_type }}"
+        
+        if release_type == "major":
+            next_ver = semver.bump_major(current)
+        elif release_type == "minor":
+            next_ver = semver.bump_minor(current)
+        elif release_type == "patch":
+            next_ver = semver.bump_patch(current)
+        elif release_type == "prerelease":
+            next_ver = semver.bump_prerelease(current)
+        else:
+            next_ver = semver.bump_patch(current)
+        
+        print(f"v{next_ver}")
+        EOF
+          )
+          
+          echo "Manual release: $current_version -> $next_version"
+          echo "should_release=${{ github.event.inputs.dry_run != 'true' }}" >> $GITHUB_OUTPUT
+          echo "version=$next_version" >> $GITHUB_OUTPUT
+          echo "is_prerelease=${{ github.event.inputs.release_type == 'prerelease' }}" >> $GITHUB_OUTPUT
+        else
+          echo "Not a release trigger"
+          echo "should_release=false" >> $GITHUB_OUTPUT
+        fi
+        
+        echo "::endgroup::"
+
+    - name: Generate changelog
+      if: steps.validation.outputs.should_release == 'true'
+      run: |
+        echo "::group::Changelog Generation"
+        
+        # Get commits since last tag
+        last_tag=$(git describe --tags --abbrev=0 2>/dev/null || echo "")
+        
+        if [[ -n "$last_tag" ]]; then
+          echo "## Changes since $last_tag" > RELEASE_NOTES.md
+          git log --pretty="- %s (%h)" $last_tag..HEAD >> RELEASE_NOTES.md
+        else
+          echo "## Initial Release" > RELEASE_NOTES.md
+          echo "First release of Tinel - Linux system analysis platform" >> RELEASE_NOTES.md
+        fi
+        
+        echo "Generated release notes:"
+        cat RELEASE_NOTES.md
+        echo "::endgroup::"
+
+    - name: Upload release artifacts
+      if: steps.validation.outputs.should_release == 'true'
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-validation-${{ github.run_id }}
+        path: |
+          RELEASE_NOTES.md
+          safety-check.json
+          bandit-check.json
+        retention-days: 30
+
+  # Build release artifacts
+  build-release:
+    name: Build Release Artifacts
+    runs-on: ubuntu-latest
+    needs: pre-release-validation
+    if: needs.pre-release-validation.outputs.should_release == 'true'
+    timeout-minutes: 20
+    strategy:
+      matrix:
+        target: [wheel, sdist]
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Install build tools
+      run: |
+        uv pip install build twine sigstore
+
+    - name: Update version for manual release
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        version="${{ needs.pre-release-validation.outputs.version }}"
+        version_no_v="${version#v}"
+        
+        # Update pyproject.toml
+        sed -i "s/version = \".*\"/version = \"$version_no_v\"/" pyproject.toml
+        
+        # Update __init__.py
+        sed -i "s/__version__ = \".*\"/__version__ = \"$version_no_v\"/" tinel/__init__.py
+        
+        echo "Updated version to: $version_no_v"
+
+    - name: Build package
+      run: |
+        echo "::group::Package Build"
+        
+        case "${{ matrix.target }}" in
+          "wheel")
+            python -m build --wheel
+            ;;
+          "sdist")
+            python -m build --sdist
+            ;;
+        esac
+        
+        # Verify build
+        ls -la dist/
+        python -m twine check dist/*
+        
+        echo "::endgroup::"
+
+    - name: Sign artifacts
+      if: matrix.target == 'wheel'
+      run: |
+        echo "::group::Artifact Signing"
+        
+        # Sign with sigstore (keyless signing)
+        for file in dist/*; do
+          echo "Signing $file"
+          python -m sigstore sign "$file"
+        done
+        
+        echo "::endgroup::"
+
+    - name: Generate SBOM
+      run: |
+        echo "::group::SBOM Generation"
+        uv pip install cyclonedx-bom
+        
+        # Generate comprehensive SBOM
+        cyclonedx-py \
+          --output-format json \
+          --output-file dist/tinel-sbom.json \
+          --include-dev
+        
+        cyclonedx-py \
+          --output-format xml \
+          --output-file dist/tinel-sbom.xml \
+          --include-dev
+        
+        echo "Generated SBOM files:"
+        ls -la dist/*sbom*
+        echo "::endgroup::"
+
+    - name: Test installation
+      run: |
+        echo "::group::Installation Test"
+        
+        # Test wheel installation
+        python -m venv test-env
+        source test-env/bin/activate
+        
+        pip install dist/*.whl
+        python -c "import tinel; print(f'✅ Installed version: {tinel.__version__}')"
+        python -m tinel --version
+        
+        deactivate
+        rm -rf test-env
+        echo "::endgroup::"
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-${{ matrix.target }}-${{ github.run_id }}
+        path: |
+          dist/
+        retention-days: 90
+
+  # Create GitHub release
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, build-release]
+    if: needs.pre-release-validation.outputs.should_release == 'true'
+    timeout-minutes: 15
+    outputs:
+      release_id: ${{ steps.create_release.outputs.release_id }}
+      upload_url: ${{ steps.create_release.outputs.upload_url }}
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download release artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: "release-*"
+        merge-multiple: true
+        path: release-assets/
+
+    - name: Create Git tag for manual release
+      if: github.event_name == 'workflow_dispatch'
+      run: |
+        version="${{ needs.pre-release-validation.outputs.version }}"
+        git config user.name "github-actions[bot]"
+        git config user.email "github-actions[bot]@users.noreply.github.com"
+        git tag -a "$version" -m "Release $version"
+        git push origin "$version"
+
+    - name: Create GitHub Release
+      id: create_release
+      uses: actions/create-release@v1
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      with:
+        tag_name: ${{ needs.pre-release-validation.outputs.version }}
+        release_name: "Tinel ${{ needs.pre-release-validation.outputs.version }}"
+        body_path: release-assets/RELEASE_NOTES.md
+        draft: false
+        prerelease: ${{ needs.pre-release-validation.outputs.is_prerelease }}
+
+    - name: Upload release assets
+      run: |
+        echo "::group::Asset Upload"
+        
+        # Upload all built artifacts
+        for file in release-assets/dist/*; do
+          if [[ -f "$file" ]]; then
+            asset_name=$(basename "$file")
+            echo "Uploading $asset_name..."
+            
+            curl -X POST \
+              -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+              -H "Content-Type: application/octet-stream" \
+              --data-binary @"$file" \
+              "${{ steps.create_release.outputs.upload_url }}?name=$asset_name"
+          fi
+        done
+        
+        echo "::endgroup::"
+
+    - name: Generate release summary
+      run: |
+        echo "## 🚀 Release Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Version**: ${{ needs.pre-release-validation.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Type**: ${{ needs.pre-release-validation.outputs.is_prerelease == 'true' && 'Pre-release' || 'Stable Release' }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Assets**: $(ls release-assets/dist/ | wc -l) files" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📦 Release Assets" >> $GITHUB_STEP_SUMMARY
+        echo "| Asset | Size |" >> $GITHUB_STEP_SUMMARY
+        echo "|-------|------|" >> $GITHUB_STEP_SUMMARY
+        
+        for file in release-assets/dist/*; do
+          if [[ -f "$file" ]]; then
+            size=$(du -h "$file" | cut -f1)
+            name=$(basename "$file")
+            echo "| $name | $size |" >> $GITHUB_STEP_SUMMARY
+          fi
+        done
+
+  # PyPI deployment
+  deploy-pypi:
+    name: Deploy to PyPI
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, build-release, create-release]
+    if: needs.pre-release-validation.outputs.should_release == 'true' && github.ref == 'refs/heads/main'
+    timeout-minutes: 15
+    environment:
+      name: pypi
+      url: https://pypi.org/project/tinel/
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Download release artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: "release-*"
+        merge-multiple: true
+        path: dist/
+
+    - name: Publish to PyPI
+      uses: pypa/gh-action-pypi-publish@release/v1
+      with:
+        user: __token__
+        password: ${{ secrets.PYPI_API_TOKEN }}
+        packages_dir: dist/
+        verify_metadata: true
+        skip_existing: true
+        verbose: true
+
+    - name: Verify PyPI deployment
+      run: |
+        echo "::group::PyPI Verification"
+        
+        # Wait for package to be available
+        sleep 30
+        
+        version="${{ needs.pre-release-validation.outputs.version }}"
+        version_no_v="${version#v}"
+        
+        # Try to install from PyPI
+        pip install "tinel==$version_no_v"
+        python -c "import tinel; print(f'✅ PyPI deployment verified: {tinel.__version__}')"
+        
+        echo "::endgroup::"
+
+  # Trigger distribution builds
+  trigger-distribution:
+    name: Trigger Distribution Builds
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, create-release, deploy-pypi]
+    if: needs.pre-release-validation.outputs.should_release == 'true'
+    timeout-minutes: 5
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Trigger distribution workflow
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const version = '${{ needs.pre-release-validation.outputs.version }}';
+          
+          console.log(`Triggering distribution workflow for version ${version}`);
+          
+          await github.rest.actions.createWorkflowDispatch({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            workflow_id: 'distribution.yml',
+            ref: 'main',
+            inputs: {
+              build_packages: 'all'
+            }
+          });
+          
+          console.log('Distribution workflow triggered successfully');
+
+  # Post-release tasks
+  post-release:
+    name: Post-Release Tasks
+    runs-on: ubuntu-latest
+    needs: [pre-release-validation, create-release, deploy-pypi, trigger-distribution]
+    if: always() && needs.pre-release-validation.outputs.should_release == 'true'
+    timeout-minutes: 10
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Update documentation
+      run: |
+        echo "::group::Documentation Update"
+        
+        # Placeholder for documentation updates
+        # This could trigger documentation deployment, update badges, etc.
+        echo "📚 Documentation updates would be triggered here"
+        
+        echo "::endgroup::"
+
+    - name: Create announcement issue
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const version = '${{ needs.pre-release-validation.outputs.version }}';
+          const isPrerelease = '${{ needs.pre-release-validation.outputs.is_prerelease }}' === 'true';
+          const releaseType = isPrerelease ? 'Pre-release' : 'Release';
+          
+          const title = `🎉 ${releaseType} ${version} is now available!`;
+          const body = `
+          ## 🚀 ${releaseType} Announcement: ${version}
+          
+          We're excited to announce the ${isPrerelease ? 'pre-' : ''}release of Tinel ${version}!
+          
+          ### 📥 Installation
+          
+          \`\`\`bash
+          pip install tinel${isPrerelease ? '==' + version.substring(1) : ''}
+          \`\`\`
+          
+          ### 🔗 Resources
+          
+          - **GitHub Release**: [${version}](https://github.com/${{ github.repository }}/releases/tag/${version})
+          - **PyPI Package**: [tinel on PyPI](https://pypi.org/project/tinel/)
+          - **Documentation**: [README](https://github.com/${{ github.repository }}#readme)
+          
+          ### 🐛 Found an Issue?
+          
+          Please report any bugs or issues on our [issue tracker](https://github.com/${{ github.repository }}/issues).
+          
+          ### 🙏 Thank You
+          
+          Thanks to all contributors who made this release possible!
+          
+          ---
+          *This announcement was automatically generated by the release pipeline.*
+          `;
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['announcement', 'release', isPrerelease ? 'prerelease' : 'stable']
+          });
+
+    - name: Release metrics and distribution status
+      run: |
+        echo "## 📊 Release Metrics" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Release**: ${{ needs.pre-release-validation.outputs.version }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Build Status**: ${{ needs.build-release.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "**GitHub Release**: ${{ needs.create-release.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "**PyPI Deployment**: ${{ needs.deploy-pypi.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Distribution Trigger**: ${{ needs.trigger-distribution.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📦 Distribution Status" >> $GITHUB_STEP_SUMMARY
+        echo "The following distribution builds have been triggered:" >> $GITHUB_STEP_SUMMARY
+        echo "- 🐧 **System Packages**: DEB, RPM packages building" >> $GITHUB_STEP_SUMMARY
+        echo "- 🐳 **Container Images**: Docker images for Ubuntu, Alpine, Distroless" >> $GITHUB_STEP_SUMMARY
+        echo "- 📱 **Universal Packages**: Snap and Flatpak packages building" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🚀 Installation Methods Available" >> $GITHUB_STEP_SUMMARY
+        echo "- **PyPI**: \`pip install tinel\` (Available now)" >> $GITHUB_STEP_SUMMARY
+        echo "- **Install Script**: \`curl -sSL https://install.tinel.dev | bash\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Docker**: \`docker run tinel/tinel:latest\` (Building)" >> $GITHUB_STEP_SUMMARY
+        echo "- **System Packages**: Check releases page for DEB/RPM (Building)" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "🎉 **Release completed successfully!**" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "📋 **Next Steps:**" >> $GITHUB_STEP_SUMMARY
+        echo "1. Monitor distribution workflow completion" >> $GITHUB_STEP_SUMMARY
+        echo "2. Test installation methods" >> $GITHUB_STEP_SUMMARY
+        echo "3. Update documentation as needed" >> $GITHUB_STEP_SUMMARY

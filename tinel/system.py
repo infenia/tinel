@@ -50,10 +50,9 @@ class LinuxSystemInterface(SystemInterface):
                 error="Invalid command arguments",
             )
 
-        # Security: Sanitize command arguments
-        sanitized_cmd = self._sanitize_command(cmd)
-
         try:
+            # Security: Sanitize command arguments
+            sanitized_cmd = self._sanitize_command(cmd)
             result = subprocess.run(
                 sanitized_cmd,
                 capture_output=True,
@@ -240,11 +239,10 @@ class LinuxSystemInterface(SystemInterface):
                     if normalized.startswith(safe_path):
                         allowed = True
                         break
-                else:
-                    # Exact file match
-                    if normalized == safe_path:
-                        allowed = True
-                        break
+                # Exact file match
+                elif normalized == safe_path:
+                    allowed = True
+                    break
 
             if not allowed:
                 return None

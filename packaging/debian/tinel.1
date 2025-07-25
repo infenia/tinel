@@ -1,0 +1,88 @@
+.TH TINEL 1 "July 2025" "tinel 0.1.0" "User Commands"
+.SH NAME
+tinel \- Next-generation Linux system analysis platform
+.SH SYNOPSIS
+.B tinel
+[\fIOPTION\fR]... [\fICOMMAND\fR]...
+.SH DESCRIPTION
+Tinel is an advanced open-source platform designed to control, optimize, and analyze Linux-based systems using AI and LLMs. It provides comprehensive hardware information gathering, system diagnostics, and performance analysis through a Model Context Protocol (MCP) server interface.
+
+.SH OPTIONS
+.TP
+.BR \-h ", " \-\-help
+Show help message and exit
+.TP
+.BR \-v ", " \-\-version
+Show version information and exit
+.TP
+.BR \-\-debug
+Enable debug logging
+.TP
+.BR \-\-config \fIFILE\fR
+Use specified configuration file
+.TP
+.BR \-\-output \fIFORMAT\fR
+Output format (json, yaml, table)
+
+.SH COMMANDS
+.TP
+.B hardware
+Analyze and report hardware information
+.TP
+.B system
+Display system information and status
+.TP
+.B monitor
+Start continuous system monitoring
+.TP
+.B server
+Start MCP server for external integrations
+
+.SH EXAMPLES
+.TP
+.B tinel hardware
+Display comprehensive hardware analysis
+.TP
+.B tinel system --output json
+Export system information in JSON format
+.TP
+.B tinel monitor --interval 30
+Monitor system with 30-second intervals
+.TP
+.B tinel server --port 8080
+Start MCP server on port 8080
+
+.SH FILES
+.TP
+.I /etc/tinel/config.yaml
+System-wide configuration file
+.TP
+.I ~/.config/tinel/config.yaml
+User-specific configuration file
+.TP
+.I /var/log/tinel/
+Log files directory
+
+.SH ENVIRONMENT
+.TP
+.B TINEL_CONFIG
+Path to configuration file
+.TP
+.B TINEL_LOG_LEVEL
+Logging level (DEBUG, INFO, WARNING, ERROR)
+.TP
+.B TINEL_CACHE_DIR
+Cache directory for temporary files
+
+.SH AUTHOR
+Written by Infenia Private Limited.
+
+.SH "REPORTING BUGS"
+Report bugs to: https://github.com/infenia/tinel/issues
+
+.SH COPYRIGHT
+Copyright \(co 2025 Infenia Private Limited.
+Licensed under the Apache License, Version 2.0.
+
+.SH "SEE ALSO"
+lscpu(1), lspci(8), lsusb(8), dmidecode(8), lshw(1)

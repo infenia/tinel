@@ -7,19 +7,19 @@ Licensed under the Apache License, Version 2.0
 """
 
 import argparse
-import pytest
 import sys
-from unittest.mock import patch
 from io import StringIO
+from unittest.mock import patch
 
+import pytest
+
+from tests.utils import unit_test
 from tinel.cli.parser import (
     _add_global_options,
     create_argument_parser,
-    _add_hardware_commands,
-    validate_arguments,
     parse_arguments,
+    validate_arguments,
 )
-from tests.utils import unit_test
 
 
 class TestGlobalOptions:

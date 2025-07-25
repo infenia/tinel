@@ -18,12 +18,11 @@ limitations under the License.
 import argparse
 import logging
 
-from .base import BaseCommand
 from ...tools.hardware_tools import (
     AllHardwareToolProvider,
     CPUInfoToolProvider,
 )
-
+from .base import BaseCommand
 
 logger = logging.getLogger(__name__)
 

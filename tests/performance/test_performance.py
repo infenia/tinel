@@ -12,15 +12,15 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.utils import (
+    AssertionHelpers,
+    PerformanceTestHelpers,
+    TestDataBuilder,
+    performance_test,
+)
+from tinel.cli.formatters import OutputFormatter
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.system import LinuxSystemInterface
-from tinel.cli.formatters import OutputFormatter
-from tests.utils import (
-    performance_test,
-    PerformanceTestHelpers,
-    AssertionHelpers,
-    TestDataBuilder,
-)
 
 
 class TestCPUAnalyzerPerformance:
@@ -164,8 +164,9 @@ class TestCPUAnalyzerPerformance:
     @performance_test
     def test_memory_usage_bounds(self):
         """Test memory usage stays within reasonable bounds."""
-        import psutil
         import os
+
+        import psutil
 
         # Measure initial memory
         process = psutil.Process(os.getpid())
@@ -514,8 +515,9 @@ class TestOverallSystemPerformance:
     @performance_test
     def test_memory_efficiency_under_load(self):
         """Test memory efficiency under sustained load."""
-        import psutil
         import os
+
+        import psutil
 
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss

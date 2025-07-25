@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from .parser import create_argument_parser
 from .main import main
+from .parser import create_argument_parser
 
 __all__ = ["create_argument_parser", "main"]

@@ -10,18 +10,18 @@ import os
 import sys
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, Generator, Optional
-from unittest.mock import Mock, MagicMock
+from typing import Dict, Generator, Optional
+from unittest.mock import Mock
 
 import pytest
 
 # Add the parent directory to the path to import tinel modules
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from tinel.cli.error_handler import CLIErrorHandler
+from tinel.cli.formatters import OutputFormatter
 from tinel.interfaces import CommandResult
 from tinel.system import LinuxSystemInterface
-from tinel.cli.formatters import OutputFormatter
-from tinel.cli.error_handler import CLIErrorHandler
 
 
 @pytest.fixture

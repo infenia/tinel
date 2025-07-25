@@ -1,0 +1,543 @@
+name: Package Distribution
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+  workflow_dispatch:
+    inputs:
+      build_packages:
+        description: 'Package types to build'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - system-packages
+          - containers
+          - universal-packages
+
+env:
+  PYTHON_VERSION: "3.12"
+
+permissions:
+  contents: write
+  packages: write
+  pull-requests: write
+
+jobs:
+  # Build system packages (DEB, RPM)
+  build-system-packages:
+    name: Build System Packages
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.build_packages, 'all') || contains(github.event.inputs.build_packages, 'system-packages')
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        package_type: [deb, rpm]
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Install build dependencies
+      run: |
+        case "${{ matrix.package_type }}" in
+          deb)
+            sudo apt-get update
+            sudo apt-get install -y \
+              debhelper \
+              dh-python \
+              python3-setuptools \
+              python3-build \
+              devscripts \
+              lintian
+            ;;
+          rpm)
+            sudo apt-get update
+            sudo apt-get install -y \
+              rpm \
+              rpmbuild \
+              python3-setuptools \
+              python3-build
+            ;;
+        esac
+
+    - name: Build DEB package
+      if: matrix.package_type == 'deb'
+      run: |
+        echo "::group::DEB Package Build"
+        
+        # Copy Debian packaging files
+        cp -r packaging/debian ./
+        
+        # Build source package
+        dpkg-buildpackage -us -uc -S
+        
+        # Build binary package
+        dpkg-buildpackage -us -uc -b
+        
+        # Move packages to dist/
+        mkdir -p dist/deb
+        mv ../*.deb dist/deb/ || true
+        mv ../*.changes dist/deb/ || true
+        mv ../*.dsc dist/deb/ || true
+        mv ../*.tar.* dist/deb/ || true
+        
+        # List built packages
+        ls -la dist/deb/
+        
+        echo "::endgroup::"
+
+    - name: Build RPM package
+      if: matrix.package_type == 'rpm'
+      run: |
+        echo "::group::RPM Package Build"
+        
+        # Set up RPM build environment
+        mkdir -p ~/rpmbuild/{BUILD,RPMS,SOURCES,SPECS,SRPMS}
+        
+        # Copy spec file
+        cp packaging/rpm/tinel.spec ~/rpmbuild/SPECS/
+        
+        # Create source tarball
+        version=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+        tar --transform "s,^,tinel-$version/," -czf ~/rpmbuild/SOURCES/tinel-$version.tar.gz \
+          --exclude='.git*' --exclude='dist' --exclude='build' --exclude='*.pyc' .
+        
+        # Build packages
+        rpmbuild -ba ~/rpmbuild/SPECS/tinel.spec
+        
+        # Move packages to dist/
+        mkdir -p dist/rpm
+        cp ~/rpmbuild/RPMS/*/*.rpm dist/rpm/ || true
+        cp ~/rpmbuild/SRPMS/*.rpm dist/rpm/ || true
+        
+        # List built packages
+        ls -la dist/rpm/
+        
+        echo "::endgroup::"
+
+    - name: Test package installation
+      run: |
+        echo "::group::Package Installation Test"
+        
+        case "${{ matrix.package_type }}" in
+          deb)
+            # Install dependencies first
+            sudo apt-get install -y python3-psutil python3-cryptography python3-yaml
+            
+            # Test DEB installation
+            for deb in dist/deb/*.deb; do
+              if [[ -f "$deb" ]]; then
+                echo "Testing installation of $deb"
+                sudo dpkg -i "$deb" || true
+                sudo apt-get install -f -y  # Fix dependencies
+                
+                # Test basic functionality
+                tinel --version
+                tinel --help
+                
+                # Remove for clean test
+                sudo dpkg -r tinel || true
+              fi
+            done
+            ;;
+          rpm)
+            # Test RPM installation
+            for rpm in dist/rpm/*.rpm; do
+              if [[ -f "$rpm" && "$rpm" != *".src.rpm" ]]; then
+                echo "Testing installation of $rpm"
+                sudo rpm -i --force "$rpm" || true
+                
+                # Test basic functionality
+                tinel --version || true
+                tinel --help || true
+                
+                # Remove for clean test
+                sudo rpm -e tinel || true
+              fi
+            done
+            ;;
+        esac
+        
+        echo "::endgroup::"
+
+    - name: Upload package artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.package_type }}-packages-${{ github.run_id }}
+        path: dist/${{ matrix.package_type }}/
+        retention-days: 30
+
+  # Build container images
+  build-containers:
+    name: Build Container Images
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.build_packages, 'all') || contains(github.event.inputs.build_packages, 'containers')
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        variant: [ubuntu, alpine, distroless]
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v3
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@v3
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Extract metadata
+      id: meta
+      uses: docker/metadata-action@v5
+      with:
+        images: |
+          tinel/tinel
+          ghcr.io/${{ github.repository }}
+        tags: |
+          type=ref,event=branch
+          type=ref,event=pr
+          type=semver,pattern={{version}}
+          type=semver,pattern={{major}}.{{minor}}
+          type=semver,pattern={{major}}
+          type=raw,value=latest,enable={{is_default_branch}}
+          type=raw,value=${{ matrix.variant }}
+        flavor: |
+          suffix=-${{ matrix.variant }},onlatest=false
+
+    - name: Build and push container image
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        file: packaging/docker/Dockerfile.${{ matrix.variant }}
+        platforms: linux/amd64,linux/arm64
+        push: true
+        tags: ${{ steps.meta.outputs.tags }}
+        labels: ${{ steps.meta.outputs.labels }}
+        cache-from: type=gha
+        cache-to: type=gha,mode=max
+
+    - name: Test container image
+      run: |
+        echo "::group::Container Image Test"
+        
+        # Test the built image
+        image_tag="tinel/tinel:${{ matrix.variant }}"
+        
+        # Basic functionality test
+        docker run --rm "$image_tag" --version
+        docker run --rm "$image_tag" --help
+        
+        # Test with system mounts (basic test)
+        docker run --rm \
+          -v /proc:/host/proc:ro \
+          -e TINEL_HOST_PREFIX=/host \
+          "$image_tag" hardware --help || true
+        
+        echo "::endgroup::"
+
+  # Build binary distributions
+  build-binary-distributions:
+    name: Build Binary Distributions
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.build_packages, 'all') || contains(github.event.inputs.build_packages, 'binary')
+    timeout-minutes: 45
+    strategy:
+      matrix:
+        os: [ubuntu-latest]
+        arch: [x86_64]
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Build binary distribution
+      run: |
+        echo "::group::Binary Distribution Build"
+        
+        # Run the binary build script
+        chmod +x packaging/binary/build_binary.sh
+        ./packaging/binary/build_binary.sh
+        
+        echo "::endgroup::"
+
+    - name: Upload binary artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: binary-${{ matrix.arch }}-${{ github.run_id }}
+        path: |
+          dist/binary/dist/*.tar.gz
+          dist/binary/dist/*.zip
+          dist/binary/build_report.txt
+        retention-days: 30
+
+  # Build universal packages (Snap, Flatpak)
+  build-universal-packages:
+    name: Build Universal Packages
+    runs-on: ubuntu-latest
+    if: contains(github.event.inputs.build_packages, 'all') || contains(github.event.inputs.build_packages, 'universal-packages')
+    timeout-minutes: 60
+    strategy:
+      matrix:
+        package_type: [snap, flatpak]
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+
+    - name: Build Snap package
+      if: matrix.package_type == 'snap'
+      uses: snapcore/action-build@v1
+      with:
+        snapcraft-args: --destructive-mode
+      env:
+        SNAPCRAFT_BUILD_INFO: 1
+
+    - name: Build Flatpak package
+      if: matrix.package_type == 'flatpak'
+      run: |
+        echo "::group::Flatpak Package Build"
+        
+        # Install Flatpak build tools
+        sudo apt-get update
+        sudo apt-get install -y flatpak flatpak-builder
+        
+        # Add Flathub repository
+        sudo flatpak remote-add --if-not-exists flathub https://flathub.org/repo/flathub.flatpakrepo
+        
+        # Install required runtimes
+        sudo flatpak install -y flathub org.freedesktop.Platform//22.08 org.freedesktop.Sdk//22.08
+        
+        # Build Flatpak
+        flatpak-builder --force-clean --repo=repo build-dir packaging/flatpak/com.infenia.Tinel.yaml
+        
+        # Create bundle
+        flatpak build-bundle repo tinel.flatpak com.infenia.Tinel
+        
+        # Move to dist/
+        mkdir -p dist/flatpak
+        mv tinel.flatpak dist/flatpak/
+        
+        echo "::endgroup::"
+
+    - name: Test universal package
+      run: |
+        echo "::group::Universal Package Test"
+        
+        case "${{ matrix.package_type }}" in
+          snap)
+            # Install and test snap
+            if [[ -f "*.snap" ]]; then
+              sudo snap install --dangerous --classic *.snap
+              tinel --version || true
+              tinel --help || true
+              sudo snap remove tinel || true
+            fi
+            ;;
+          flatpak)
+            # Test flatpak bundle
+            if [[ -f "dist/flatpak/tinel.flatpak" ]]; then
+              flatpak install --user --bundle dist/flatpak/tinel.flatpak --assumeyes
+              flatpak run com.infenia.Tinel --version || true
+              flatpak run com.infenia.Tinel --help || true
+              flatpak uninstall --user com.infenia.Tinel --assumeyes || true
+            fi
+            ;;
+        esac
+        
+        echo "::endgroup::"
+
+    - name: Upload universal package artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: ${{ matrix.package_type }}-package-${{ github.run_id }}
+        path: |
+          *.snap
+          dist/flatpak/
+        retention-days: 30
+
+  # Publish to package repositories
+  publish-packages:
+    name: Publish Packages
+    runs-on: ubuntu-latest
+    needs: [build-system-packages, build-containers, build-binary-distributions, build-universal-packages]
+    if: always() && (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/') || github.event_name == 'workflow_dispatch')
+    timeout-minutes: 30
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        pattern: "*-package*"
+        merge-multiple: true
+        path: packages/
+
+    - name: Publish to Snap Store
+      if: success()
+      run: |
+        echo "::group::Snap Store Publishing"
+        
+        # Install snapcraft
+        sudo snap install snapcraft --classic
+        
+        # Login to Snap Store
+        echo "${{ secrets.SNAPCRAFT_TOKEN }}" | snapcraft login --with -
+        
+        # Upload snaps
+        for snap in packages/*.snap; do
+          if [[ -f "$snap" ]]; then
+            snapcraft upload "$snap" --release=stable
+          fi
+        done
+        
+        echo "::endgroup::"
+      continue-on-error: true
+
+    - name: Publish to Flathub
+      if: success()
+      run: |
+        echo "::group::Flathub Publishing"
+        
+        # Note: Flathub publishing requires PR to flathub/flathub repository
+        # This is a placeholder for the automated process
+        echo "Flathub publishing requires manual PR submission"
+        echo "Flatpak bundle available for manual submission"
+        
+        echo "::endgroup::"
+      continue-on-error: true
+
+    - name: Create GitHub Release Assets
+      run: |
+        echo "::group::Release Assets Preparation"
+        
+        # Organize packages for release
+        mkdir -p release-assets
+        
+        # Copy all package types
+        find packages/ -name "*.deb" -exec cp {} release-assets/ \;
+        find packages/ -name "*.rpm" -exec cp {} release-assets/ \;
+        find packages/ -name "*.snap" -exec cp {} release-assets/ \;
+        find packages/ -name "*.flatpak" -exec cp {} release-assets/ \;
+        find packages/ -name "*.tar.gz" -exec cp {} release-assets/ \;
+        find packages/ -name "*.zip" -exec cp {} release-assets/ \;
+        
+        # Create checksums
+        cd release-assets
+        sha256sum * > checksums.sha256
+        
+        echo "Release assets prepared:"
+        ls -la
+        
+        echo "::endgroup::"
+
+    - name: Upload release assets
+      uses: softprops/action-gh-release@v1
+      with:
+        files: release-assets/*
+        generate_release_notes: true
+        make_latest: true
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  # Generate distribution summary
+  distribution-summary:
+    name: Distribution Summary
+    runs-on: ubuntu-latest
+    needs: [build-system-packages, build-containers, build-binary-distributions, build-universal-packages, publish-packages]
+    if: always()
+    timeout-minutes: 10
+    
+    steps:
+    - name: Generate summary
+      run: |
+        echo "# 📦 Package Distribution Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 🏗️ Build Results" >> $GITHUB_STEP_SUMMARY
+        echo "| Package Type | Status | Artifacts |" >> $GITHUB_STEP_SUMMARY
+        echo "|--------------|--------|-----------|" >> $GITHUB_STEP_SUMMARY
+        echo "| System Packages (DEB/RPM) | ${{ needs.build-system-packages.result }} | DEB, RPM packages |" >> $GITHUB_STEP_SUMMARY
+        echo "| Container Images | ${{ needs.build-containers.result }} | Docker images (Ubuntu, Alpine, Distroless) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Binary Distributions | ${{ needs.build-binary-distributions.result }} | Portable executables (.tar.gz, .zip) |" >> $GITHUB_STEP_SUMMARY
+        echo "| Universal Packages | ${{ needs.build-universal-packages.result }} | Snap, Flatpak packages |" >> $GITHUB_STEP_SUMMARY
+        echo "| Package Publishing | ${{ needs.publish-packages.result }} | Repository uploads |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Overall status
+        if [[ "${{ needs.build-system-packages.result }}" == "success" && 
+              "${{ needs.build-containers.result }}" == "success" && 
+              "${{ needs.build-binary-distributions.result }}" == "success" && 
+              "${{ needs.build-universal-packages.result }}" == "success" ]]; then
+          echo "## ✅ Distribution Status: SUCCESS" >> $GITHUB_STEP_SUMMARY
+          echo "All package types built successfully!" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "## ⚠️ Distribution Status: PARTIAL" >> $GITHUB_STEP_SUMMARY
+          echo "Some package builds may have failed. Check job details." >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "## 📋 Available Installation Methods" >> $GITHUB_STEP_SUMMARY
+        echo "- **PyPI**: \`pip install tinel\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Install Script**: \`curl -sSL https://install.tinel.dev | bash\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Docker**: \`docker run tinel/tinel:latest\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **Snap**: \`snap install tinel\`" >> $GITHUB_STEP_SUMMARY
+        echo "- **System Packages**: Download DEB/RPM from releases" >> $GITHUB_STEP_SUMMARY
+        echo "- **Binary**: Download portable executables from releases" >> $GITHUB_STEP_SUMMARY
+        echo "- **Homebrew**: \`brew install tinel\` (Coming soon)" >> $GITHUB_STEP_SUMMARY

@@ -1,0 +1,158 @@
+version: '3.8'
+
+services:
+  # Full-featured Tinel service
+  tinel:
+    build:
+      context: ../..
+      dockerfile: packaging/docker/Dockerfile.ubuntu
+    image: tinel:latest
+    container_name: tinel-server
+    ports:
+      - "8080:8080"
+    volumes:
+      # Configuration
+      - ./config:/etc/tinel:ro
+      # Data persistence
+      - tinel-data:/var/lib/tinel
+      - tinel-logs:/var/log/tinel
+      # Host system access (for hardware analysis)
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /dev:/host/dev:ro
+    environment:
+      - TINEL_CONFIG=/etc/tinel/config.yaml
+      - TINEL_LOG_LEVEL=INFO
+      - TINEL_HOST_PREFIX=/host
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python3", "-c", "import tinel; print('OK')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+    networks:
+      - tinel-network
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE  # For accessing host system info
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+
+  # Lightweight Alpine variant
+  tinel-alpine:
+    build:
+      context: ../..
+      dockerfile: packaging/docker/Dockerfile.alpine  
+    image: tinel:alpine
+    container_name: tinel-alpine
+    profiles:
+      - alpine
+    ports:
+      - "8081:8080"
+    volumes:
+      - ./config:/etc/tinel:ro
+      - tinel-alpine-data:/var/lib/tinel
+      - tinel-alpine-logs:/var/log/tinel
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+    environment:
+      - TINEL_CONFIG=/etc/tinel/config.yaml
+      - TINEL_LOG_LEVEL=INFO
+      - TINEL_HOST_PREFIX=/host
+    restart: unless-stopped
+    networks:
+      - tinel-network
+    cap_drop:
+      - ALL
+    cap_add:
+      - DAC_OVERRIDE
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=50m
+
+  # Distroless secure variant (API only)
+  tinel-distroless:
+    build:
+      context: ../..
+      dockerfile: packaging/docker/Dockerfile.distroless
+    image: tinel:distroless
+    container_name: tinel-distroless
+    profiles:
+      - distroless
+    ports:
+      - "8082:8080"
+    volumes:
+      - ./config:/etc/tinel:ro
+      - tinel-distroless-data:/var/lib/tinel
+    environment:
+      - TINEL_CONFIG=/etc/tinel/config.yaml
+      - TINEL_LOG_LEVEL=INFO
+    restart: unless-stopped
+    networks:
+      - tinel-network
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    read_only: true
+
+  # Redis for caching (optional)
+  redis:
+    image: redis:7-alpine
+    container_name: tinel-redis
+    profiles:
+      - with-cache
+    volumes:
+      - redis-data:/data
+    networks:
+      - tinel-network
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 128mb --maxmemory-policy allkeys-lru
+
+  # Prometheus for monitoring (optional)
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: tinel-prometheus
+    profiles:
+      - monitoring
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    networks:
+      - tinel-network
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+
+networks:
+  tinel-network:
+    driver: bridge
+    name: tinel-network
+
+volumes:
+  tinel-data:
+    name: tinel-data
+  tinel-logs:
+    name: tinel-logs
+  tinel-alpine-data:
+    name: tinel-alpine-data
+  tinel-alpine-logs:
+    name: tinel-alpine-logs
+  tinel-distroless-data:
+    name: tinel-distroless-data
+  redis-data:
+    name: tinel-redis-data
+  prometheus-data:
+    name: tinel-prometheus-data

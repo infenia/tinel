@@ -19,10 +19,9 @@ import logging
 import os
 import sys
 from enum import IntEnum
-from typing import Optional, Dict, Any
+from typing import Any, Dict, Optional
 
 from .formatters import OutputFormatter
-
 
 logger = logging.getLogger(__name__)
 
@@ -363,9 +362,9 @@ class CLIErrorHandler:
         Returns:
             Dictionary containing error report
         """
-        import traceback
         import platform
         import sys
+        import traceback
         from datetime import datetime
 
         report = {
@@ -398,8 +397,8 @@ class CLIErrorHandler:
             Path to the saved error report file
         """
         import json
-        import tempfile
         import os
+        import tempfile
         from datetime import datetime
 
         report = self.create_error_report(error, context)
@@ -527,8 +526,8 @@ class CLIErrorHandler:
             Dictionary containing system context information
         """
         import os
-        import pwd
         import platform
+        import pwd
         import sys
         from datetime import datetime
 

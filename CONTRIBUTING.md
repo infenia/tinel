@@ -32,7 +32,7 @@ Before creating an issue, please:
 1. Clone your fork:
 
     ```bash
-    git clone https://github.com/your-username/tinel.git
+    git clone https://github.com/infenia/tinel.git
     cd tinel
     ```
 

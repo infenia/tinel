@@ -8,19 +8,15 @@ Licensed under the Apache License, Version 2.0
 
 import os
 import subprocess
-from pathlib import Path
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
-from tinel.system import LinuxSystemInterface
-from tinel.interfaces import CommandResult
 from tests.utils import (
-    unit_test,
-    SecurityTestHelpers,
-    AssertionHelpers,
     TestDataBuilder,
+    unit_test,
 )
+from tinel.system import LinuxSystemInterface
 
 
 class TestLinuxSystemInterface:
@@ -276,6 +272,33 @@ class TestLinuxSystemInterface:
             assert "env" in call_kwargs  # Custom environment provided
             assert call_kwargs["capture_output"] is True
             assert call_kwargs["text"] is True
+
+    @unit_test
+    def test_run_command_unexpected_exception(self):
+        """Test run_command handles unexpected exceptions."""
+        with patch.object(
+            self.system, "_sanitize_command", side_effect=Exception("boom")
+        ):
+            result = self.system.run_command(["lscpu"])
+            assert result.success is False
+            assert result.error and "Unexpected error" in result.error
+
+    @unit_test
+    def test_validate_file_path_oserror(self):
+        """Test _validate_file_path handles OSError/ValueError."""
+        with patch("os.path.normpath", side_effect=OSError("fail")):
+            result = self.system._validate_file_path("/proc/cpuinfo")
+            assert result is None
+        with patch("os.path.normpath", side_effect=ValueError("fail")):
+            result = self.system._validate_file_path("/proc/cpuinfo")
+            assert result is None
+
+    @unit_test
+    def test_get_safe_environment_missing_vars(self):
+        """Test _get_safe_environment with no HOME/USER/LOGNAME."""
+        with patch.dict(os.environ, {}, clear=True):
+            env = self.system._get_safe_environment()
+            assert "HOME" not in env and "USER" not in env and "LOGNAME" not in env
 
 
 class TestCommandResultCreation:

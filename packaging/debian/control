@@ -1,0 +1,61 @@
+Source: tinel
+Section: admin
+Priority: optional
+Maintainer: Infenia Private Limited <arun@infenia.com>
+Build-Depends: debhelper-compat (= 13),
+               dh-python,
+               python3-all,
+               python3-setuptools,
+               python3-build,
+               python3-pip
+Standards-Version: 4.6.2
+Homepage: https://github.com/infenia/tinel
+Vcs-Git: https://github.com/infenia/tinel.git
+Vcs-Browser: https://github.com/infenia/tinel
+Rules-Requires-Root: no
+
+Package: tinel
+Architecture: all
+Depends: ${python3:Depends},
+         ${misc:Depends},
+         python3-psutil,
+         python3-cryptography,
+         python3-yaml,
+         util-linux,
+         pciutils,
+         usbutils,
+         lshw,
+         dmidecode,
+         iproute2
+Recommends: lscpu,
+            nvidia-smi,
+            smartmontools,
+            hdparm,
+            ethtool
+Suggests: tinel-doc
+Description: Next-generation Linux system analysis platform
+ Tinel is an advanced open-source platform designed to control, optimize,
+ and analyze Linux-based systems using AI and LLMs. It provides comprehensive
+ hardware information gathering, system diagnostics, and performance analysis.
+ .
+ Key features:
+  * Hardware analysis and detection
+  * System performance monitoring
+  * AI-powered diagnostics
+  * Model Context Protocol (MCP) server
+  * RESTful API interface
+  * Comprehensive reporting
+ .
+ This package provides the core tinel command-line tool and system integration.
+
+Package: tinel-doc
+Architecture: all
+Section: doc
+Depends: ${misc:Depends}
+Description: Documentation for Tinel system analysis platform
+ This package contains comprehensive documentation for Tinel, including:
+  * User manual and tutorials
+  * API documentation
+  * System administrator guide
+  * Development documentation
+  * Example configurations

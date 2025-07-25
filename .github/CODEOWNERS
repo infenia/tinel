@@ -1,0 +1,19 @@
+# Global code owners
+* @infenia/tinel-maintainers
+
+# Security-sensitive files
+/.github/ @infenia/tinel-security-team
+/SECURITY.md @infenia/tinel-security-team
+/.github/workflows/security.yml @infenia/tinel-security-team
+
+# Core system components
+/tinel/interfaces.py @infenia/tinel-core-team
+/tinel/system.py @infenia/tinel-core-team
+
+# Hardware analysis modules
+/tinel/hardware/ @infenia/tinel-hardware-team
+
+# CI/CD and build configuration
+/.github/workflows/ @infenia/tinel-devops-team
+/noxfile.py @infenia/tinel-devops-team
+/pyproject.toml @infenia/tinel-devops-team

@@ -18,9 +18,10 @@ limitations under the License.
 """Hardware information tool providers."""
 
 from typing import Any, Dict
-from .base import BaseToolProvider
+
 from ..hardware.device_analyzer import DeviceAnalyzer
 from ..interfaces import SystemInterface
+from .base import BaseToolProvider
 
 
 class HardwareToolProvider(BaseToolProvider):

@@ -1,0 +1,71 @@
+# Alpine-based Tinel container - Lightweight with essential tools
+FROM alpine:3.18
+
+# Metadata
+LABEL org.opencontainers.image.title="Tinel System Analyzer (Alpine)" \
+      org.opencontainers.image.description="Next-generation Linux system analysis platform - Alpine variant" \
+      org.opencontainers.image.version="0.1.0" \
+      org.opencontainers.image.authors="Infenia Private Limited <arun@infenia.com>" \
+      org.opencontainers.image.url="https://github.com/infenia/tinel" \
+      org.opencontainers.image.source="https://github.com/infenia/tinel" \
+      org.opencontainers.image.vendor="Infenia Private Limited" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+# Install system dependencies
+RUN apk add --no-cache \
+    # Python runtime
+    python3 \
+    py3-pip \
+    # System analysis tools
+    util-linux \
+    pciutils \
+    usbutils \
+    lshw \
+    dmidecode \
+    smartmontools \
+    hdparm \
+    ethtool \
+    iproute2 \
+    procps \
+    # Additional utilities
+    curl \
+    ca-certificates \
+    # Build dependencies (removed later)
+    python3-dev \
+    gcc \
+    musl-dev \
+    linux-headers
+
+# Create non-root user
+RUN addgroup -S tinel && adduser -S tinel -G tinel -h /app -s /bin/sh
+
+# Set working directory
+WORKDIR /app
+
+# Copy application files
+COPY . .
+
+# Install Python dependencies
+RUN python3 -m pip install --no-cache-dir --upgrade pip && \
+    python3 -m pip install --no-cache-dir -e . && \
+    # Remove build dependencies to reduce image size
+    apk del python3-dev gcc musl-dev linux-headers && \
+    # Change ownership
+    chown -R tinel:tinel /app
+
+# Create necessary directories
+RUN mkdir -p /var/lib/tinel /var/log/tinel && \
+    chown -R tinel:tinel /var/lib/tinel /var/log/tinel
+
+# Switch to non-root user
+USER tinel
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
+    CMD python3 -c "import tinel; print('OK')" || exit 1
+
+# Default command
+CMD ["python3", "-m", "tinel", "server", "--host", "0.0.0.0", "--port", "8080"]
+
+# Expose port
+EXPOSE 8080

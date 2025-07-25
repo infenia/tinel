@@ -17,8 +17,9 @@ limitations under the License.
 
 """Base tool provider implementation."""
 
-from abc import ABC, abstractmethod
+from abc import abstractmethod
 from typing import Any, Dict
+
 from ..interfaces import ToolProvider
 
 
