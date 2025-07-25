@@ -173,6 +173,62 @@ class TestSpecificErrors:
         assert error.exit_code == ExitCode.DIAGNOSTICS_ERROR
         assert error.details["diagnostic_type"] == "system_check"
 
+    @unit_test
+    def test_permission_error_no_resource(self):
+        """Test PermissionError without a resource."""
+        error = PermissionError("Access denied")
+        assert error.message == "Access denied"
+        assert error.exit_code == ExitCode.PERMISSION_DENIED
+        assert error.details == {}
+
+    @unit_test
+    def test_network_error_no_endpoint(self):
+        """Test NetworkError without an endpoint."""
+        error = NetworkError("Connection failed")
+        assert error.message == "Connection failed"
+        assert error.exit_code == ExitCode.NETWORK_ERROR
+        assert error.details == {}
+
+    @unit_test
+    def test_configuration_error_no_key(self):
+        """Test ConfigurationError without a config_key."""
+        error = ConfigurationError("Invalid config")
+        assert error.message == "Invalid config"
+        assert error.exit_code == ExitCode.CONFIGURATION_ERROR
+        assert error.details == {}
+
+    @unit_test
+    def test_hardware_error_no_component(self):
+        """Test HardwareError without a component."""
+        error = HardwareError("CPU error")
+        assert error.message == "CPU error"
+        assert error.exit_code == ExitCode.HARDWARE_ERROR
+        assert error.details == {}
+
+    @unit_test
+    def test_kernel_error_no_operation(self):
+        """Test KernelError without an operation."""
+        error = KernelError("Kernel panic")
+        assert error.message == "Kernel panic"
+        assert error.exit_code == ExitCode.KERNEL_ERROR
+        assert error.details == {}
+
+    @unit_test
+    def test_log_analysis_error_no_source(self):
+        """Test LogAnalysisError without a log_source."""
+        error = LogAnalysisError("Parse failed")
+        assert error.message == "Parse failed"
+        assert error.exit_code == ExitCode.LOG_ANALYSIS_ERROR
+        assert error.details == {}
+
+    @unit_test
+    def test_diagnostics_error_no_type(self):
+        """Test DiagnosticsError without a diagnostic_type."""
+        error = DiagnosticsError("Diagnosis failed")
+        assert error.message == "Diagnosis failed"
+        assert error.exit_code == ExitCode.DIAGNOSTICS_ERROR
+        assert error.details == {}
+
 
 class TestCLIErrorHandler:
     """Test CLI error handler class."""
