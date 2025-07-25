@@ -10,6 +10,7 @@ import argparse
 import pytest
 import sys
 from unittest.mock import patch
+from io import StringIO
 
 from tinel.cli.parser import (
     _add_global_options,
@@ -150,24 +151,120 @@ class TestArgumentValidation:
     @unit_test
     def test_validate_arguments_conflicting_quiet_verbose(self):
         """Test validation with conflicting quiet and verbose."""
-        # Manually create args with conflicting options since parser doesn't handle them properly
-        args = argparse.Namespace(
-            verbose=1, quiet=True, command='hardware', hardware_command='cpu'
-        )
-        
-        # Should fail validation due to conflicting options
-        assert validate_arguments(args) is False
-        
+        args = argparse.Namespace(verbose=1, quiet=True, command='hardware', hardware_command='cpu', format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Cannot use --verbose and --quiet together" in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_verbose_too_high(self):
+        """Test validation with verbosity level greater than 3."""
+        args = argparse.Namespace(verbose=4, quiet=False, command='hardware', hardware_command='cpu', format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Maximum verbosity level is 3 (-vvv)" in mock_stderr.getvalue()
+
     @unit_test
     def test_validate_arguments_no_command(self):
         """Test validation when no command is provided."""
-        parser = create_argument_parser()
-        
-        # Manually create args without command (simulate missing command)
-        args = argparse.Namespace(verbose=0, quiet=False, command=None)
-        
-        # Should fail validation due to missing command
-        assert validate_arguments(args) is False
+        args = argparse.Namespace(verbose=0, quiet=False, command=None, format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: No command specified. Use --help for available commands." in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_hardware_no_subcommand(self):
+        """Test validation for hardware command without a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='hardware', hardware_command=None, format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Hardware command requires a subcommand. Use 'tinel hardware --help' for options." in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_hardware_alias_no_subcommand(self):
+        """Test validation for hardware alias (hw) command without a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='hw', hardware_command=None, format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Hardware command requires a subcommand. Use 'tinel hardware --help' for options." in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_kernel_no_subcommand(self):
+        """Test validation for kernel command without a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='kernel', kernel_command=None, format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Kernel command requires a subcommand. Use 'tinel kernel --help' for options." in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_logs_no_subcommand(self):
+        """Test validation for logs command without a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='logs', logs_command=None, format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Logs command requires a subcommand. Use 'tinel logs --help' for options." in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_diagnose_no_subcommand(self):
+        """Test validation for diagnose command without a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='diagnose', diag_command=None, format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Diagnose command requires a subcommand. Use 'tinel diagnose --help' for options." in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_diag_alias_no_subcommand(self):
+        """Test validation for diagnose alias (diag) command without a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='diag', diag_command=None, format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Diagnose command requires a subcommand. Use 'tinel diagnose --help' for options." in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_server_no_subcommand(self):
+        """Test validation for server command without a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='server', server_command=None, format='text', no_color=False)
+        with patch('sys.stderr', new_callable=StringIO) as mock_stderr:
+            assert validate_arguments(args) is False
+            assert "Error: Server command requires a subcommand. Use 'tinel server --help' for options." in mock_stderr.getvalue()
+
+    @unit_test
+    def test_validate_arguments_json_no_color_valid(self):
+        """Test validation for json format with no-color (should be valid)."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='hardware', hardware_command='cpu', format='json', no_color=True)
+        assert validate_arguments(args) is True
+
+    @unit_test
+    def test_validate_arguments_kernel_with_subcommand(self):
+        """Test validation for kernel command with a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='kernel', kernel_command='info', format='text', no_color=False)
+        assert validate_arguments(args) is True
+
+    @unit_test
+    def test_validate_arguments_logs_with_subcommand(self):
+        """Test validation for logs command with a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='logs', logs_command='system', format='text', no_color=False)
+        assert validate_arguments(args) is True
+
+    @unit_test
+    def test_validate_arguments_diagnose_with_subcommand(self):
+        """Test validation for diagnose command with a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='diagnose', diag_command='system', format='text', no_color=False)
+        assert validate_arguments(args) is True
+
+    @unit_test
+    def test_validate_arguments_diag_alias_with_subcommand(self):
+        """Test validation for diagnose alias (diag) command with a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='diag', diag_command='system', format='text', no_color=False)
+        assert validate_arguments(args) is True
+
+    @unit_test
+    def test_validate_arguments_server_with_subcommand(self):
+        """Test validation for server command with a subcommand."""
+        args = argparse.Namespace(verbose=0, quiet=False, command='server', server_command='start', format='text', no_color=False)
+        assert validate_arguments(args) is True
+
+    
 
 
 class TestParseArguments:

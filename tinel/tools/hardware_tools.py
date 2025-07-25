@@ -53,12 +53,6 @@ class AllHardwareToolProvider(HardwareToolProvider):
         hardware_info = self.device_analyzer.get_all_hardware_info()
         return {
             "cpu": hardware_info.cpu,
-            # 'memory': hardware_info.memory,
-            # 'storage': hardware_info.storage,
-            # 'pci_devices': hardware_info.pci_devices,
-            # 'usb_devices': hardware_info.usb_devices,
-            # 'network': hardware_info.network,
-            # 'graphics': hardware_info.graphics,
         }
 
 

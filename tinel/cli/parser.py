@@ -42,7 +42,7 @@ def _add_global_options(parser: argparse.ArgumentParser) -> None:
 
     parser.add_argument(
         "--format",
-        choices=["text", "json", "yaml"],
+        choices=["text", "json", "yaml", "csv"],
         default="text",
         help="Output format (default: text)",
     )
@@ -90,7 +90,7 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
     parser.add_argument(
         "--format",
-        choices=["text", "json", "yaml"],
+        choices=["text", "json", "yaml", "csv"],
         default="text",
         help="Output format (default: text)",
     )

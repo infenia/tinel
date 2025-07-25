@@ -8,6 +8,7 @@ Licensed under the Apache License, Version 2.0
 
 import logging
 import sys
+import subprocess
 from io import StringIO
 from unittest.mock import Mock, patch, MagicMock
 
@@ -444,6 +445,21 @@ class TestMainIntegration:
                                     result = main(['hardware', 'cpu'])
                                     
                                     assert result == 0
+
+    @unit_test
+    def test_main_py_entry_point(self):
+        """Test that tinel/__main__.py entry point works and exits successfully."""
+        # Use subprocess to run the __main__.py file directly
+        # This ensures the if __name__ == '__main__': block is covered
+        command = [sys.executable, "-m", "tinel", "hardware", "cpu"]
+        
+        # Run the command
+        result = subprocess.run(command, capture_output=True, text=True, check=False)
+        
+        # Assert subprocess exited successfully
+        assert result.returncode == 0
+        assert "Error" not in result.stderr
+        assert "Fatal error" not in result.stderr
 
 
 @pytest.mark.parametrize("verbosity,expected_level", [
