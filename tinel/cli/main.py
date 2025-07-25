@@ -129,8 +129,6 @@ def display_banner():
     ║     ╚═╝   ╚═╝╚═╝  ╚═══╝╚══════╝╚══════╝                  ║
     ║                                                          ║
     ║  Terminal Intelligence for Linux Systems                 ║
-    ║  Copyright 2025 Infenia Private Limited                  ║
-    ║  Apache License 2.0                                      ║
     ║                                                          ║
     ╚══════════════════════════════════════════════════════════╝
     """
@@ -155,7 +153,7 @@ def main(argv: Optional[List[str]] = None) -> int:
         sanitized_argv = _validate_and_sanitize_argv(argv)
         return _execute_main_logic(sanitized_argv)
     except ValueError as e:
-        print(f"Error: {e}", file=sys.stderr)
+        print(f"Fatal error: {e}", file=sys.stderr)
         return 1
     except KeyboardInterrupt:
         return _handle_keyboard_interrupt()

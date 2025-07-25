@@ -16,16 +16,9 @@ limitations under the License.
 """
 
 
-import json
 import logging
 import os
-import platform
-import shutil
-import socket
 import sys
-import tempfile
-import traceback
-from datetime import datetime
 from enum import IntEnum
 from typing import Optional, Dict, Any
 
