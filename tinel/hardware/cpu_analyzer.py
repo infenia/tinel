@@ -17,6 +17,8 @@ limitations under the License.
 
 
 import re
+import time
+from functools import lru_cache
 from typing import Any, Dict, List, Optional
 
 from ..interfaces import SystemInterface
@@ -33,72 +35,126 @@ class CPUAnalyzer:
             system_interface: System interface for command execution
         """
         self.system = system_interface or LinuxSystemInterface()
+        self._cache = {}
+        self._cache_ttl = 60  # Cache for 60 seconds
+    
+    def _get_cached_or_compute(self, key: str, compute_func) -> Any:
+        """Get cached result or compute and cache new result.
+        
+        Args:
+            key: Cache key
+            compute_func: Function to compute the result
+            
+        Returns:
+            Cached or newly computed result
+        """
+        current_time = time.time()
+        
+        # Check if we have a valid cached result
+        if key in self._cache:
+            cached_result, timestamp = self._cache[key]
+            if current_time - timestamp < self._cache_ttl:
+                return cached_result
+        
+        # Compute new result and cache it
+        result = compute_func()
+        self._cache[key] = (result, current_time)
+        return result
     
     def get_cpu_info(self) -> Dict[str, Any]:
-        """Get comprehensive CPU information.
+        """Get comprehensive CPU information with caching.
+        
+        Returns:
+            Dictionary containing detailed CPU information
+        """
+        return self._get_cached_or_compute('cpu_info_full', self._compute_cpu_info)
+    
+    def _compute_cpu_info(self) -> Dict[str, Any]:
+        """Compute CPU information efficiently.
         
         Returns:
             Dictionary containing detailed CPU information
         """
         info: Dict[str, Any] = {}
         
-        # Get basic CPU info
-        info.update(self._get_basic_cpu_info())
+        # Get all data sources once to avoid repeated system calls
+        cpuinfo_content = self._get_cached_or_compute('cpuinfo', 
+            lambda: self.system.read_file('/proc/cpuinfo'))
+        lscpu_output = self._get_cached_or_compute('lscpu',
+            lambda: self.system.run_command(['lscpu']))
         
-        # Get CPU features and capabilities
-        info.update(self._get_cpu_features())
+        # Process basic CPU info
+        info.update(self._process_basic_cpu_info(cpuinfo_content, lscpu_output))
         
-        # Get CPU frequency information
+        # Process CPU features (reuse cpuinfo_content)
+        if cpuinfo_content:
+            info.update(self._process_cpu_features(cpuinfo_content))
+        
+        # Get dynamic information (frequency, governor) - don't cache this
         info.update(self._get_frequency_info())
         
-        # Get CPU topology information
-        info.update(self._get_topology_info())
+        # Get topology information - cache this
+        info.update(self._get_cached_or_compute('topology', self._get_topology_info))
         
-        # Get CPU cache information
-        info.update(self._get_cache_info())
+        # Get cache information - cache this  
+        info.update(self._get_cached_or_compute('cache', self._get_cache_info))
         
-        # Get CPU optimization analysis
+        # Get optimization analysis
         info.update(self._analyze_cpu_optimization())
         
         return info
     
-    def _get_basic_cpu_info(self) -> Dict[str, Any]:
-        """Get basic CPU information from /proc/cpuinfo and lscpu."""
+    def _process_basic_cpu_info(self, cpuinfo_content: Optional[str], 
+                               lscpu_result) -> Dict[str, Any]:
+        """Process basic CPU information from cached data sources.
+        
+        Args:
+            cpuinfo_content: Content from /proc/cpuinfo
+            lscpu_result: Result from lscpu command
+            
+        Returns:
+            Dictionary containing processed CPU information
+        """
         info: Dict[str, Any] = {}
         
-        # Get CPU info from /proc/cpuinfo
-        cpuinfo_content = self.system.read_file('/proc/cpuinfo')
+        # Process /proc/cpuinfo data
         if cpuinfo_content:
             info['proc_cpuinfo'] = cpuinfo_content
             info.update(self._parse_cpuinfo(cpuinfo_content))
         else:
             info['proc_cpuinfo_error'] = 'Failed to read /proc/cpuinfo'
         
-        # Get CPU info using lscpu
-        lscpu_result = self.system.run_command(['lscpu'])
-        if lscpu_result.success:
+        # Process lscpu data
+        if lscpu_result and lscpu_result.success:
             info['lscpu'] = lscpu_result.stdout
             info.update(self._parse_lscpu(lscpu_result.stdout))
         else:
-            info['lscpu_error'] = lscpu_result.error or 'Failed to run lscpu'
+            error_msg = lscpu_result.error if lscpu_result else 'Failed to run lscpu'
+            info['lscpu_error'] = error_msg
         
         return info
     
-    def _get_cpu_features(self) -> Dict[str, Any]:
-        """Get detailed CPU features and capabilities."""
+    def _process_cpu_features(self, cpuinfo_content: str) -> Dict[str, Any]:
+        """Process CPU features from cached cpuinfo content.
+        
+        Args:
+            cpuinfo_content: Content from /proc/cpuinfo
+            
+        Returns:
+            Dictionary containing CPU features information
+        """
         info: Dict[str, Any] = {}
         
-        # Get CPU flags from /proc/cpuinfo
-        cpuinfo_content = self.system.read_file('/proc/cpuinfo')
-        if cpuinfo_content:
-            flags = self._extract_cpu_flags(cpuinfo_content)
-            info['cpu_flags'] = flags
-            info['security_features'] = self._analyze_security_features(flags)
-            info['performance_features'] = self._analyze_performance_features(flags)
-            info['virtualization_features'] = self._analyze_virtualization_features(flags)
+        # Extract and analyze CPU flags
+        flags = self._extract_cpu_flags(cpuinfo_content)
+        info['cpu_flags'] = flags
+        info['security_features'] = self._analyze_security_features(flags)
+        info['performance_features'] = self._analyze_performance_features(flags)
+        info['virtualization_features'] = self._analyze_virtualization_features(flags)
         
-        # Get CPU vulnerabilities
-        info['vulnerabilities'] = self._get_cpu_vulnerabilities()
+        # Get CPU vulnerabilities (cache this separately as it's file system intensive)
+        info['vulnerabilities'] = self._get_cached_or_compute('vulnerabilities',
+                                                             self._get_cpu_vulnerabilities)
         
         return info
     

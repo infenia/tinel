@@ -22,10 +22,6 @@ from typing import Dict, Callable, Any
 
 from .hardware import HardwareCommands
 
-# from .kernel import KernelCommands
-# from .logs import LogsCommands
-# from .diagnostics import DiagnosticsCommands
-# from .server import ServerCommands
 from ..formatters import OutputFormatter
 from ..error_handler import CLIErrorHandler
 
@@ -48,20 +44,11 @@ class CommandRouter:
 
         # Initialize command handlers
         self.hardware_commands = HardwareCommands(formatter, error_handler)
-        # self.kernel_commands = KernelCommands(formatter, error_handler)
-        # self.logs_commands = LogsCommands(formatter, error_handler)
-        # self.diagnostics_commands = DiagnosticsCommands(formatter, error_handler)
-        # self.server_commands = ServerCommands(formatter, error_handler)
 
         # Command routing table
         self.command_handlers: Dict[str, Callable[[argparse.Namespace], int]] = {
             "hardware": self.hardware_commands.execute,
             "hw": self.hardware_commands.execute,
-            # "kernel": self.kernel_commands.execute,
-            # "logs": self.logs_commands.execute,
-            # "diagnose": self.diagnostics_commands.execute,
-            # "diag": self.diagnostics_commands.execute,
-            # "server": self.server_commands.execute,
         }
 
     def execute_command(self, args: argparse.Namespace) -> int:

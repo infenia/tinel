@@ -18,18 +18,11 @@ limitations under the License.
 
 import argparse
 import logging
-from typing import Dict, Any
 
 from .base import BaseCommand
 from ...tools.hardware_tools import (
     AllHardwareToolProvider,
     CPUInfoToolProvider,
-    # MemoryInfoToolProvider,
-    # StorageInfoToolProvider,
-    # PCIDevicesToolProvider,
-    # USBDevicesToolProvider,
-    # NetworkInfoToolProvider,
-    # GraphicsInfoToolProvider,
 )
 
 
@@ -46,12 +39,6 @@ class HardwareCommands(BaseCommand):
         # Initialize tool providers
         self.all_hardware_tool = AllHardwareToolProvider(self.system)
         self.cpu_tool = CPUInfoToolProvider(self.system)
-        # self.memory_tool = MemoryInfoToolProvider(self.system)
-        # self.storage_tool = StorageInfoToolProvider(self.system)
-        # self.pci_tool = PCIDevicesToolProvider(self.system)
-        # self.usb_tool = USBDevicesToolProvider(self.system)
-        # self.network_tool = NetworkInfoToolProvider(self.system)
-        # self.graphics_tool = GraphicsInfoToolProvider(self.system)
 
     def execute(self, args: argparse.Namespace) -> int:
         """Execute hardware command.
@@ -72,16 +59,6 @@ class HardwareCommands(BaseCommand):
             # Route to specific hardware command
             command_handlers = {
                 "cpu": self._show_cpu_info,
-                # 'memory': self._show_memory_info,
-                # 'mem': self._show_memory_info,
-                # 'storage': self._show_storage_info,
-                # 'disk': self._show_storage_info,
-                # 'network': self._show_network_info,
-                # 'net': self._show_network_info,
-                # 'graphics': self._show_graphics_info,
-                # 'gpu': self._show_graphics_info,
-                # 'pci': self._show_pci_devices,
-                # 'usb': self._show_usb_devices,
                 "all": self._show_all_hardware,
             }
 
@@ -135,101 +112,3 @@ class HardwareCommands(BaseCommand):
 
         except Exception as e:
             return self._handle_tool_error(e, "cpu_info")
-
-    # def _show_memory_info(self, args: argparse.Namespace) -> int:
-    #     """Show memory information."""
-    #     try:
-    #         parameters = {
-    #             'detailed': getattr(args, 'detailed', False),
-    #             'include_usage': getattr(args, 'usage', False),
-    #             'include_timing': getattr(args, 'timing', False)
-    #         }
-
-    #         result = self._execute_tool(self.memory_tool, parameters)
-    #         self.formatter.print_output(result, "Memory Information")
-
-    #         return 0
-
-    #     except Exception as e:
-    #         return self._handle_tool_error(e, "memory_info")
-
-    # def _show_storage_info(self, args: argparse.Namespace) -> int:
-    #     """Show storage information."""
-    #     try:
-    #         parameters = {
-    #             'detailed': getattr(args, 'detailed', False),
-    #             'include_health': getattr(args, 'health', False),
-    #             'include_performance': getattr(args, 'performance', False)
-    #         }
-
-    #         result = self._execute_tool(self.storage_tool, parameters)
-    #         self.formatter.print_output(result, "Storage Information")
-
-    #         return 0
-
-    #     except Exception as e:
-    #         return self._handle_tool_error(e, "storage_info")
-
-    # def _show_network_info(self, args: argparse.Namespace) -> int:
-    #     """Show network information."""
-    #     try:
-    #         parameters = {
-    #             'detailed': getattr(args, 'detailed', False),
-    #             'include_interfaces': getattr(args, 'interfaces', False)
-    #         }
-
-    #         result = self._execute_tool(self.network_tool, parameters)
-    #         self.formatter.print_output(result, "Network Information")
-
-    #         return 0
-
-    #     except Exception as e:
-    #         return self._handle_tool_error(e, "network_info")
-
-    # def _show_graphics_info(self, args: argparse.Namespace) -> int:
-    #     """Show graphics information."""
-    #     try:
-    #         parameters = {
-    #             'detailed': getattr(args, 'detailed', False),
-    #             'include_drivers': getattr(args, 'drivers', False)
-    #         }
-
-    #         result = self._execute_tool(self.graphics_tool, parameters)
-    #         self.formatter.print_output(result, "Graphics Information")
-
-    #         return 0
-
-    #     except Exception as e:
-    #         return self._handle_tool_error(e, "graphics_info")
-
-    # def _show_pci_devices(self, args: argparse.Namespace) -> int:
-    #     """Show PCI devices information."""
-    #     try:
-    #         parameters = {
-    #             'detailed': getattr(args, 'detailed', False),
-    #             'tree_format': getattr(args, 'tree', False)
-    #         }
-
-    #         result = self._execute_tool(self.pci_tool, parameters)
-    #         self.formatter.print_output(result, "PCI Devices")
-
-    #         return 0
-
-    #     except Exception as e:
-    #         return self._handle_tool_error(e, "pci_devices")
-
-    # def _show_usb_devices(self, args: argparse.Namespace) -> int:
-    #     """Show USB devices information."""
-    #     try:
-    #         parameters = {
-    #             'detailed': getattr(args, 'detailed', False),
-    #             'tree_format': getattr(args, 'tree', False)
-    #         }
-
-    #         result = self._execute_tool(self.usb_tool, parameters)
-    #         self.formatter.print_output(result, "USB Devices")
-
-    #         return 0
-
-    #     except Exception as e:
-    #         return self._handle_tool_error(e, "usb_devices")

@@ -16,22 +16,21 @@ limitations under the License.
 """
 
 
-# from abc import ABC, abstractmethod
-# from datetime import datetime
-# from typing import Any, Dict, List, Optional, Union
-from typing import Any, Dict
+from abc import ABC, abstractmethod
+from datetime import datetime
+from typing import Any, Dict, List, Optional, Union
 from dataclasses import dataclass
 
 
-# @dataclass
-# class CommandResult:
-#     """Result of a system command execution."""
+@dataclass
+class CommandResult:
+    """Result of a system command execution."""
 
-#     success: bool
-#     stdout: str
-#     stderr: str
-#     returncode: int
-#     error: Optional[str] = None
+    success: bool
+    stdout: str
+    stderr: str
+    returncode: int
+    error: Optional[str] = None
 
 
 # @dataclass
@@ -101,23 +100,23 @@ class HardwareInfo:
 #     explanation: str
 
 
-# class SystemInterface(ABC):
-#     """Abstract interface for system interactions."""
+class SystemInterface(ABC):
+    """Abstract interface for system interactions."""
 
-#     @abstractmethod
-#     def run_command(self, cmd: List[str]) -> CommandResult:
-#         """Execute a system command and return the result."""
-#         pass
+    @abstractmethod
+    def run_command(self, cmd: List[str]) -> CommandResult:
+        """Execute a system command and return the result."""
+        pass
 
-#     @abstractmethod
-#     def read_file(self, path: str) -> Optional[str]:
-#         """Read a file from the filesystem."""
-#         pass
+    @abstractmethod
+    def read_file(self, path: str) -> Optional[str]:
+        """Read a file from the filesystem."""
+        pass
 
-#     @abstractmethod
-#     def file_exists(self, path: str) -> bool:
-#         """Check if a file exists."""
-#         pass
+    @abstractmethod
+    def file_exists(self, path: str) -> bool:
+        """Check if a file exists."""
+        pass
 
 
 # class HardwareAnalyzer(ABC):
@@ -206,25 +205,25 @@ class HardwareInfo:
 #         pass
 
 
-# class ToolProvider(ABC):
-#     """Abstract interface for MCP tool providers."""
+class ToolProvider(ABC):
+    """Abstract interface for MCP tool providers."""
 
-#     @abstractmethod
-#     def get_tool_name(self) -> str:
-#         """Get the name of the tool."""
-#         pass
+    @abstractmethod
+    def get_tool_name(self) -> str:
+        """Get the name of the tool."""
+        pass
 
-#     @abstractmethod
-#     def get_tool_description(self) -> str:
-#         """Get the description of the tool."""
-#         pass
+    @abstractmethod
+    def get_tool_description(self) -> str:
+        """Get the description of the tool."""
+        pass
 
-#     @abstractmethod
-#     def get_input_schema(self) -> Dict[str, Any]:
-#         """Get the input schema for the tool."""
-#         pass
+    @abstractmethod
+    def get_input_schema(self) -> Dict[str, Any]:
+        """Get the input schema for the tool."""
+        pass
 
-#     @abstractmethod
-#     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-#         """Execute the tool with given parameters."""
-#         pass
+    @abstractmethod
+    def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """Execute the tool with given parameters."""
+        pass

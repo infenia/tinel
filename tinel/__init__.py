@@ -1,4 +1,3 @@
-
 """
 Copyright 2025 Infenia Private Limited
 
@@ -15,22 +14,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-
-# from . import diagnostics, kernel, logs
 from .interfaces import (
-    # CommandResult,
-    # Diagnostic,
-    # DiagnosticsProvider,
-    # HardwareAnalyzer,
     HardwareInfo,
-    # KernelAnalyzer,
-    # KernelConfig,
-    # KernelConfigOption,
-    # LogAnalyzer,
-    # LogAnalysis,
-    # LogEntry,
-    # SystemInterface,
-    # ToolProvider,
 )
 
 __version__ = "0.1.0"
@@ -38,20 +23,5 @@ __author__ = "Infenia Private Limited"
 __license__ = "Apache-2.0"
 
 __all__ = [
-    # "diagnostics",
-    # "kernel",
-    # "logs",
-    # "CommandResult",
-    # "Diagnostic",
-    # "DiagnosticsProvider",
-    # "HardwareAnalyzer",
     "HardwareInfo",
-    # "KernelAnalyzer",
-    # "KernelConfig",
-    # "KernelConfigOption",
-    # "LogAnalyzer",
-    # "LogAnalysis",
-    # "LogEntry",
-    # "SystemInterface",
-    # "ToolProvider",
 ]
