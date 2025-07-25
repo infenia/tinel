@@ -17,13 +17,11 @@ limitations under the License.
 
 import argparse
 import logging
-from typing import Dict, Callable, Any
+from typing import Callable, Dict
 
-from .hardware import HardwareCommands
-
-from ..formatters import OutputFormatter
 from ..error_handler import CLIErrorHandler
-
+from ..formatters import OutputFormatter
+from .hardware import HardwareCommands
 
 logger = logging.getLogger(__name__)
 

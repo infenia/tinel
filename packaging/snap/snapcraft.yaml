@@ -1,0 +1,164 @@
+name: tinel
+base: core22
+version: '0.1.0'
+summary: Next-generation Linux system analysis platform
+description: |
+  Tinel is an advanced open-source platform designed to control, optimize,
+  and analyze Linux-based systems using AI and LLMs. It provides comprehensive
+  hardware information gathering, system diagnostics, and performance analysis.
+
+  Key features:
+  * Hardware analysis and detection
+  * System performance monitoring
+  * AI-powered diagnostics  
+  * Model Context Protocol (MCP) server
+  * RESTful API interface
+  * Comprehensive reporting
+
+  This snap provides the core tinel command-line tool with automatic confinement
+  and security isolation while maintaining access to system hardware information.
+
+grade: stable
+confinement: strict
+
+# Application metadata
+contact: https://github.com/infenia/tinel/issues
+issues: https://github.com/infenia/tinel/issues
+source-code: https://github.com/infenia/tinel
+website: https://github.com/infenia/tinel
+license: Apache-2.0
+
+# Application icons and assets
+icon: packaging/snap/tinel.png
+
+# Architecture support
+architectures:
+  - build-on: amd64
+    build-for: amd64
+  - build-on: arm64
+    build-for: arm64
+  - build-on: armhf
+    build-for: armhf
+
+apps:
+  # Main tinel command
+  tinel:
+    command: bin/tinel
+    plugs:
+      - network
+      - network-bind
+      - hardware-observe
+      - system-observe
+      - mount-observe
+      - process-control
+      - home
+      - removable-media
+    environment:
+      PYTHONPATH: $SNAP/lib/python3.10/site-packages
+      
+  # Server daemon
+  server:
+    command: bin/tinel server
+    daemon: simple
+    restart-condition: always
+    plugs:
+      - network
+      - network-bind
+      - hardware-observe
+      - system-observe
+      - mount-observe
+    environment:
+      PYTHONPATH: $SNAP/lib/python3.10/site-packages
+
+  # Hardware analysis command
+  hardware:
+    command: bin/tinel hardware
+    plugs:
+      - hardware-observe
+      - system-observe
+      - mount-observe
+    environment:
+      PYTHONPATH: $SNAP/lib/python3.10/site-packages
+
+parts:
+  # Main application
+  tinel:
+    plugin: python
+    source: .
+    source-type: local
+    python-requirements:
+      - requirements.txt
+    python-packages:
+      - pip
+      - setuptools
+      - wheel
+    build-packages:
+      - python3-dev
+      - gcc
+      - libc6-dev
+    stage-packages:
+      # Python runtime
+      - python3
+      - python3-distutils
+      # System analysis tools
+      - util-linux
+      - pciutils
+      - usbutils
+      - lshw
+      - dmidecode
+      - smartmontools
+      - hdparm
+      - ethtool
+      - iproute2
+      - procps
+      - sysstat
+    override-build: |
+      # Install the Python package
+      craftctl default
+      
+      # Create wrapper scripts for better snap integration
+      mkdir -p $CRAFTCTL_PART_INSTALL/bin
+      
+      # Main tinel wrapper
+      cat > $CRAFTCTL_PART_INSTALL/bin/tinel << 'EOF'
+      #!/bin/bash
+      export PYTHONPATH="$SNAP/lib/python3.10/site-packages:$PYTHONPATH"
+      exec "$SNAP/usr/bin/python3" -m tinel "$@"
+      EOF
+      chmod +x $CRAFTCTL_PART_INSTALL/bin/tinel
+      
+      # Install desktop file
+      mkdir -p $CRAFTCTL_PART_INSTALL/meta/gui
+      cp packaging/snap/tinel.desktop $CRAFTCTL_PART_INSTALL/meta/gui/
+      
+    organize:
+      usr/lib/python3/dist-packages: lib/python3.10/site-packages
+
+  # System tools (for hardware detection)
+  system-tools:
+    plugin: nil
+    stage-packages:
+      - lscpu
+      - lspci
+      - lsusb
+      - lsblk
+      - df
+      - free
+    organize:
+      usr/bin/*: bin/
+
+# Layout for system access within snap confinement
+layout:
+  /proc:
+    bind: $SNAP_DATA/proc
+  /sys:
+    bind: $SNAP_DATA/sys
+  /etc/tinel:
+    bind: $SNAP_DATA/etc/tinel
+
+# Hooks for snap lifecycle
+hooks:
+  install:
+    plugs: [hardware-observe, system-observe]
+  configure:
+    plugs: [hardware-observe, system-observe]

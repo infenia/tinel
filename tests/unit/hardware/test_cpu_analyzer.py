@@ -7,19 +7,17 @@ Licensed under the Apache License, Version 2.0
 """
 
 import time
-from unittest.mock import Mock, patch
+from unittest.mock import Mock
 
 import pytest
 
+from tests.utils import (
+    AssertionHelpers,
+    performance_test,
+    unit_test,
+)
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.interfaces import CommandResult
-from tests.utils import (
-    unit_test,
-    performance_test,
-    AssertionHelpers,
-    PerformanceTestHelpers,
-    TestDataBuilder,
-)
 
 
 class TestCPUAnalyzer:
@@ -328,6 +326,112 @@ class TestCPUAnalyzer:
         # Cached call should be significantly faster
         assert cached_time < uncached_time / 2  # At least 2x faster
         assert cached_time < 0.01  # Under 10ms
+
+    @unit_test
+    @pytest.mark.parametrize(
+        "cpuinfo_content,expected",
+        [
+            ("", {}),  # Empty input
+            ("random text", {}),  # No matches
+            (
+                "model name : X\nvendor_id : Y\ncpu family : 6\nmodel : 123\nstepping : 4",
+                {
+                    "model_name": "X",
+                    "vendor_id": "Y",
+                    "cpu_family": "6",
+                    "model": "123",
+                    "stepping": "4",
+                },
+            ),
+        ],
+    )
+    def test_parse_cpuinfo_edge_cases(self, cpuinfo_content, expected):
+        """Test _parse_cpuinfo with edge cases."""
+        parsed = self.analyzer._parse_cpuinfo(cpuinfo_content)
+        for key, value in expected.items():
+            assert parsed.get(key) == value
+
+    @unit_test
+    @pytest.mark.parametrize(
+        "lscpu_output,expected",
+        [
+            ("", {}),
+            ("random text", {}),
+            (
+                "Architecture: x86\nCPU op-mode(s): 32-bit, 64-bit\nByte Order: Little Endian",
+                {
+                    "architecture": "x86",
+                    "cpu_op_modes": "32-bit, 64-bit",
+                    "byte_order": "Little Endian",
+                },
+            ),
+        ],
+    )
+    def test_parse_lscpu_edge_cases(self, lscpu_output, expected):
+        """Test _parse_lscpu with edge cases."""
+        parsed = self.analyzer._parse_lscpu(lscpu_output)
+        for key, value in expected.items():
+            assert parsed.get(key) == value
+
+    @unit_test
+    @pytest.mark.parametrize(
+        "cpuinfo_content,expected",
+        [
+            ("", []),
+            ("flags : sse sse2 avx", ["sse", "sse2", "avx"]),
+            ("no flags here", []),
+        ],
+    )
+    def test_extract_cpu_flags_edge_cases(self, cpuinfo_content, expected):
+        """Test _extract_cpu_flags with edge cases."""
+        flags = self.analyzer._extract_cpu_flags(cpuinfo_content)
+        assert flags == expected or (not expected and not flags)
+
+    @unit_test
+    def test_analyze_security_features_empty(self):
+        """Test _analyze_security_features with empty flag list."""
+        result = self.analyzer._analyze_security_features([])
+        for v in result.values():
+            assert v is False
+
+    @unit_test
+    def test_analyze_performance_features_empty(self):
+        """Test _analyze_performance_features with empty flag list."""
+        result = self.analyzer._analyze_performance_features([])
+        for v in result.values():
+            assert v is False
+
+    @unit_test
+    def test_analyze_virtualization_features_empty(self):
+        """Test _analyze_virtualization_features with empty flag list."""
+        result = self.analyzer._analyze_virtualization_features([])
+        for v in result.values():
+            assert v is False
+
+    @unit_test
+    def test_get_cache_info_missing_files(self):
+        """Test _get_cache_info when files are missing."""
+        self.mock_system.file_exists.return_value = False
+        self.mock_system.read_file.return_value = None
+        cache_info = self.analyzer._get_cache_info()
+        assert cache_info == {}
+
+    @unit_test
+    def test_get_topology_info_missing_files(self):
+        """Test _get_topology_info when files are missing."""
+        self.mock_system.run_command.return_value = Mock(
+            success=False, stdout="", stderr="", returncode=1
+        )
+        self.mock_system.read_file.return_value = None
+        topology_info = self.analyzer._get_topology_info()
+        assert topology_info == {}
+
+    @unit_test
+    def test_get_cpu_vulnerabilities_all_missing(self):
+        """Test _get_cpu_vulnerabilities when all files are missing."""
+        self.mock_system.read_file.return_value = None
+        vulns = self.analyzer._get_cpu_vulnerabilities()
+        assert vulns == {}
 
     def _setup_frequency_mocks(self, governor="powersave"):
         """Set up mocks for frequency information."""

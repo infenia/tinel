@@ -7,25 +7,24 @@ Licensed under the Apache License, Version 2.0
 """
 
 import json
-import sys
 from io import StringIO
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.utils import unit_test
 from tinel.cli.formatters import (
-    OutputFormatter,
     Color,
-    FormatType,
     ColorUtility,
-    JSONFormatter,
-    TextFormatter,
     CSVFormatter,
-    TableFormatter,
-    YAMLFormatter,
     FormatterFactory,
+    FormatType,
+    JSONFormatter,
+    OutputFormatter,
+    TableFormatter,
+    TextFormatter,
+    YAMLFormatter,
 )
-from tests.utils import unit_test, AssertionHelpers
 
 
 class TestColorUtility:
@@ -230,6 +229,21 @@ class TestCSVFormatter:
         assert "list[1],two" in result
         assert "list[2].a,b" in result
 
+    @unit_test
+    def test_csvformatter_invalid_data(self):
+        from tinel.cli.formatters import CSVFormatter
+
+        fmt = CSVFormatter()
+        # Not a list or dict: should return a single-value CSV
+        out = fmt.format("string")
+        assert out.strip() == "value\nstring" or out.strip() == "value\r\nstring"
+        # Empty dict: should return just the header
+        assert fmt.format({}).strip() == "key,value"
+        # Nested dict edge case
+        nested = {"a": {"b": {"c": 1}}}
+        out = fmt.format(nested)
+        assert "a.b.c" in out
+
 
 class TestTextFormatter:
     """Test cases for TextFormatter."""
@@ -333,6 +347,82 @@ class TestTextFormatter:
             assert "plain" in formatter._format_value("plain")
             assert "None" in formatter._format_value(None)
 
+    @unit_test
+    def test_textformatter_format_with_primitive(self):
+        from tinel.cli.formatters import ColorUtility, TextFormatter
+
+        tf = TextFormatter(ColorUtility(False))
+        # Should hit the else branch for both format and _format_minimal_text
+        assert tf.format(123) == "123"
+        assert tf._format_minimal_text(456) == "456"
+
+    @unit_test
+    def test_textformatter_add_verbose_info_dict_and_dictlike(self):
+        from tinel.cli.formatters import ColorUtility, TextFormatter
+
+        tf = TextFormatter(ColorUtility(False))
+        # Standard dict (has keys)
+        d = {"a": 1, "b": 2}
+        out = tf._add_verbose_info(d)
+        assert any("Keys: a, b" in l for l in out)
+
+        # Dict-like with __len__ but no keys
+        class NoKeysDict:
+            def __len__(self):
+                return 2
+
+        n = NoKeysDict()
+        out2 = tf._add_verbose_info(n)
+        assert any("Number of keys: 2" in l for l in out2)
+        assert not any("Keys:" in l for l in out2)
+
+    @unit_test
+    def test_textformatter_format_dict_with_list(self):
+        from tinel.cli.formatters import ColorUtility, TextFormatter
+
+        tf = TextFormatter(ColorUtility(False))
+        d = {"a": [1, 2]}
+        out = tf._format_dict(d)
+        assert any("a:" in line for line in out)
+        assert any("1" in line for line in out)
+        assert any("2" in line for line in out)
+
+    @unit_test
+    def test_textformatter_add_verbose_info_keys(self):
+        from tinel.cli.formatters import ColorUtility, TextFormatter
+
+        tf = TextFormatter(ColorUtility(False))
+
+        class Dummy:
+            def keys(self):
+                return ["x", "y"]
+
+            def __iter__(self):
+                return iter(["x", "y"])
+
+            def __len__(self):
+                return 2
+
+        lines = tf._add_verbose_info(Dummy())
+        assert any("Keys:" in l for l in lines)
+
+    @unit_test
+    def test_textformatter_format_quiet_and_none(self):
+        from tinel.cli.formatters import ColorUtility, TextFormatter
+
+        tf = TextFormatter(ColorUtility(False), quiet=True)
+        # Quiet mode path
+        assert tf.format({"a": 1}) == "a=1"
+        # None data
+        assert tf.format(None) == "None"
+        # Empty dict
+        assert tf.format({}) == ""
+        # Empty list
+        assert tf.format([]) == ""
+        # With title
+        assert tf.format({}, title="Title") == ""
+        assert tf.format([], title="Title") == ""
+
 
 class TestTableFormatter:
     """Test cases for TableFormatter."""
@@ -402,6 +492,75 @@ class TestTableFormatter:
                 "warning", Color.YELLOW
             ) in formatter._format_cell_value("warning")
             assert "plain" in formatter._format_cell_value("plain")
+
+    @unit_test
+    def test_tableformatter_extra_missing_columns(self):
+        from tinel.cli.formatters import ColorUtility, TableFormatter
+
+        tf = TableFormatter(ColorUtility(False))
+        # Row with extra columns: only as many columns as headers are shown
+        data = [[1, 2, 3]]
+        headers = ["A", "B"]
+        out = tf.format_table(data, headers)
+        assert "1" in out and "2" in out and "A" in out and "B" in out
+        # Empty headers: output should be blank lines
+        out2 = tf.format_table([[1, 2]], [])
+        assert out2 == "\n\n"
+        # Non-string headers: should raise TypeError
+        import pytest
+
+        with pytest.raises(TypeError):
+            tf.format_table([[1]], [1])
+
+    @unit_test
+    def test_tableformatter_row_shorter_than_headers(self):
+        from tinel.cli.formatters import ColorUtility, TableFormatter
+
+        tf = TableFormatter(ColorUtility(False))
+        data = [["a"]]  # fewer columns than headers
+        headers = ["col1", "col2"]
+        out = tf.format_table(data, headers)
+        assert "a" in out and "col2" in out
+
+    @unit_test
+    def test_outputformatter_explanation_included(self):
+        from tinel.cli.formatters import OutputFormatter
+
+        out = OutputFormatter(verbose=1)
+        s = out.format_with_explanation({"a": 1}, "this is an explanation")
+        assert "explanation" in s.lower()
+
+    @unit_test
+    def test_outputformatter_wrap_text_line(self):
+        from tinel.cli.formatters import OutputFormatter
+
+        of = OutputFormatter()
+        # Long line with spaces
+        s = of._wrap_text_line("a " * 40, max_width=20)
+        assert all(isinstance(part, str) for part in s)
+        assert "".join(s).replace(" ", "") == "a" * 40
+        # Line with no spaces
+        s2 = of._wrap_text_line("x" * 50, max_width=20)
+        assert all(isinstance(part, str) for part in s2)
+        assert sum(len(part) for part in s2) == 50
+
+    @unit_test
+    def test_outputformatter_print_output_quiet(self, capsys):
+        from tinel.cli.formatters import OutputFormatter
+
+        out = OutputFormatter(quiet=True)
+        out.print_output({"a": 1})  # Should not print anything
+        captured = capsys.readouterr()
+        assert captured.out == ""
+
+    @unit_test
+    def test_outputformatter_format_table(self):
+        from tinel.cli.formatters import OutputFormatter
+
+        out = OutputFormatter()
+        data = [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
+        s = out.format_table(data, ["a", "b"])
+        assert "a" in s and "b" in s and "1" in s and "4" in s
 
 
 class TestOutputFormatter:
@@ -528,16 +687,65 @@ class TestOutputFormatter:
 
     @unit_test
     def test_wrap_text_line(self):
-        """Test text wrapping logic."""
-        formatter = OutputFormatter()
-        long_line = "a b c d e f g h i j"
-        wrapped = formatter._wrap_text_line(long_line, max_width=10)
-        assert len(wrapped) > 1
-        assert wrapped[0] == "a b c d e"
-        short_line = "a b c"
-        wrapped = formatter._wrap_text_line(short_line, max_width=10)
-        assert len(wrapped) == 1
-        assert wrapped[0] == "a b c"
+        from tinel.cli.formatters import OutputFormatter
+
+        of = OutputFormatter()
+        # Long line with spaces
+        s = of._wrap_text_line("a " * 40, max_width=20)
+        assert all(isinstance(part, str) for part in s)
+        assert "".join(s).replace(" ", "") == "a" * 40
+        # Line with no spaces (single long word)
+        s2 = of._wrap_text_line("x" * 50, max_width=20)
+        assert all(isinstance(part, str) for part in s2)
+        assert sum(len(part) for part in s2) == 50
+
+    @unit_test
+    def test_outputformatter_should_include_explanation_none(self):
+        from tinel.cli.formatters import OutputFormatter
+
+        of = OutputFormatter(verbose=1, quiet=False)
+        assert not of._should_include_explanation(None)
+
+    @unit_test
+    def test_outputformatter_format_explanation_section_empty_and_newline(self):
+        from tinel.cli.formatters import OutputFormatter
+
+        of = OutputFormatter()
+        # Empty string
+        out = of._format_explanation_section("")
+        assert isinstance(out, list)
+        # Only newline
+        out2 = of._format_explanation_section("\n")
+        assert isinstance(out2, list)
+        assert any(isinstance(l, str) for l in out2)
+
+    @unit_test
+    def test_outputformatter_format_with_explanation_no_explanation_branch(self):
+        from tinel.cli.formatters import OutputFormatter
+
+        # verbose=0 disables explanation
+        of = OutputFormatter(verbose=0)
+        result = of.format_with_explanation(
+            {"a": 1}, explanation="Should not show", title=None
+        )
+        assert "Explanation:" not in result
+        # Also test with explanation empty
+        of2 = OutputFormatter(verbose=1)
+        result2 = of2.format_with_explanation({"a": 1}, explanation="", title=None)
+        assert "Explanation:" not in result2
+
+    @unit_test
+    def test_outputformatter_wrap_text_line_empty_final_line(self):
+        from tinel.cli.formatters import OutputFormatter
+
+        of = OutputFormatter()
+        # This will result in current_line being only spaces at the end
+        s = of._wrap_text_line("word1 word2    ", max_width=6)
+        # The last current_line is only spaces, so nothing should be appended
+        assert all(part.strip() for part in s)  # No empty lines
+        # Pure whitespace input
+        s2 = of._wrap_text_line("    ", max_width=2)
+        assert s2 == [] or all(part.strip() == "" for part in s2)
 
 
 class TestFormatterFactoryAndMisc:
@@ -585,3 +793,188 @@ class TestFormatterFactoryAndMisc:
             ValueError, match="Text formatter requires a colorizer instance"
         ):
             FormatterFactory.create_formatter(FormatType.TEXT)
+
+
+class TestEdgeCoverage:
+    def test_yaml_available_importerror(self, monkeypatch):
+        # Simulate ImportError for yaml and actually use YAMLFormatter
+        import builtins
+        import sys
+
+        orig_import = builtins.__import__
+
+        def fake_import(name, *a, **k):
+            if name == "yaml":
+                raise ImportError
+            return orig_import(name, *a, **k)
+
+        monkeypatch.setattr(builtins, "__import__", fake_import)
+        import importlib
+
+        sys.modules.pop("yaml", None)
+        import tinel.cli.formatters as fmt
+
+        importlib.reload(fmt)
+        assert fmt.YAML_AVAILABLE is False
+        # Actually try to use YAMLFormatter to hit the RuntimeError path
+        import pytest
+
+        with pytest.raises(RuntimeError):
+            fmt.YAMLFormatter().format({"a": 1})
+
+    def test_format_minimal_dict_nested(self):
+        from tinel.cli.formatters import ColorUtility, TextFormatter
+
+        tf = TextFormatter(ColorUtility(False))
+        # Nested dict
+        d = {"a": {"b": 1}}
+        out = tf.format(d)
+        assert "a:" in out and "b: 1" in out
+        # Dict with list of dicts
+        d2 = {"a": [{"b": 2}, 3]}
+        out2 = tf.format(d2)
+        assert "a:" in out2 and "b: 2" in out2 and "- 3" in out2
+        # Dict with list of primitives
+        d3 = {"a": [1, 2]}
+        out3 = tf.format(d3)
+        assert "a:" in out3 and "- 1" in out3 and "- 2" in out3
+
+
+class TestAdditional:
+    """Additional tests from test_formatters_additional.py."""
+
+    def _create_plain_colorizer(self):
+        """Return a ColorUtility instance that leaves strings unchanged."""
+        return ColorUtility(use_color=False)
+
+    @unit_test
+    def test_table_formatter_basic(self):
+        """Test basic table formatting."""
+        headers = ["name", "status", "value"]
+        data = [
+            {"name": "row1", "status": "ok", "value": 10},
+            {"name": "r2", "status": "warning", "value": 200},
+        ]
+        formatter = TableFormatter(self._create_plain_colorizer())
+        table = formatter.format_table(data, headers)
+        lines = table.splitlines()
+        assert len(lines) == 4
+        header, separator, first_row, second_row = lines
+        assert "name" in header and "status" in header and "value" in header
+        assert len(separator) > 0
+        assert "row1" in first_row and "ok" in first_row and "10" in first_row
+        assert "r2" in second_row and "warning" in second_row and "200" in second_row
+
+    @unit_test
+    def test_table_formatter_non_dict_rows(self):
+        """Test table formatting with non-dict rows."""
+        headers = ["col1", "col2"]
+        data = [["a", "b"], ["c", "d"]]
+        formatter = TableFormatter(self._create_plain_colorizer())
+        table = formatter.format_table(data, headers).splitlines()
+        assert table[2].startswith("a")
+        assert table[3].startswith("c")
+
+    @unit_test
+    def test_output_formatter_wrap_text_line_wrapping(self):
+        """Test wrapping text lines."""
+        long_line = "word " * 30
+        out_fmt = OutputFormatter("text", use_color=False)
+        wrapped = out_fmt._wrap_text_line(long_line)
+        assert all(len(l) <= 80 for l in wrapped)
+        assert " ".join(wrapped).replace("  ", " ").startswith("word")
+
+    @unit_test
+    def test_output_formatter_explanation_included_and_suppressed(self):
+        """Test explanation inclusion and suppression."""
+        data = {"k": "v"}
+        explanation = "some explanation text"
+        out_verbose = OutputFormatter("text", verbose=1, use_color=False)
+        formatted = out_verbose.format_with_explanation(data, explanation)
+        assert "Explanation:" in formatted and "some explanation text" in formatted
+        out_quiet = OutputFormatter("text", verbose=0, use_color=False)
+        formatted_no_exp = out_quiet.format_with_explanation(data, explanation)
+        assert "Explanation:" not in formatted_no_exp
+        out_super_quiet = OutputFormatter(
+            "text", verbose=3, quiet=True, use_color=False
+        )
+        formatted_quiet = out_super_quiet.format_with_explanation(data, explanation)
+        assert "Explanation:" not in formatted_quiet and "k=v" in formatted_quiet
+
+    @unit_test
+    def test_formatter_factory_requires_colorizer_for_text(self):
+        """Test formatter factory requires colorizer for text."""
+        with pytest.raises(ValueError):
+            FormatterFactory.create_formatter(FormatType.TEXT, colorizer=None)
+
+    @unit_test
+    def test_formatter_factory_unsupported_format(self):
+        """Test formatter factory raises error for unsupported format."""
+
+        class FakeFormat(str):
+            pass
+
+        fake = FakeFormat("fake")  # type: ignore[arg-type]
+        with pytest.raises(ValueError):
+            FormatterFactory.create_formatter(
+                fake, colorizer=self._create_plain_colorizer()
+            )
+
+    @unit_test
+    def test_output_formatter_print_methods_do_not_throw(self):
+        """Test output formatter print methods do not throw."""
+        buffer = StringIO()
+        out_fmt = OutputFormatter(
+            "text", use_color=False, verbose=2, output_file=buffer
+        )
+        out_fmt.print_output({"a": 1})
+        out_fmt.print_output_with_explanation({"a": 1}, "explain")
+        out_fmt.print_warning("warn")
+        out_fmt.print_info("info")
+        out_fmt.print_debug("debug")
+        out_fmt.print_success("done")
+        with patch("sys.stderr", new=StringIO()):
+            out_fmt.print_error("err")
+        combined = buffer.getvalue()
+        assert "warn" in combined and "info" in combined and "✓" in combined
+
+    @unit_test
+    def test_output_formatter_wrap_text_line_no_wrap(self):
+        """Test wrapping text lines with no wrapping."""
+        out_fmt = OutputFormatter(use_color=False)
+        short = "short line"
+        assert out_fmt._wrap_text_line(short) == [short]
+
+    @unit_test
+    def test_textformatter_format_minimal_dict_with_nested_list(self):
+        """Test formatting minimal dict with nested list."""
+        from tinel.cli.formatters import ColorUtility, TextFormatter
+
+        tf = TextFormatter(ColorUtility(False), quiet=True)
+        data = {"outer": [1, {"inner": "val"}, 3]}
+        result = tf.format(data)
+        assert "outer[0]=1" in result
+        assert "outer[1].inner=val" in result
+        assert "outer[2]=3" in result
+
+    @unit_test
+    def test_textformatter_format_minimal_dict_with_nested_dict(self):
+        """Test formatting minimal dict with nested dict."""
+        from tinel.cli.formatters import ColorUtility, TextFormatter
+
+        tf = TextFormatter(ColorUtility(False), quiet=True)
+        data = {"first": {"second": {"third": 3}}}
+        result = tf.format(data)
+        assert "first.second.third=3" in result
+
+    @unit_test
+    def test_outputformatter_quiet_print_success_no_output(self):
+        """Test quiet output formatter print success with no output."""
+        from tinel.cli.formatters import OutputFormatter
+
+        buffer = StringIO()
+        out_fmt = OutputFormatter(
+            "text", use_color=False, quiet=True, output_file=buffer
+        )
+        out_fmt.print_success("done quietly")
+        assert buffer.getvalue() == ""

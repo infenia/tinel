@@ -6,12 +6,11 @@ Copyright 2025 Infenia Private Limited
 Licensed under the Apache License, Version 2.0
 """
 
-import os
-import sys
 import argparse
 import subprocess
+import sys
 from pathlib import Path
-from typing import List, Dict, Any, Optional
+from typing import Dict, List, Optional
 
 
 class TestRunner:
@@ -375,7 +374,7 @@ class TestRunner:
         print(f"Running: {' '.join(cmd)}")
 
         try:
-            result = subprocess.run(cmd, cwd=self.project_root)
+            result = subprocess.run(cmd, check=False, cwd=self.project_root)
             return result.returncode
         except FileNotFoundError as e:
             print(f"Error: Command not found: {e}")

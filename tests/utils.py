@@ -13,7 +13,6 @@ import threading
 import time
 from pathlib import Path
 from typing import Any, Dict, Generator, List, Optional, Union
-from unittest.mock import Mock, patch
 
 import pytest
 

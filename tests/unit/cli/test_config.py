@@ -8,13 +8,12 @@ Licensed under the Apache License, Version 2.0
 
 import argparse
 import os
-import sys
 from unittest.mock import Mock, patch
 
 import pytest
 
-from tinel.cli.config import CLIConfig
 from tests.utils import unit_test
+from tinel.cli.config import CLIConfig
 
 
 class TestCLIConfig:

@@ -11,9 +11,9 @@ from unittest.mock import Mock, patch
 
 import pytest
 
+from tests.utils import unit_test
 from tinel.cli.commands.router import CommandRouter
 from tinel.cli.error_handler import CLIError, CommandNotFoundError, InvalidArgumentError
-from tests.utils import unit_test
 
 
 class TestCommandRouter:

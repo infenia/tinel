@@ -19,9 +19,9 @@ import csv
 import json
 import sys
 from abc import ABC, abstractmethod
-from io import StringIO
-from typing import Any, Dict, List, Optional, TextIO, Union
 from enum import Enum
+from io import StringIO
+from typing import Any, Dict, List, Optional, TextIO
 
 try:
     import yaml
@@ -390,7 +390,7 @@ class TextFormatter(BaseFormatter):
         lines.append(f"Data type: {type(data).__name__}")
         lines.append(f"Number of keys: {len(data)}")
         if hasattr(data, "keys"):
-            lines.append(f"Keys: {', '.join(str(k) for k in data.keys())}")
+            lines.append(f"Keys: {', '.join(str(k) for k in data)}")
         return lines
 
 
@@ -532,7 +532,7 @@ class TableFormatter:
         """Format table header line."""
         return " | ".join(
             self.colorizer.colorize(header.ljust(width), Color.BOLD_WHITE)
-            for header, width in zip(headers, col_widths)
+            for header, width in zip(headers, col_widths, strict=False)
         )
 
     def _format_separator_line(self, col_widths: List[int]) -> str:
@@ -558,7 +558,7 @@ class TableFormatter:
                 row_values = [str(row)]
 
             formatted_values = []
-            for value, width in zip(row_values, col_widths):
+            for value, width in zip(row_values, col_widths, strict=False):
                 formatted_value = self._format_cell_value(value).ljust(width)
                 formatted_values.append(formatted_value)
 

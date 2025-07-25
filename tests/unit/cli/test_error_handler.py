@@ -6,32 +6,28 @@ Copyright 2025 Infenia Private Limited
 Licensed under the Apache License, Version 2.0
 """
 
-import json
-import os
 import socket
-import sys
-import tempfile
 from io import StringIO
-from unittest.mock import Mock, patch, mock_open
+from unittest.mock import Mock, mock_open, patch
 
 import pytest
 
+from tests.utils import unit_test
 from tinel.cli.error_handler import (
-    ExitCode,
     CLIError,
+    CLIErrorHandler,
     CommandNotFoundError,
-    InvalidArgumentError,
-    PermissionError,
-    FileNotFoundError,
-    NetworkError,
     ConfigurationError,
+    DiagnosticsError,
+    ExitCode,
+    FileNotFoundError,
     HardwareError,
+    InvalidArgumentError,
     KernelError,
     LogAnalysisError,
-    DiagnosticsError,
-    CLIErrorHandler,
+    NetworkError,
+    PermissionError,
 )
-from tests.utils import unit_test
 
 
 class TestExitCode:
@@ -355,6 +351,28 @@ class TestCLIErrorHandler:
             args = mock_handle.call_args[0]
             assert "test context" in args[0]
             assert "Unexpected error" in args[0]
+
+    @unit_test
+    def test_handle_error_no_report_path(self):
+        """Branch where save_error_report returns empty string."""
+        self.formatter.verbose = 0
+        details = {"ctx": "val"}
+        with patch("sys.exit"):
+            with patch.object(self.handler, "save_error_report", return_value=""):
+                # Capture stderr to ensure no 'Error report saved' line emitted
+                with patch("sys.stderr", new_callable=StringIO) as stderr:
+                    self.handler.handle_error("err", ExitCode.GENERAL_ERROR, details)
+                    assert "Error report saved" not in stderr.getvalue()
+
+    @unit_test
+    def test_handle_exception_no_context(self):
+        """Branch where context is None in handle_exception."""
+        exc = RuntimeError("boom")
+        with patch.object(self.handler, "handle_error") as h:
+            self.handler.handle_exception(exc)
+            args = h.call_args[0]
+            # Ensure message contains 'Unexpected error' and not context prefix
+            assert args[0].startswith("Unexpected error")
 
 
 class TestFileValidation:
@@ -779,3 +797,107 @@ def test_error_exit_codes(error_class, expected_exit_code):
         error = error_class("Test message")
 
     assert error.exit_code == expected_exit_code
+
+
+class TestErrorHandlerAdditional:
+    """Additional tests for uncovered branches in error_handler.py."""
+
+    def setup_method(self):
+        self.formatter = Mock()
+        self.handler = CLIErrorHandler(self.formatter)
+
+    # ----------------------- save_error_report ---------------------------
+    @unit_test
+    def test_save_error_report_success_and_failure(self, tmp_path, monkeypatch):
+        """Test save_error_report returns path on success and '' on failure."""
+        # Success case: write to tmp directory
+        err = RuntimeError("boom")
+        context = {"x": 1}
+        # Patch tempfile.gettempdir to tmp_path
+        monkeypatch.setattr("tempfile.gettempdir", lambda: str(tmp_path))
+        path = self.handler.save_error_report(err, context)
+        assert path and path.startswith(str(tmp_path))
+
+        # Failure case: simulate IOError via open
+        monkeypatch.setattr(
+            "builtins.open", lambda *a, **k: (_ for _ in ()).throw(IOError("fail"))
+        )
+        path2 = self.handler.save_error_report(err, context)
+        assert path2 == ""
+
+    # --------------------- validate_system_requirements ------------------
+    @unit_test
+    def test_validate_system_requirements_python_version_error(self, monkeypatch):
+        """Should raise ConfigurationError for old python."""
+        monkeypatch.setattr("sys.version_info", (3, 10, 0))
+        with pytest.raises(ConfigurationError):
+            self.handler.validate_system_requirements()
+
+    @unit_test
+    def test_validate_system_requirements_non_linux(self, monkeypatch):
+        monkeypatch.setattr("sys.version_info", (3, 11, 0))
+        monkeypatch.setattr("platform.system", lambda: "Windows")
+        with pytest.raises(ConfigurationError):
+            self.handler.validate_system_requirements()
+
+    @unit_test
+    def test_validate_system_requirements_missing_commands(self, monkeypatch):
+        monkeypatch.setattr("sys.version_info", (3, 11, 0))
+        monkeypatch.setattr("platform.system", lambda: "Linux")
+
+        # Make validate_command_availability raise for specific command
+        def fake_validate(cmd):
+            if cmd == "lspci":
+                raise CommandNotFoundError(cmd)
+
+        monkeypatch.setattr(
+            self.handler, "validate_command_availability", fake_validate
+        )
+        with pytest.raises(
+            ConfigurationError, match="Required system utilities not found"
+        ):
+            self.handler.validate_system_requirements()
+
+    # --------------------- validate_cli_arguments -----------------------
+    @unit_test
+    def test_validate_cli_arguments_conflict_quiet_verbose(self):
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(quiet=True, verbose=1, format="text")
+        with pytest.raises(InvalidArgumentError):
+            self.handler.validate_cli_arguments(args)
+
+    @unit_test
+    def test_validate_cli_arguments_negative_verbose(self):
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(quiet=False, verbose=-1, format="text")
+        with pytest.raises(InvalidArgumentError):
+            self.handler.validate_cli_arguments(args)
+
+    @unit_test
+    def test_validate_cli_arguments_invalid_format(self):
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(quiet=False, verbose=0, format="xml")
+        with pytest.raises(InvalidArgumentError):
+            self.handler.validate_cli_arguments(args)
+
+    @unit_test
+    def test_validate_cli_arguments_valid(self):
+        from types import SimpleNamespace
+
+        args = SimpleNamespace(quiet=False, verbose=0, format="json")
+        # Should not raise
+        self.handler.validate_cli_arguments(args)
+
+    # --------------------- get_error_context / format_error_for_user ----
+    @unit_test
+    def test_get_error_context_and_format_error(self):
+        context = self.handler.get_error_context()
+        assert "timestamp" in context and "system" in context
+        err = ValueError("bad")
+        msg1 = self.handler.format_error_for_user(err)
+        msg2 = self.handler.format_error_for_user(err, "ctx")
+        assert "ValueError: bad" in msg1
+        assert msg2.startswith("ctx")

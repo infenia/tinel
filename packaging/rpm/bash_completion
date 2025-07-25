@@ -1,0 +1,56 @@
+# Bash completion for tinel
+_tinel_completion() {
+    local cur prev opts
+    COMPREPLY=()
+    cur="${COMP_WORDS[COMP_CWORD]}"
+    prev="${COMP_WORDS[COMP_CWORD-1]}"
+
+    # Main commands
+    local commands="hardware system monitor server help version"
+    
+    # Global options
+    local global_opts="--help --version --debug --config --output"
+    
+    # Output formats
+    local output_formats="json yaml table csv xml"
+
+    case ${prev} in
+        tinel)
+            COMPREPLY=( $(compgen -W "${commands} ${global_opts}" -- ${cur}) )
+            return 0
+            ;;
+        --output)
+            COMPREPLY=( $(compgen -W "${output_formats}" -- ${cur}) )
+            return 0
+            ;;
+        --config)
+            COMPREPLY=( $(compgen -f -- ${cur}) )
+            return 0
+            ;;
+        hardware)
+            local hw_opts="--cpu --memory --storage --network --gpu --all --verbose"
+            COMPREPLY=( $(compgen -W "${hw_opts} ${global_opts}" -- ${cur}) )
+            return 0
+            ;;
+        system)
+            local sys_opts="--processes --services --users --network --all"
+            COMPREPLY=( $(compgen -W "${sys_opts} ${global_opts}" -- ${cur}) )
+            return 0
+            ;;
+        monitor)
+            local mon_opts="--interval --duration --continuous --alerts"
+            COMPREPLY=( $(compgen -W "${mon_opts} ${global_opts}" -- ${cur}) )
+            return 0
+            ;;
+        server)
+            local srv_opts="--port --host --workers --daemon"
+            COMPREPLY=( $(compgen -W "${srv_opts} ${global_opts}" -- ${cur}) )
+            return 0
+            ;;
+        *)
+            COMPREPLY=( $(compgen -W "${global_opts}" -- ${cur}) )
+            ;;
+    esac
+}
+
+complete -F _tinel_completion tinel

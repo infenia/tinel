@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Tinel System Analyzer
+Comment=Next-generation Linux system analysis platform
+Exec=tinel
+Icon=utilities-system-monitor
+Terminal=true
+Type=Application
+Categories=System;Monitor;
+Keywords=system;hardware;analysis;diagnostics;monitoring;
+StartupNotify=false
+MimeType=text/plain;

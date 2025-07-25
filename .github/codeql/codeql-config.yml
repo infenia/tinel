@@ -1,0 +1,52 @@
+name: "Enhanced CodeQL Configuration"
+
+# Custom query suites for comprehensive security analysis
+queries:
+  - name: security-extended
+    queries:
+      - security-extended
+      - security-and-quality
+  - name: custom-python-security
+    queries:
+      - py/sql-injection
+      - py/code-injection
+      - py/command-injection
+      - py/path-injection
+      - py/ldap-injection
+      - py/xpath-injection
+      - py/xml-bomb
+      - py/xxe
+      - py/deserialization-of-untrusted-data
+      - py/hardcoded-credentials
+      - py/clear-text-logging-sensitive-data
+      - py/clear-text-storage-sensitive-data
+      - py/weak-cryptographic-algorithm
+      - py/insufficient-key-sizes
+      - py/insecure-randomness
+      - py/timing-attack-against-header-value
+
+# Path filters to focus on application code
+paths-ignore:
+  - "tests/**"
+  - "docs/**"
+  - "scripts/**"
+  - "**/*.md"
+  - ".github/**"
+  - "build/**"
+  - "dist/**"
+
+paths:
+  - "tinel/**"
+
+# Disable default queries that may be too noisy
+disable-default-queries: false
+
+# Query filters for specific findings
+query-filters:
+  - include:
+      severity: high
+  - include:
+      severity: critical
+  - exclude:
+      id: py/non-iterable-used-in-for-loop
+      reason: "Too many false positives in dynamic code"

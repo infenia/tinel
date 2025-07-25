@@ -20,10 +20,9 @@ import logging
 from abc import ABC, abstractmethod
 from typing import Any, Dict
 
-from ..formatters import OutputFormatter
-from ..error_handler import CLIErrorHandler
 from ...system import LinuxSystemInterface
-
+from ..error_handler import CLIErrorHandler
+from ..formatters import OutputFormatter
 
 logger = logging.getLogger(__name__)
 
@@ -66,10 +65,10 @@ class BaseCommand(ABC):
         """
         from ..error_handler import (
             CLIError,
+            DiagnosticsError,
             HardwareError,
             KernelError,
             LogAnalysisError,
-            DiagnosticsError,
         )
 
         logger.exception(f"Tool {tool_name} failed")

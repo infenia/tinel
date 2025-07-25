@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="console-application">
+  <id>com.infenia.Tinel</id>
+  <metadata_license>Apache-2.0</metadata_license>
+  <project_license>Apache-2.0</project_license>
+  <name>Tinel System Analyzer</name>
+  <summary>Next-generation Linux system analysis platform</summary>
+  
+  <description>
+    <p>
+      Tinel is an advanced open-source platform designed to control, optimize,
+      and analyze Linux-based systems using AI and LLMs. It provides comprehensive
+      hardware information gathering, system diagnostics, and performance analysis.
+    </p>
+    <p>Key features:</p>
+    <ul>
+      <li>Hardware analysis and detection</li>
+      <li>System performance monitoring</li>
+      <li>AI-powered diagnostics</li>
+      <li>Model Context Protocol (MCP) server</li>
+      <li>RESTful API interface</li>
+      <li>Comprehensive reporting</li>
+    </ul>
+    <p>
+      This application provides detailed insights into your system's hardware
+      configuration, performance metrics, and operational status, making it
+      an essential tool for system administrators, developers, and power users.
+    </p>
+  </description>
+  
+  <categories>
+    <category>System</category>
+    <category>Monitor</category>
+    <category>Utility</category>
+  </categories>
+  
+  <keywords>
+    <keyword>system</keyword>
+    <keyword>hardware</keyword>
+    <keyword>analysis</keyword>
+    <keyword>diagnostics</keyword>
+    <keyword>monitoring</keyword>
+    <keyword>performance</keyword>
+  </keywords>
+  
+  <url type="homepage">https://github.com/infenia/tinel</url>
+  <url type="bugtracker">https://github.com/infenia/tinel/issues</url>
+  <url type="vcs-browser">https://github.com/infenia/tinel</url>
+  
+  <developer_name>Infenia Private Limited</developer_name>
+  <update_contact>arun@infenia.com</update_contact>
+  
+  <provides>
+    <binary>tinel</binary>
+  </provides>
+  
+  <screenshots>
+    <screenshot type="default">
+      <caption>Hardware analysis output</caption>
+      <image>https://github.com/infenia/tinel/raw/main/docs/screenshots/hardware-analysis.png</image>
+    </screenshot>
+    <screenshot>
+      <caption>System monitoring dashboard</caption>
+      <image>https://github.com/infenia/tinel/raw/main/docs/screenshots/system-monitoring.png</image>
+    </screenshot>
+  </screenshots>
+  
+  <releases>
+    <release version="0.1.0" date="2025-07-25">
+      <description>
+        <p>Initial release of Tinel System Analyzer</p>
+        <ul>
+          <li>Hardware analysis and detection</li>
+          <li>System performance monitoring</li>
+          <li>AI-powered diagnostics</li>
+          <li>Model Context Protocol (MCP) server support</li>
+          <li>RESTful API interface</li>
+          <li>Command-line tools</li>
+        </ul>
+      </description>
+    </release>
+  </releases>
+  
+  <content_rating type="oars-1.1" />
+  
+  <launchable type="desktop-id">tinel.desktop</launchable>
+</component>

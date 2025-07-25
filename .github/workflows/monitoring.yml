@@ -1,0 +1,467 @@
+name: Workflow Monitoring & Alerting
+
+on:
+  workflow_run:
+    workflows: ["Enhanced CI/CD Pipeline", "Enhanced Security Pipeline", "Code Quality"]
+    types: [completed, requested]
+  schedule:
+    # Health check every 6 hours
+    - cron: '0 */6 * * *'
+  workflow_dispatch:
+
+env:
+  SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+  TEAMS_WEBHOOK_URL: ${{ secrets.TEAMS_WEBHOOK_URL }}
+
+permissions:
+  contents: read
+  actions: read
+  pull-requests: write
+  issues: write
+
+jobs:
+  workflow-health-check:
+    name: Workflow Health Monitor
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Monitor workflow health
+      uses: actions/github-script@v7
+      with:
+        script: |
+          console.log('🔍 Starting workflow health check...');
+          
+          // Get recent workflow runs
+          const { data: workflows } = await github.rest.actions.listWorkflowRuns({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            per_page: 50
+          });
+          
+          // Analyze workflow patterns
+          const stats = {
+            total: workflows.workflow_runs.length,
+            success: 0,
+            failure: 0,
+            cancelled: 0,
+            in_progress: 0,
+            recent_failures: []
+          };
+          
+          const now = new Date();
+          const last24h = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+          
+          for (const run of workflows.workflow_runs) {
+            const runDate = new Date(run.created_at);
+            
+            if (runDate < last24h) continue;
+            
+            switch (run.conclusion) {
+              case 'success':
+                stats.success++;
+                break;
+              case 'failure':
+                stats.failure++;
+                stats.recent_failures.push({
+                  workflow: run.name,
+                  branch: run.head_branch,
+                  url: run.html_url,
+                  created_at: run.created_at
+                });
+                break;
+              case 'cancelled':
+                stats.cancelled++;
+                break;
+              case null:
+                stats.in_progress++;
+                break;
+            }
+          }
+          
+          // Calculate success rate
+          const totalCompleted = stats.success + stats.failure + stats.cancelled;
+          const successRate = totalCompleted > 0 ? (stats.success / totalCompleted * 100).toFixed(1) : 100;
+          
+          console.log(`📊 Workflow Stats (24h): Success: ${stats.success}, Failure: ${stats.failure}, Success Rate: ${successRate}%`);
+          
+          // Create summary
+          const summary = `
+          ## 📊 Workflow Health Report (24h)
+          
+          | Metric | Value |
+          |--------|-------|
+          | Success Rate | ${successRate}% |
+          | Successful Runs | ${stats.success} |
+          | Failed Runs | ${stats.failure} |
+          | Cancelled Runs | ${stats.cancelled} |
+          | In Progress | ${stats.in_progress} |
+          
+          ${stats.recent_failures.length > 0 ? `
+          ## ❌ Recent Failures
+          ${stats.recent_failures.map(f => `- [${f.workflow}](${f.url}) on ${f.branch} (${f.created_at})`).join('\n')}
+          ` : '## ✅ No Recent Failures'}
+          
+          ${successRate < 90 ? '## ⚠️ Action Required\nSuccess rate below 90% - investigate failing workflows' : ''}
+          `;
+          
+          core.summary.addRaw(summary);
+          await core.summary.write();
+          
+          // Set output for alerting
+          core.setOutput('success_rate', successRate);
+          core.setOutput('failure_count', stats.failure);
+          core.setOutput('needs_attention', successRate < 90 || stats.failure > 3);
+
+    - name: Alert on workflow degradation
+      if: steps.workflow-health-check.outputs.needs_attention == 'true'
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const successRate = '${{ steps.workflow-health-check.outputs.success_rate }}';
+          const failureCount = '${{ steps.workflow-health-check.outputs.failure_count }}';
+          
+          const title = `🚨 Workflow Health Alert - Success Rate: ${successRate}%`;
+          const body = `
+          ## 🚨 Workflow Performance Degradation Detected
+          
+          **Current Status:**
+          - Success Rate: ${successRate}% (Target: ≥90%)
+          - Failed Runs (24h): ${failureCount}
+          - Timestamp: ${new Date().toISOString()}
+          
+          ### 🔍 Investigation Required
+          
+          1. **Review Failed Workflows**: Check recent workflow runs for patterns
+          2. **Infrastructure Issues**: Verify GitHub Actions runner availability
+          3. **Dependency Problems**: Check for broken dependencies or external services
+          4. **Test Failures**: Analyze if test failures indicate code quality issues
+          
+          ### 📋 Action Items
+          
+          - [ ] Investigate root cause of failures
+          - [ ] Fix underlying issues
+          - [ ] Monitor for improvement
+          - [ ] Update incident documentation
+          
+          ### 🔗 Resources
+          
+          - [Workflow Runs](${context.payload.repository.html_url}/actions)
+          - [System Status](https://www.githubstatus.com/)
+          
+          ---
+          *This alert was automatically generated by the workflow monitoring system.*
+          `;
+          
+          await github.rest.issues.create({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            title: title,
+            body: body,
+            labels: ['workflow-health', 'priority-high', 'automated']
+          });
+
+  failure-analysis:
+    name: Failure Analysis & Recovery
+    runs-on: ubuntu-latest
+    if: github.event.workflow_run.conclusion == 'failure'
+    timeout-minutes: 15
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Analyze failure patterns
+      uses: actions/github-script@v7
+      with:
+        script: |
+          const workflowRun = context.payload.workflow_run;
+          console.log(`🔍 Analyzing failure for workflow: ${workflowRun.name}`);
+          
+          // Get jobs for the failed workflow
+          const { data: jobs } = await github.rest.actions.listJobsForWorkflowRun({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            run_id: workflowRun.id
+          });
+          
+          const failedJobs = jobs.jobs.filter(job => job.conclusion === 'failure');
+          
+          let analysis = `
+          ## 🔍 Failure Analysis Report
+          
+          **Workflow**: ${workflowRun.name}
+          **Branch**: ${workflowRun.head_branch}
+          **Commit**: ${workflowRun.head_sha.substring(0, 7)}
+          **Triggered by**: ${workflowRun.triggering_actor?.login || 'system'}
+          **Run URL**: ${workflowRun.html_url}
+          
+          ### Failed Jobs (${failedJobs.length})
+          `;
+          
+          for (const job of failedJobs) {
+            analysis += `
+          #### ${job.name}
+          - **Duration**: ${Math.round((new Date(job.completed_at) - new Date(job.started_at)) / 1000)}s
+          - **Runner**: ${job.runner_name || 'unknown'}
+          - **Error**: [View logs](${job.html_url})
+          `;
+          }
+          
+          // Pattern detection
+          const commonPatterns = [
+            { pattern: /timeout/i, category: 'Timeout Issues' },
+            { pattern: /connection.*refused/i, category: 'Network Issues' },
+            { pattern: /no space left/i, category: 'Storage Issues' },
+            { pattern: /permission.*denied/i, category: 'Permission Issues' },
+            { pattern: /module.*not.*found/i, category: 'Dependency Issues' },
+            { pattern: /test.*failed/i, category: 'Test Failures' }
+          ];
+          
+          analysis += `\n### 🔍 Potential Causes\n`;
+          
+          let patternsFound = false;
+          for (const pattern of commonPatterns) {
+            const matchingJobs = failedJobs.filter(job => 
+              pattern.pattern.test(job.name) || 
+              (job.steps && job.steps.some(step => pattern.pattern.test(step.name)))
+            );
+            
+            if (matchingJobs.length > 0) {
+              analysis += `- **${pattern.category}**: ${matchingJobs.length} job(s) affected\n`;
+              patternsFound = true;
+            }
+          }
+          
+          if (!patternsFound) {
+            analysis += `- No common patterns detected - manual investigation required\n`;
+          }
+          
+          // Recovery suggestions
+          analysis += `
+          ### 🛠️ Recovery Suggestions
+          
+          1. **Immediate**: Re-run failed jobs if transient issue suspected
+          2. **Investigation**: Review job logs for specific error messages
+          3. **Dependencies**: Check if external services are operational
+          4. **Resources**: Verify runner resources (CPU, memory, storage)
+          5. **Code Review**: Examine recent commits for potential issues
+          
+          ### 📊 Workflow Statistics
+          
+          - **Total Jobs**: ${jobs.jobs.length}
+          - **Failed Jobs**: ${failedJobs.length}
+          - **Success Rate**: ${((jobs.jobs.length - failedJobs.length) / jobs.jobs.length * 100).toFixed(1)}%
+          `;
+          
+          core.summary.addRaw(analysis);
+          await core.summary.write();
+          
+          // Store analysis for notifications
+          core.setOutput('failure_analysis', analysis);
+          core.setOutput('failed_job_count', failedJobs.length);
+
+    - name: Auto-retry transient failures
+      if: contains(github.event.workflow_run.name, 'CI/CD') && github.event.workflow_run.run_attempt < 3
+      uses: actions/github-script@v7
+      with:
+        script: |
+          // Retry the workflow if it looks like a transient failure
+          const workflowRun = context.payload.workflow_run;
+          
+          console.log(`🔄 Attempting auto-retry for workflow run ${workflowRun.id}`);
+          
+          try {
+            await github.rest.actions.reRunWorkflow({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              run_id: workflowRun.id
+            });
+            
+            console.log('✅ Workflow re-run initiated successfully');
+          } catch (error) {
+            console.log(`❌ Failed to re-run workflow: ${error.message}`);
+          }
+
+  notification-dispatch:
+    name: Notification Dispatch
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [workflow-health-check, failure-analysis]
+    timeout-minutes: 5
+    
+    steps:
+    - name: Slack notification
+      if: env.SLACK_WEBHOOK_URL && (failure() || needs.workflow-health-check.outputs.needs_attention == 'true')
+      uses: 8398a7/action-slack@v3
+      with:
+        status: custom
+        webhook_url: ${{ secrets.SLACK_WEBHOOK_URL }}
+        custom_payload: |
+          {
+            "text": "🚨 Tinel CI/CD Alert",
+            "attachments": [
+              {
+                "color": "${{ job.status == 'success' && needs.workflow-health-check.outputs.needs_attention != 'true' ? 'good' : 'danger' }}",
+                "fields": [
+                  {
+                    "title": "Repository",
+                    "value": "${{ github.repository }}",
+                    "short": true
+                  },
+                  {
+                    "title": "Workflow Status",
+                    "value": "${{ needs.workflow-health-check.outputs.success_rate }}% success rate",
+                    "short": true
+                  },
+                  {
+                    "title": "Action Required",
+                    "value": "${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'Yes - Check GitHub for details' || 'No' }}",
+                    "short": true
+                  }
+                ],
+                "actions": [
+                  {
+                    "type": "button",
+                    "text": "View Workflows",
+                    "url": "${{ github.server_url }}/${{ github.repository }}/actions"
+                  }
+                ]
+              }
+            ]
+          }
+
+    - name: Microsoft Teams notification
+      if: env.TEAMS_WEBHOOK_URL && (failure() || needs.workflow-health-check.outputs.needs_attention == 'true')
+      uses: aliencube/microsoft-teams-actions@v0.8.0
+      with:
+        webhook_uri: ${{ secrets.TEAMS_WEBHOOK_URL }}
+        title: "🚨 Tinel CI/CD Alert"
+        summary: "Workflow monitoring detected issues requiring attention"
+        text: |
+          **Repository**: ${{ github.repository }}
+          **Success Rate**: ${{ needs.workflow-health-check.outputs.success_rate }}%
+          **Action Required**: ${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'Yes' || 'No' }}
+          
+          [View Workflows](${{ github.server_url }}/${{ github.repository }}/actions)
+        theme_color: "${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'FF0000' || '00FF00' }}"
+
+  metrics-collection:
+    name: Metrics Collection
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Collect workflow metrics
+      uses: actions/github-script@v7
+      with:
+        script: |
+          console.log('📊 Collecting workflow metrics...');
+          
+          // Get workflow runs for the last 30 days
+          const thirtyDaysAgo = new Date();
+          thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+          
+          const { data: workflows } = await github.rest.actions.listWorkflowRuns({
+            owner: context.repo.owner,
+            repo: context.repo.repo,
+            per_page: 100,
+            created: `>=${thirtyDaysAgo.toISOString()}`
+          });
+          
+          // Calculate metrics
+          const metrics = {
+            total_runs: workflows.workflow_runs.length,
+            successful_runs: workflows.workflow_runs.filter(r => r.conclusion === 'success').length,
+            failed_runs: workflows.workflow_runs.filter(r => r.conclusion === 'failure').length,
+            cancelled_runs: workflows.workflow_runs.filter(r => r.conclusion === 'cancelled').length,
+            avg_duration: 0,
+            workflows_by_type: {}
+          };
+          
+          let totalDuration = 0;
+          let durationCount = 0;
+          
+          for (const run of workflows.workflow_runs) {
+            // Track by workflow type
+            if (!metrics.workflows_by_type[run.name]) {
+              metrics.workflows_by_type[run.name] = { runs: 0, failures: 0 };
+            }
+            metrics.workflows_by_type[run.name].runs++;
+            
+            if (run.conclusion === 'failure') {
+              metrics.workflows_by_type[run.name].failures++;
+            }
+            
+            // Calculate duration
+            if (run.updated_at && run.created_at) {
+              const duration = new Date(run.updated_at) - new Date(run.created_at);
+              totalDuration += duration;
+              durationCount++;
+            }
+          }
+          
+          metrics.avg_duration = durationCount > 0 ? Math.round(totalDuration / durationCount / 1000 / 60) : 0; // minutes
+          metrics.success_rate = metrics.total_runs > 0 ? 
+            ((metrics.successful_runs / (metrics.total_runs - metrics.cancelled_runs)) * 100).toFixed(1) : 100;
+          
+          // Generate metrics report
+          const report = `
+          ## 📊 CI/CD Metrics Dashboard (30 days)
+          
+          ### 🔄 Overall Statistics
+          | Metric | Value |
+          |--------|-------|
+          | Total Runs | ${metrics.total_runs} |
+          | Success Rate | ${metrics.success_rate}% |
+          | Average Duration | ${metrics.avg_duration} minutes |
+          | Peak Activity | ${Math.max(...Object.values(metrics.workflows_by_type).map(w => w.runs))} runs |
+          
+          ### 📈 Workflow Breakdown
+          | Workflow | Runs | Failures | Success Rate |
+          |----------|------|----------|--------------|
+          ${Object.entries(metrics.workflows_by_type).map(([name, data]) => 
+            `| ${name} | ${data.runs} | ${data.failures} | ${((data.runs - data.failures) / data.runs * 100).toFixed(1)}% |`
+          ).join('\n')}
+          
+          ### 🎯 Performance Insights
+          ${metrics.success_rate >= 95 ? '✅ Excellent reliability' : 
+            metrics.success_rate >= 90 ? '⚠️ Good but monitor closely' : 
+            '❌ Reliability needs improvement'}
+          
+          ${metrics.avg_duration <= 10 ? '⚡ Fast execution times' :
+            metrics.avg_duration <= 20 ? '⏱️ Reasonable execution times' :
+            '🐌 Consider workflow optimization'}
+          `;
+          
+          core.summary.addRaw(report);
+          await core.summary.write();
+          
+          console.log('✅ Metrics collection completed');
+
+    - name: Store metrics artifact
+      run: |
+        echo "Metrics collection completed at $(date)" > metrics-timestamp.txt
+      
+    - name: Upload metrics
+      uses: actions/upload-artifact@v4
+      with:
+        name: workflow-metrics-${{ github.run_id }}
+        path: |
+          metrics-timestamp.txt
+        retention-days: 90

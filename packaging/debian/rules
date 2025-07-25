@@ -1,0 +1,63 @@
+#!/usr/bin/make -f
+
+# See debhelper(7) (uncomment to enable)
+# output every command that modifies files on the build system.
+export DH_VERBOSE = 1
+
+# see FEATURE AREAS in dpkg-buildflags(1)
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+# see ENVIRONMENT in dpkg-buildflags(1)
+# package maintainers to append CFLAGS
+export DEB_CFLAGS_MAINT_APPEND  = -Wall -pedantic
+# package maintainers to append LDFLAGS
+export DEB_LDFLAGS_MAINT_APPEND = -Wl,--as-needed
+
+# Python settings
+export PYBUILD_NAME=tinel
+export PYBUILD_DISABLE=test
+
+%:
+	dh $@ --with python3 --buildsystem=pybuild
+
+override_dh_auto_configure:
+	# Ensure we have the latest pip and build tools
+	python3 -m pip install --upgrade pip build wheel
+
+override_dh_auto_build:
+	# Build the Python package
+	python3 -m build --wheel --skip-dependency-check
+
+override_dh_auto_install:
+	# Install using pip to ensure proper dependency handling
+	python3 -m pip install --no-deps --prefix=/usr --root=debian/tinel/ dist/*.whl
+	
+	# Install additional files
+	install -D -m 644 packaging/debian/tinel.desktop debian/tinel/usr/share/applications/tinel.desktop
+	install -D -m 644 packaging/debian/tinel.1 debian/tinel/usr/share/man/man1/tinel.1
+	
+	# Install bash completion
+	install -D -m 644 packaging/debian/bash_completion debian/tinel/usr/share/bash-completion/completions/tinel
+	
+	# Install systemd service (optional)
+	install -D -m 644 packaging/debian/tinel.service debian/tinel/lib/systemd/system/tinel.service
+
+override_dh_auto_test:
+	# Skip tests during package build (run in CI instead)
+	# This prevents build failures due to missing test dependencies
+	@echo "Skipping tests during package build"
+
+override_dh_python3:
+	dh_python3 --requires requirements.txt
+
+override_dh_installdocs:
+	dh_installdocs README.md
+	dh_installdocs -p tinel-doc docs/ || true
+
+# Install systemd service but don't enable by default
+override_dh_systemd_enable:
+	dh_systemd_enable --no-enable tinel.service
+
+# Don't start the service automatically
+override_dh_systemd_start:
+	dh_systemd_start --no-start tinel.service

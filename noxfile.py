@@ -40,7 +40,7 @@ def coverage(session):
     session.run(
         "pytest", "--cov", "--cov-report=term", "--cov-report=html", "--cov-report=xml"
     )
-    session.run("coverage", "report", "--fail-under=90")
+    session.run("coverage", "report", "--fail-under=100")
 
 
 @nox.session(python=DEFAULT_PYTHON)
