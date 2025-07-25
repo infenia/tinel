@@ -510,7 +510,7 @@ class CLIErrorHandler:
             raise InvalidArgumentError("Verbosity level cannot be negative", "verbose")
 
         # Validate output format (only if it's a real string, not a Mock)
-        valid_formats = ["text", "json", "yaml"]
+        valid_formats = ["text", "json", "yaml", "csv"]
         if (
             hasattr(args, "format")
             and isinstance(args.format, str)
