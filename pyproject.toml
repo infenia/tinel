@@ -57,6 +57,7 @@ dev = [
     "black>=23.7.0",
     "ruff>=0.0.287",
     "mypy>=1.5.1",
+    "types-PyYAML>=6.0.12.20250516",
     "build>=1.0.0",
     "nox>=2023.4.22",
     "coverage[toml]>=7.3.0",
@@ -116,9 +117,6 @@ line-length = 88
 target-version = "py311"
 exclude = [".git", ".ruff_cache", ".venv", "__pypackages__", "dist", "build"]
 
-[tool.ruff.isort]
-known-first-party = ["tinel"]
-
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
 select = ["E", "F", "I", "N", "W", "B", "C4", "SIM", "ERA", "PL"]
@@ -128,6 +126,9 @@ unfixable = []
 
 # Allow unused variables when underscore-prefixed.
 dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.isort]
+known-first-party = ["tinel"]
 
 [tool.ruff.format]
 # Like Black, use double quotes for strings.

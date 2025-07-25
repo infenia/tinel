@@ -17,7 +17,8 @@ limitations under the License.
 
 import logging
 import sys
-from typing import List, Optional
+import time
+from typing import Any, List, Optional
 
 from .config import CLIConfig
 from .error_handler import CLIErrorHandler
@@ -26,7 +27,7 @@ from .parser import parse_arguments
 
 
 # Lazy import for CommandRouter to improve startup time
-def _get_command_router(formatter, error_handler):
+def _get_command_router(formatter: Any, error_handler: Any) -> Any:
     """Lazy load command router to improve startup performance."""
     from .commands import CommandRouter
 
@@ -114,7 +115,7 @@ def _validate_and_sanitize_argv(argv: Optional[List[str]]) -> Optional[List[str]
     return sanitized
 
 
-def display_banner():
+def display_banner() -> None:
     """Display Tinel banner with Infenia attribution."""
     banner = """
     ╔══════════════════════════════════════════════════════════╗
@@ -158,8 +159,12 @@ def main(argv: Optional[List[str]] = None) -> int:
     except SystemExit as e:
         # SystemExit with None code should return 0 (success)
         # SystemExit with no arguments defaults to code=None
-        return e.code if e.code is not None else 0
-        raise
+        if e.code is None:
+            return 0
+        elif isinstance(e.code, int):
+            return e.code
+        else:
+            return 1  # Convert string codes to 1
     except Exception as e:
         return _handle_unexpected_error(e)
 
@@ -173,7 +178,6 @@ def _execute_main_logic(argv: Optional[List[str]]) -> int:
     Returns:
         Exit code from command execution
     """
-    import time
 
     start_time = time.time()
     logger = logging.getLogger(__name__)
@@ -215,7 +219,7 @@ def _execute_main_logic(argv: Optional[List[str]]) -> int:
         execution_time = time.time() - start_time
         logger.info(f"CLI execution completed successfully in {execution_time:.3f}s")
 
-        return result
+        return result  # type: ignore[no-any-return]
 
     except Exception as e:
         execution_time = time.time() - start_time

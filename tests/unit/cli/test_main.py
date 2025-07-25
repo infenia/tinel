@@ -264,26 +264,24 @@ class TestMain:
         with patch(
             "tinel.cli.main._validate_and_sanitize_argv",
             side_effect=ValueError("Invalid args"),
-        ):
-            with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-                result = main(["invalid"])
+        ), patch("sys.stderr", new_callable=StringIO) as mock_stderr:
+            result = main(["invalid"])
 
-                assert result == 1
-                assert "Fatal error: Invalid args" in mock_stderr.getvalue()
+            assert result == 1
+            assert "Fatal error: Invalid args" in mock_stderr.getvalue()
 
     @unit_test
     def test_main_keyboard_interrupt(self):
         """Test main handles keyboard interrupt."""
         with patch(
             "tinel.cli.main._execute_main_logic", side_effect=KeyboardInterrupt()
-        ):
-            with patch(
-                "tinel.cli.main._handle_keyboard_interrupt", return_value=130
-            ) as mock_handler:
-                result = main(["hardware", "cpu"])
+        ), patch(
+            "tinel.cli.main._handle_keyboard_interrupt", return_value=130
+        ) as mock_handler:
+            result = main(["hardware", "cpu"])
 
-                mock_handler.assert_called_once()
-                assert result == 130
+            mock_handler.assert_called_once()
+            assert result == 130
 
     @unit_test
     def test_main_system_exit_with_code(self):
@@ -302,18 +300,25 @@ class TestMain:
             assert result == 0
 
     @unit_test
+    def test_main_system_exit_with_string_code(self):
+        """Test main handles SystemExit with string code."""
+        with patch("tinel.cli.main._execute_main_logic", side_effect=SystemExit("error")):
+            result = main(["hardware", "cpu"])
+
+            assert result == 1
+
+    @unit_test
     def test_main_unexpected_error(self):
         """Test main handles unexpected errors."""
         with patch(
             "tinel.cli.main._execute_main_logic", side_effect=RuntimeError("Unexpected")
-        ):
-            with patch(
-                "tinel.cli.main._handle_unexpected_error", return_value=1
-            ) as mock_handler:
-                result = main(["hardware", "cpu"])
+        ), patch(
+            "tinel.cli.main._handle_unexpected_error", return_value=1
+        ) as mock_handler:
+            result = main(["hardware", "cpu"])
 
-                mock_handler.assert_called_once()
-                assert result == 1
+            mock_handler.assert_called_once()
+            assert result == 1
 
 
 class TestExecuteMainLogic:
@@ -387,16 +392,15 @@ class TestExecuteMainLogic:
         """Test exception handling in main logic."""
         with patch(
             "tinel.cli.main.parse_arguments", side_effect=RuntimeError("Parse error")
-        ):
-            with patch("logging.getLogger") as mock_get_logger:
-                mock_logger = Mock()
-                mock_get_logger.return_value = mock_logger
+        ), patch("logging.getLogger") as mock_get_logger:
+            mock_logger = Mock()
+            mock_get_logger.return_value = mock_logger
 
-                with pytest.raises(RuntimeError, match="Parse error"):
-                    _execute_main_logic(["invalid"])
+            with pytest.raises(RuntimeError, match="Parse error"):
+                _execute_main_logic(["invalid"])
 
-                # Should log the error
-                mock_logger.error.assert_called_once()
+            # Should log the error
+            mock_logger.error.assert_called_once()
 
 
 class TestErrorHandlers:

@@ -627,13 +627,13 @@ def test_cache_ttl_behavior(cache_ttl, expected_calls):
         return {"count": call_count}
 
     # First call
-    result1 = analyzer._get_cached_or_compute("test", counting_computation)
+    analyzer._get_cached_or_compute("test", counting_computation)
 
     # Wait based on TTL
     if cache_ttl < 1.0:
         time.sleep(cache_ttl + 0.01)
 
     # Second call
-    result2 = analyzer._get_cached_or_compute("test", counting_computation)
+    analyzer._get_cached_or_compute("test", counting_computation)
 
     assert call_count == expected_calls

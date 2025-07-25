@@ -17,7 +17,7 @@ limitations under the License.
 
 import re
 import time
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
@@ -33,10 +33,10 @@ class CPUAnalyzer:
             system_interface: System interface for command execution
         """
         self.system = system_interface or LinuxSystemInterface()
-        self._cache = {}
+        self._cache: Dict[str, Tuple[Any, float]] = {}
         self._cache_ttl = 60  # Cache for 60 seconds
 
-    def _get_cached_or_compute(self, key: str, compute_func) -> Any:
+    def _get_cached_or_compute(self, key: str, compute_func: Callable[[], Any]) -> Any:
         """Get cached result or compute and cache new result.
 
         Args:
@@ -65,7 +65,9 @@ class CPUAnalyzer:
         Returns:
             Dictionary containing detailed CPU information
         """
-        return self._get_cached_or_compute("cpu_info_full", self._compute_cpu_info)
+        return self._get_cached_or_compute(
+            "cpu_info_full", self._compute_cpu_info
+        )  # type: ignore[no-any-return]
 
     def _compute_cpu_info(self) -> Dict[str, Any]:
         """Compute CPU information efficiently.
@@ -105,7 +107,7 @@ class CPUAnalyzer:
         return info
 
     def _process_basic_cpu_info(
-        self, cpuinfo_content: Optional[str], lscpu_result
+        self, cpuinfo_content: Optional[str], lscpu_result: Any
     ) -> Dict[str, Any]:
         """Process basic CPU information from cached data sources.
 
@@ -285,8 +287,14 @@ class CPUAnalyzer:
                 {
                     "type": "performance",
                     "issue": "CPU governor set to powersave",
-                    "recommendation": "Consider using performance or ondemand governor for better performance",
-                    "command": "echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor",
+                    "recommendation": (
+                        "Consider using performance or ondemand governor "
+                        "for better performance"
+                    ),
+                    "command": (
+                        "echo performance | sudo tee "
+                        "/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
+                    ),
                 }
             )
 
@@ -300,8 +308,13 @@ class CPUAnalyzer:
                 {
                     "type": "security",
                     "issue": f"{vulnerable_count} CPU vulnerabilities detected",
-                    "recommendation": "Update kernel and microcode to mitigate CPU vulnerabilities",
-                    "command": "sudo apt update && sudo apt upgrade linux-generic intel-microcode",
+                    "recommendation": (
+                        "Update kernel and microcode to mitigate CPU vulnerabilities"
+                    ),
+                    "command": (
+                        "sudo apt update && sudo apt upgrade linux-generic "
+                        "intel-microcode"
+                    ),
                 }
             )
 

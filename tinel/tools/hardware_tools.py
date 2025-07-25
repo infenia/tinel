@@ -15,13 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""Hardware information tool providers."""
-
 from typing import Any, Dict
 
 from ..hardware.device_analyzer import DeviceAnalyzer
 from ..interfaces import SystemInterface
 from .base import BaseToolProvider
+
+"""Hardware information tool providers."""
 
 
 class HardwareToolProvider(BaseToolProvider):
@@ -63,7 +63,8 @@ class CPUInfoToolProvider(HardwareToolProvider):
     def __init__(self, system_interface: SystemInterface):
         super().__init__(
             "get_cpu_info",
-            "Get detailed CPU information including model, cores, frequency, and features",
+            "Get detailed CPU information including model, cores, frequency, "
+            "and features",
             system_interface,
         )
 
@@ -78,7 +79,8 @@ class MemoryInfoToolProvider(HardwareToolProvider):
     def __init__(self, system_interface: SystemInterface):
         super().__init__(
             "get_memory_info",
-            "Get detailed memory information including RAM size, type, and configuration",
+            "Get detailed memory information including RAM size, type, "
+            "and configuration",
             system_interface,
         )
 

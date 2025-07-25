@@ -51,3 +51,57 @@ class DeviceAnalyzer:
             Dictionary containing CPU information
         """
         return self.cpu_analyzer.get_cpu_info()
+
+    def get_memory_info(self) -> Dict[str, Any]:
+        """Get detailed memory information.
+
+        Returns:
+            Dictionary containing memory information
+        """
+        # TODO: Implement memory information gathering
+        return {"memory": "Not implemented yet"}
+
+    def get_storage_info(self) -> Dict[str, Any]:
+        """Get detailed storage information.
+
+        Returns:
+            Dictionary containing storage information
+        """
+        # TODO: Implement storage information gathering
+        return {"storage": "Not implemented yet"}
+
+    def get_pci_devices(self) -> Dict[str, Any]:
+        """Get PCI device information.
+
+        Returns:
+            Dictionary containing PCI device information
+        """
+        # TODO: Implement PCI device information gathering
+        return {"pci_devices": "Not implemented yet"}
+
+    def get_usb_devices(self) -> Dict[str, Any]:
+        """Get USB device information.
+
+        Returns:
+            Dictionary containing USB device information
+        """
+        # TODO: Implement USB device information gathering
+        return {"usb_devices": "Not implemented yet"}
+
+    def get_network_info(self) -> Dict[str, Any]:
+        """Get network information.
+
+        Returns:
+            Dictionary containing network information
+        """
+        # TODO: Implement network information gathering
+        return {"network": "Not implemented yet"}
+
+    def get_graphics_info(self) -> Dict[str, Any]:
+        """Get graphics information.
+
+        Returns:
+            Dictionary containing graphics information
+        """
+        # TODO: Implement graphics information gathering
+        return {"graphics": "Not implemented yet"}
