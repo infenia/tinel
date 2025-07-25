@@ -31,7 +31,7 @@ class TestBaseCommand(unittest.TestCase):
         self.assertEqual(str(cm.exception), "Test CLI Error")
 
     def test_handle_tool_error_generic_exception_default_cli_error(self):
-        # Test when a generic exception is raised, and it falls through to the default CLIError
+        # Test when a generic exception is raised, and it falls through to\n        # the default CLIError
         generic_error = ValueError("Some unexpected error")
         with self.assertRaises(CLIError) as cm:
             self.base_command._handle_tool_error(generic_error, "unmapped_tool")
@@ -144,6 +144,19 @@ class TestBaseCommand(unittest.TestCase):
             str(cm.exception),
             "Tool 'exception_tool' execution failed: Execution failed unexpectedly",
         )
+
+    def test_execute_tool_exception_handle_tool_error_no_raise(self):
+        """Test _execute_tool when _handle_tool_error doesn't raise."""
+        mock_tool_provider = Mock()
+        mock_tool_provider.get_tool_name.return_value = "exception_tool"
+        mock_tool_provider.execute.side_effect = ValueError("Test error")
+
+        # Mock _handle_tool_error to not raise exception
+        self.base_command._handle_tool_error = Mock()
+
+        result = self.base_command._execute_tool(mock_tool_provider, {})
+        assert result == {}
+        self.base_command._handle_tool_error.assert_called_once()
 
 
 if __name__ == "__main__":

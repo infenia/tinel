@@ -290,17 +290,15 @@ class TestCLIErrorHandler:
         details = {"context": "test"}
         self.formatter.verbose = 0  # Set verbose to an integer, not a Mock
 
-        with patch("sys.exit"):
-            with patch.object(
-                self.handler, "save_error_report", return_value="/tmp/report.json"
-            ):
-                with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-                    self.handler.handle_error(
-                        "General error", ExitCode.GENERAL_ERROR, details
-                    )
+        with patch("sys.exit"), patch.object(
+            self.handler, "save_error_report", return_value="/tmp/report.json"
+        ), patch("sys.stderr", new_callable=StringIO) as mock_stderr:
+            self.handler.handle_error(
+                "General error", ExitCode.GENERAL_ERROR, details
+            )
 
-                    stderr_output = mock_stderr.getvalue()
-                    assert "Error report saved to" in stderr_output
+            stderr_output = mock_stderr.getvalue()
+            assert "Error report saved to" in stderr_output
 
     @unit_test
     def test_handle_error_save_report_failure_in_handle_error(self):
@@ -308,22 +306,19 @@ class TestCLIErrorHandler:
         details = {"context": "test"}
         self.formatter.verbose = 0
 
-        with patch("sys.exit"):
-            with patch.object(
-                self.handler, "save_error_report", side_effect=Exception("Save failed")
-            ):
-                with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-                    with patch.object(
-                        self.formatter, "print_error"
-                    ) as mock_print_error:
-                        self.handler.handle_error(
-                            "General error", ExitCode.GENERAL_ERROR, details
-                        )
+        with patch("sys.exit"), patch.object(
+            self.handler, "save_error_report", side_effect=Exception("Save failed")
+        ), patch("sys.stderr", new_callable=StringIO) as mock_stderr, patch.object(
+            self.formatter, "print_error"
+        ) as mock_print_error:
+            self.handler.handle_error(
+                "General error", ExitCode.GENERAL_ERROR, details
+            )
 
-                        mock_print_error.assert_called_once_with("General error")
-                        stderr_output = mock_stderr.getvalue()
-                        # Assert that no message about saving report is printed
-                        assert "Error report saved to" not in stderr_output
+            mock_print_error.assert_called_once_with("General error")
+            stderr_output = mock_stderr.getvalue()
+            # Assert that no message about saving report is printed
+            assert "Error report saved to" not in stderr_output
 
     @unit_test
     def test_handle_cli_error(self):

@@ -67,18 +67,18 @@ def test_unknown_command(hardware_cmd, mock_error_handler):
 def test_show_all_hardware_exception(hardware_cmd):
     args = argparse.Namespace(hardware_command=None, detailed=False, summary=False)
     hardware_cmd._execute_tool = MagicMock(side_effect=Exception("fail"))
-    hardware_cmd._handle_tool_error = MagicMock(return_value=99)
-    rc = hardware_cmd._show_all_hardware(args)
-    assert rc == 99
+    hardware_cmd._handle_tool_error = MagicMock(side_effect=Exception("handled"))
+    with pytest.raises(Exception):
+        hardware_cmd._show_all_hardware(args)
     hardware_cmd._handle_tool_error.assert_called()
 
 
 def test_show_cpu_info_exception(hardware_cmd):
     args = argparse.Namespace(detailed=False, temperature=False, features=False)
     hardware_cmd._execute_tool = MagicMock(side_effect=Exception("fail"))
-    hardware_cmd._handle_tool_error = MagicMock(return_value=77)
-    rc = hardware_cmd._show_cpu_info(args)
-    assert rc == 77
+    hardware_cmd._handle_tool_error = MagicMock(side_effect=Exception("handled"))
+    with pytest.raises(Exception):
+        hardware_cmd._show_cpu_info(args)
     hardware_cmd._handle_tool_error.assert_called()
 
 
@@ -87,7 +87,39 @@ def test_execute_main_exception(hardware_cmd):
         hardware_command="cpu", detailed=False, temperature=False, features=False
     )
     hardware_cmd._show_cpu_info = MagicMock(side_effect=Exception("fail"))
-    hardware_cmd._handle_tool_error = MagicMock(return_value=55)
-    rc = hardware_cmd.execute(args)
-    assert rc == 55
+    hardware_cmd._handle_tool_error = MagicMock(side_effect=Exception("handled"))
+    with pytest.raises(Exception):
+        hardware_cmd.execute(args)
+    hardware_cmd._handle_tool_error.assert_called()
+
+
+def test_show_all_hardware_exception_no_raise(hardware_cmd):
+    """Test _show_all_hardware when _handle_tool_error doesn't raise."""
+    args = argparse.Namespace(hardware_command=None, detailed=False, summary=False)
+    hardware_cmd._execute_tool = MagicMock(side_effect=Exception("fail"))
+    hardware_cmd._handle_tool_error = MagicMock()  # Don't raise exception
+    result = hardware_cmd._show_all_hardware(args)
+    assert result == 1
+    hardware_cmd._handle_tool_error.assert_called()
+
+
+def test_show_cpu_info_exception_no_raise(hardware_cmd):
+    """Test _show_cpu_info when _handle_tool_error doesn't raise."""
+    args = argparse.Namespace(detailed=False, temperature=False, features=False)
+    hardware_cmd._execute_tool = MagicMock(side_effect=Exception("fail"))
+    hardware_cmd._handle_tool_error = MagicMock()  # Don't raise exception
+    result = hardware_cmd._show_cpu_info(args)
+    assert result == 1
+    hardware_cmd._handle_tool_error.assert_called()
+
+
+def test_execute_main_exception_no_raise(hardware_cmd):
+    """Test execute when _handle_tool_error doesn't raise."""
+    args = argparse.Namespace(
+        hardware_command="cpu", detailed=False, temperature=False, features=False
+    )
+    hardware_cmd._show_cpu_info = MagicMock(side_effect=Exception("fail"))
+    hardware_cmd._handle_tool_error = MagicMock()  # Don't raise exception
+    result = hardware_cmd.execute(args)
+    assert result == 1
     hardware_cmd._handle_tool_error.assert_called()

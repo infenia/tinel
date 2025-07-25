@@ -111,7 +111,6 @@ class TestCPUAnalyzerPerformance:
         performance_monitor.start()
         result1 = self.analyzer.get_cpu_info()
         performance_monitor.stop()
-        uncached_time = performance_monitor.elapsed
 
         # Second call - should be fast (cached)
         performance_monitor.start()
@@ -228,14 +227,14 @@ class TestCPUAnalyzerPerformance:
         self._setup_realistic_mocks(slow_mode=False)
 
         # First call
-        result1 = self.analyzer.get_cpu_info()
+        self.analyzer.get_cpu_info()
 
         # Wait for cache expiration
         time.sleep(0.02)
 
         # Second call should recompute but still be reasonably fast
         with PerformanceTestHelpers.measure_time() as timing:
-            result2 = self.analyzer.get_cpu_info()
+            self.analyzer.get_cpu_info()
 
         # Should complete within reasonable time even after cache expiration
         AssertionHelpers.assert_performance_within_bounds(
@@ -345,7 +344,7 @@ class TestSystemInterfacePerformance:
 
         for path in paths:
             with PerformanceTestHelpers.measure_time() as timing:
-                result = self.system._validate_file_path(path)
+                self.system._validate_file_path(path)
 
             # Path validation should be very fast
             AssertionHelpers.assert_performance_within_bounds(
@@ -380,7 +379,7 @@ class TestFormatterPerformance:
             ("csv", OutputFormatter(format_type="csv", use_color=False)),
         ]
 
-        for format_name, formatter in formatters:
+        for _format_name, formatter in formatters:
             with PerformanceTestHelpers.measure_time() as timing:
                 result = formatter.format_output(large_data)
 

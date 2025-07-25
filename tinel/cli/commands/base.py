@@ -18,7 +18,7 @@ limitations under the License.
 import argparse
 import logging
 from abc import ABC, abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, NoReturn
 
 from ...system import LinuxSystemInterface
 from ..error_handler import CLIErrorHandler
@@ -53,7 +53,7 @@ class BaseCommand(ABC):
         """
         pass
 
-    def _handle_tool_error(self, error: Exception, tool_name: str) -> None:
+    def _handle_tool_error(self, error: Exception, tool_name: str) -> NoReturn:
         """Handle tool execution errors.
 
         Args:
@@ -112,7 +112,7 @@ class BaseCommand(ABC):
         raise CLIError(f"Tool '{tool_name}' execution failed: {error}")
 
     def _execute_tool(
-        self, tool_provider, parameters: Dict[str, Any]
+        self, tool_provider: Any, parameters: Dict[str, Any]
     ) -> Dict[str, Any]:
         """Execute a tool provider with error handling.
 
@@ -136,7 +136,9 @@ class BaseCommand(ABC):
                 error_msg = result.get("error", "Unknown error")
                 raise RuntimeError(error_msg)
 
-            return result
+            return result  # type: ignore[no-any-return]
 
         except Exception as error:
             self._handle_tool_error(error, tool_provider.get_tool_name())
+            # This should never be reached due to _handle_tool_error raising/exiting
+            return {}

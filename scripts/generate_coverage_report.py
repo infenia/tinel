@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 """
+Script to generate code coverage reports for all modules.
+
 Copyright 2025 Infenia Private Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -15,12 +17,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""Script to generate code coverage reports for all modules."""
-
-import os
-import sys
-import subprocess
 import argparse
+import subprocess
+import sys
 from pathlib import Path
 
 
@@ -95,10 +94,7 @@ def main():
 
     # Determine formats
     formats = []
-    if args.format == "all":
-        formats = ["term", "html", "xml"]
-    else:
-        formats = [args.format]
+    formats = ["term", "html", "xml"] if args.format == "all" else [args.format]
 
     # Generate coverage report
     success = generate_coverage_report(args.module, formats, args.threshold)

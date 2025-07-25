@@ -194,19 +194,18 @@ class TestPathTraversalPrevention:
         """Test that file size limits are enforced."""
         with patch.object(
             self.system, "_validate_file_path", return_value="/proc/cpuinfo"
-        ):
-            with patch("pathlib.Path.stat") as mock_stat:
-                # Test with oversized file
-                mock_stat.return_value = Mock(st_size=20 * 1024 * 1024)  # 20MB
+        ), patch("pathlib.Path.stat") as mock_stat:
+            # Test with oversized file
+            mock_stat.return_value = Mock(st_size=20 * 1024 * 1024)  # 20MB
 
+            result = self.system.read_file("/proc/cpuinfo")
+            assert result is None, "Large file size limit not enforced"
+
+            # Test with reasonable file size
+            mock_stat.return_value = Mock(st_size=1024)  # 1KB
+            with patch("builtins.open", mock_open(read_data="test content")):
                 result = self.system.read_file("/proc/cpuinfo")
-                assert result is None, "Large file size limit not enforced"
-
-                # Test with reasonable file size
-                mock_stat.return_value = Mock(st_size=1024)  # 1KB
-                with patch("builtins.open", mock_open(read_data="test content")):
-                    result = self.system.read_file("/proc/cpuinfo")
-                    assert result == "test content"
+                assert result == "test content"
 
 
 class TestInputValidation:
@@ -290,7 +289,7 @@ class TestInformationDisclosure:
     def test_error_message_sanitization(self):
         """Test that error messages don't leak sensitive information."""
         system = LinuxSystemInterface()
-        error_handler = CLIErrorHandler(Mock())
+        CLIErrorHandler(Mock())
 
         # Test with sensitive path
         sensitive_path = "/root/.ssh/id_rsa"

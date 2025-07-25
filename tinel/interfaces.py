@@ -31,27 +31,6 @@ class CommandResult:
     error: Optional[str] = None
 
 
-# @dataclass
-# class LogEntry:
-#     """Represents a single log entry."""
-
-#     timestamp: datetime
-#     facility: str
-#     severity: str
-#     message: str
-#     source: str
-
-
-# @dataclass
-# class KernelConfigOption:
-#     """Represents a kernel configuration option."""
-
-#     name: str
-#     value: str
-#     description: str
-#     recommended: Optional[str] = None
-#     security_impact: Optional[str] = None
-#     performance_impact: Optional[str] = None
 
 
 @dataclass
@@ -59,43 +38,8 @@ class HardwareInfo:
     """Comprehensive hardware information."""
 
     cpu: Dict[str, Any]
-    # memory: Dict[str, Any]
-    # storage: Dict[str, Any]
-    # pci_devices: Dict[str, Any]
-    # usb_devices: Dict[str, Any]
-    # network: Dict[str, Any]
-    # graphics: Dict[str, Any]
 
 
-# @dataclass
-# class KernelConfig:
-#     """Kernel configuration information."""
-
-#     version: str
-#     options: Dict[str, KernelConfigOption]
-#     analysis: Dict[str, Any]
-#     recommendations: Dict[str, Any]
-
-
-# @dataclass
-# class LogAnalysis:
-#     """Log analysis results."""
-
-#     entries: List[LogEntry]
-#     patterns: Dict[str, Any]
-#     issues: Dict[str, Any]
-#     summary: Dict[str, Any]
-
-
-# @dataclass
-# class Diagnostic:
-#     """System diagnostic information."""
-
-#     hardware: HardwareInfo
-#     kernel_config: Optional[KernelConfig]
-#     log_analysis: Optional[LogAnalysis]
-#     recommendations: Dict[str, Any]
-#     explanation: str
 
 
 class SystemInterface(ABC):
@@ -117,90 +61,6 @@ class SystemInterface(ABC):
         pass
 
 
-# class HardwareAnalyzer(ABC):
-#     """Abstract interface for hardware analysis."""
-
-#     @abstractmethod
-#     def get_cpu_info(self) -> Dict[str, Any]:
-#         """Get detailed CPU information."""
-#         pass
-
-#     @abstractmethod
-#     def get_memory_info(self) -> Dict[str, Any]:
-#         """Get detailed memory information."""
-#         pass
-
-#     @abstractmethod
-#     def get_storage_info(self) -> Dict[str, Any]:
-#         """Get detailed storage information."""
-#         pass
-
-#     @abstractmethod
-#     def get_all_hardware_info(self) -> HardwareInfo:
-#         """Get comprehensive hardware information."""
-#         pass
-
-
-# class KernelAnalyzer(ABC):
-#     """Abstract interface for kernel configuration analysis."""
-
-#     @abstractmethod
-#     def get_kernel_config(self) -> Optional[KernelConfig]:
-#         """Get current kernel configuration."""
-#         pass
-
-#     @abstractmethod
-#     def analyze_config(self, config: KernelConfig) -> Dict[str, Any]:
-#         """Analyze kernel configuration for issues and optimizations."""
-#         pass
-
-#     @abstractmethod
-#     def get_recommendations(self, config: KernelConfig, hardware: HardwareInfo) -> Dict[str, Any]:
-#         """Get optimization recommendations based on hardware and configuration."""
-#         pass
-
-
-# class LogAnalyzer(ABC):
-#     """Abstract interface for log analysis."""
-
-#     @abstractmethod
-#     def parse_logs(self, log_sources: List[str]) -> List[LogEntry]:
-#         """Parse system logs from various sources."""
-#         pass
-
-#     @abstractmethod
-#     def detect_patterns(self, entries: List[LogEntry]) -> Dict[str, Any]:
-#         """Detect patterns in log entries."""
-#         pass
-
-#     @abstractmethod
-#     def analyze_logs(self, entries: List[LogEntry]) -> LogAnalysis:
-#         """Analyze logs for issues and patterns."""
-#         pass
-
-
-# class DiagnosticsProvider(ABC):
-#     """Abstract interface for AI-powered diagnostics."""
-
-#     @abstractmethod
-#     def diagnose_system(
-#         self,
-#         hardware: HardwareInfo,
-#         kernel_config: Optional[KernelConfig] = None,
-#         log_analysis: Optional[LogAnalysis] = None
-#     ) -> Diagnostic:
-#         """Provide comprehensive system diagnostics."""
-#         pass
-
-#     @abstractmethod
-#     def interpret_query(self, query: str) -> Dict[str, Any]:
-#         """Interpret natural language queries about the system."""
-#         pass
-
-#     @abstractmethod
-#     def generate_recommendations(self, diagnostic: Diagnostic) -> Dict[str, Any]:
-#         """Generate actionable recommendations based on diagnostics."""
-#         pass
 
 
 class ToolProvider(ABC):

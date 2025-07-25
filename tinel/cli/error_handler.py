@@ -230,8 +230,8 @@ class CLIErrorHandler:
         # Print suggestion
         if suggestion:
             print(f"Suggestion: {suggestion}", file=sys.stderr)
-        elif exit_code in self.error_suggestions:
-            print(f"Suggestion: {self.error_suggestions[exit_code]}", file=sys.stderr)
+        elif ExitCode(exit_code) in self.error_suggestions:
+            print(f"Suggestion: {self.error_suggestions[ExitCode(exit_code)]}", file=sys.stderr)
 
         # Save error report for debugging if this is an unexpected error
         if exit_code == ExitCode.GENERAL_ERROR and details:

@@ -214,9 +214,11 @@ class TestShouldUseColor:
         config = CLIConfig(use_color=False)
 
         # Even with TTY, should not use color if disabled
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("sys.stdout.isatty", return_value=True):
-                assert config.should_use_color is False
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.stdout.isatty", return_value=True),
+        ):
+            assert config.should_use_color is False
 
     @unit_test
     def test_should_use_color_no_isatty_method(self):
@@ -226,9 +228,11 @@ class TestShouldUseColor:
         # Mock stdout without isatty method
         mock_stdout = Mock(spec=[])  # Empty spec means no methods
 
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("sys.stdout", mock_stdout):
-                assert config.should_use_color is False
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.stdout", mock_stdout),
+        ):
+            assert config.should_use_color is False
 
     @unit_test
     def test_should_use_color_environment_precedence(self):

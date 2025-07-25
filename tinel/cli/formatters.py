@@ -131,9 +131,10 @@ class YAMLFormatter(BaseFormatter):
                 "YAML formatting requires PyYAML. Install with: pip install PyYAML"
             )
 
-        return yaml.dump(
+        result = yaml.dump(
             data, default_flow_style=False, allow_unicode=True, sort_keys=False
         )
+        return str(result)
 
 
 class CSVFormatter(BaseFormatter):
@@ -226,7 +227,7 @@ class CSVFormatter(BaseFormatter):
 class TextFormatter(BaseFormatter):
     """Text formatter implementation."""
 
-    def __init__(self, colorizer, quiet: bool = False, verbose: int = 0):
+    def __init__(self, colorizer: Any, quiet: bool = False, verbose: int = 0):
         """Initialize text formatter.
 
         Args:
@@ -364,17 +365,17 @@ class TextFormatter(BaseFormatter):
         """Format individual values with appropriate colors."""
         if isinstance(value, bool):
             color = Color.GREEN if value else Color.RED
-            return self.colorizer.colorize(str(value), color)
+            return self.colorizer.colorize(str(value), color)  # type: ignore[no-any-return]
         elif isinstance(value, (int, float)):
-            return self.colorizer.colorize(str(value), Color.CYAN)
+            return self.colorizer.colorize(str(value), Color.CYAN)  # type: ignore[no-any-return]
         elif isinstance(value, str):
             # Color-code common status values
             if value.lower() in StatusValues.POSITIVE:
-                return self.colorizer.colorize(value, Color.GREEN)
+                return self.colorizer.colorize(value, Color.GREEN)  # type: ignore[no-any-return]
             elif value.lower() in StatusValues.NEGATIVE:
-                return self.colorizer.colorize(value, Color.RED)
+                return self.colorizer.colorize(value, Color.RED)  # type: ignore[no-any-return]
             elif value.lower() in StatusValues.WARNING:
-                return self.colorizer.colorize(value, Color.YELLOW)
+                return self.colorizer.colorize(value, Color.YELLOW)  # type: ignore[no-any-return]
             else:
                 return value
         else:
@@ -399,7 +400,7 @@ class FormatterFactory:
 
     @staticmethod
     def create_formatter(
-        format_type: FormatType, colorizer=None, quiet: bool = False, verbose: int = 0
+        format_type: FormatType, colorizer: Any = None, quiet: bool = False, verbose: int = 0
     ) -> BaseFormatter:
         """Create a formatter instance based on format type.
 
@@ -658,7 +659,7 @@ class OutputFormatter:
 
     def _should_include_explanation(self, explanation: str) -> bool:
         """Check if explanation should be included in output."""
-        return self.verbose >= 1 and explanation and not self.quiet
+        return bool(self.verbose >= 1 and explanation and not self.quiet)
 
     def _format_explanation_section(self, explanation: str) -> List[str]:
         """Format the explanation section with proper wrapping."""

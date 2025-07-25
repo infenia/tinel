@@ -15,18 +15,18 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""Base tool provider implementation."""
-
 from abc import abstractmethod
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from ..interfaces import ToolProvider
+
+"""Base tool provider implementation."""
 
 
 class BaseToolProvider(ToolProvider):
     """Base implementation for tool providers."""
 
-    def __init__(self, name: str, description: str, feature_name: str = None):
+    def __init__(self, name: str, description: str, feature_name: Optional[str] = None):
         """Initialize base tool provider.
 
         Args:

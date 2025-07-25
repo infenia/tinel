@@ -227,7 +227,7 @@ flags		: fpu vme de pse tsc msr pae
         ]:
             if feature_set in cpu_info:
                 assert isinstance(cpu_info[feature_set], dict)
-                for feature, enabled in cpu_info[feature_set].items():
+                for _feature, enabled in cpu_info[feature_set].items():
                     assert isinstance(enabled, bool)
 
     def _verify_caching_works(self, first_result):
@@ -460,7 +460,7 @@ class TestEndToEndWorkflow:
         self._setup_realistic_system_mock(mock_system, sample_cpuinfo, sample_lscpu)
 
         # Create analyzer and tool
-        cpu_analyzer = CPUAnalyzer(mock_system)
+        CPUAnalyzer(mock_system)
         cpu_tool = CPUInfoToolProvider(mock_system)
 
         # Execute tool

@@ -407,7 +407,7 @@ def main():
         epilog="""
 Examples:
   %(prog)s unit                    # Run unit tests
-  %(prog)s integration             # Run integration tests  
+  %(prog)s integration             # Run integration tests
   %(prog)s performance             # Run performance tests
   %(prog)s security                # Run security tests
   %(prog)s all                     # Run all tests
