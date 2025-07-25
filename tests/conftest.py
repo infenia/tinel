@@ -35,19 +35,16 @@ def temp_dir() -> Generator[Path, None, None]:
 def mock_system_interface():
     """Create a mock system interface for testing."""
     mock = Mock(spec=LinuxSystemInterface)
-    
+
     # Default successful command result
     mock.run_command.return_value = CommandResult(
-        success=True,
-        stdout="mock output",
-        stderr="",
-        returncode=0
+        success=True, stdout="mock output", stderr="", returncode=0
     )
-    
+
     # Default file read result
     mock.read_file.return_value = "mock file content"
     mock.file_exists.return_value = True
-    
+
     return mock
 
 
@@ -131,15 +128,15 @@ Flags:                           fpu vme de pse tsc msr pae mce cx8 apic sep mtr
 def sample_vulnerabilities():
     """Sample CPU vulnerability information for testing."""
     return {
-        'spectre_v1': 'Mitigation: usercopy/swapgs barriers and __user pointer sanitization',
-        'spectre_v2': 'Mitigation: Enhanced IBRS, IBPB conditional, RSB filling',
-        'meltdown': 'Mitigation: PTI',
-        'spec_store_bypass': 'Mitigation: Speculative Store Bypass disabled via prctl',
-        'l1tf': 'Mitigation: PTE Inversion; VMX conditional cache flushes, SMT vulnerable',
-        'mds': 'Mitigation: Clear CPU buffers; SMT vulnerable',
-        'tsx_async_abort': 'Not affected',
-        'itlb_multihit': 'KVM: Mitigation: VMX disabled',
-        'srbds': 'Mitigation: Microcode'
+        "spectre_v1": "Mitigation: usercopy/swapgs barriers and __user pointer sanitization",
+        "spectre_v2": "Mitigation: Enhanced IBRS, IBPB conditional, RSB filling",
+        "meltdown": "Mitigation: PTI",
+        "spec_store_bypass": "Mitigation: Speculative Store Bypass disabled via prctl",
+        "l1tf": "Mitigation: PTE Inversion; VMX conditional cache flushes, SMT vulnerable",
+        "mds": "Mitigation: Clear CPU buffers; SMT vulnerable",
+        "tsx_async_abort": "Not affected",
+        "itlb_multihit": "KVM: Mitigation: VMX disabled",
+        "srbds": "Mitigation: Microcode",
     }
 
 
@@ -165,11 +162,11 @@ def mock_error_handler():
 def safe_environment():
     """Create a safe environment dictionary for testing."""
     return {
-        'PATH': '/usr/bin:/bin:/usr/sbin:/sbin',
-        'LC_ALL': 'C',
-        'LANG': 'C',
-        'HOME': '/home/test',
-        'USER': 'test'
+        "PATH": "/usr/bin:/bin:/usr/sbin:/sbin",
+        "LC_ALL": "C",
+        "LANG": "C",
+        "HOME": "/home/test",
+        "USER": "test",
     }
 
 
@@ -177,45 +174,146 @@ def safe_environment():
 def cpu_flags():
     """Sample CPU flags for testing."""
     return [
-        'fpu', 'vme', 'de', 'pse', 'tsc', 'msr', 'pae', 'mce', 'cx8', 'apic',
-        'sep', 'mtrr', 'pge', 'mca', 'cmov', 'pat', 'pse36', 'clflush', 'dts',
-        'acpi', 'mmx', 'fxsr', 'sse', 'sse2', 'ss', 'ht', 'tm', 'pbe', 'syscall',
-        'nx', 'pdpe1gb', 'rdtscp', 'lm', 'constant_tsc', 'art', 'arch_perfmon',
-        'pebs', 'bts', 'rep_good', 'nopl', 'xtopology', 'nonstop_tsc', 'cpuid',
-        'aperfmperf', 'pni', 'pclmulqdq', 'dtes64', 'monitor', 'ds_cpl', 'vmx',
-        'est', 'tm2', 'ssse3', 'sdbg', 'fma', 'cx16', 'xtpr', 'pdcm', 'pcid',
-        'sse4_1', 'sse4_2', 'x2apic', 'movbe', 'popcnt', 'tsc_deadline_timer',
-        'aes', 'xsave', 'avx', 'f16c', 'rdrand', 'lahf_lm', 'abm', '3dnowprefetch',
-        'cpuid_fault', 'epb', 'invpcid_single', 'pti', 'ssbd', 'ibrs', 'ibpb',
-        'stibp', 'tpr_shadow', 'vnmi', 'flexpriority', 'ept', 'vpid', 'ept_ad',
-        'fsgsbase', 'tsc_adjust', 'bmi1', 'avx2', 'smep', 'bmi2', 'erms',
-        'invpcid', 'mpx', 'rdseed', 'adx', 'smap', 'clflushopt', 'intel_pt',
-        'xsaveopt', 'xsavec', 'xgetbv1', 'xsaves', 'dtherm', 'ida', 'arat',
-        'pln', 'pts', 'hwp', 'hwp_notify', 'hwp_act_window', 'hwp_epp',
-        'md_clear', 'flush_l1d', 'arch_capabilities'
+        "fpu",
+        "vme",
+        "de",
+        "pse",
+        "tsc",
+        "msr",
+        "pae",
+        "mce",
+        "cx8",
+        "apic",
+        "sep",
+        "mtrr",
+        "pge",
+        "mca",
+        "cmov",
+        "pat",
+        "pse36",
+        "clflush",
+        "dts",
+        "acpi",
+        "mmx",
+        "fxsr",
+        "sse",
+        "sse2",
+        "ss",
+        "ht",
+        "tm",
+        "pbe",
+        "syscall",
+        "nx",
+        "pdpe1gb",
+        "rdtscp",
+        "lm",
+        "constant_tsc",
+        "art",
+        "arch_perfmon",
+        "pebs",
+        "bts",
+        "rep_good",
+        "nopl",
+        "xtopology",
+        "nonstop_tsc",
+        "cpuid",
+        "aperfmperf",
+        "pni",
+        "pclmulqdq",
+        "dtes64",
+        "monitor",
+        "ds_cpl",
+        "vmx",
+        "est",
+        "tm2",
+        "ssse3",
+        "sdbg",
+        "fma",
+        "cx16",
+        "xtpr",
+        "pdcm",
+        "pcid",
+        "sse4_1",
+        "sse4_2",
+        "x2apic",
+        "movbe",
+        "popcnt",
+        "tsc_deadline_timer",
+        "aes",
+        "xsave",
+        "avx",
+        "f16c",
+        "rdrand",
+        "lahf_lm",
+        "abm",
+        "3dnowprefetch",
+        "cpuid_fault",
+        "epb",
+        "invpcid_single",
+        "pti",
+        "ssbd",
+        "ibrs",
+        "ibpb",
+        "stibp",
+        "tpr_shadow",
+        "vnmi",
+        "flexpriority",
+        "ept",
+        "vpid",
+        "ept_ad",
+        "fsgsbase",
+        "tsc_adjust",
+        "bmi1",
+        "avx2",
+        "smep",
+        "bmi2",
+        "erms",
+        "invpcid",
+        "mpx",
+        "rdseed",
+        "adx",
+        "smap",
+        "clflushopt",
+        "intel_pt",
+        "xsaveopt",
+        "xsavec",
+        "xgetbv1",
+        "xsaves",
+        "dtherm",
+        "ida",
+        "arat",
+        "pln",
+        "pts",
+        "hwp",
+        "hwp_notify",
+        "hwp_act_window",
+        "hwp_epp",
+        "md_clear",
+        "flush_l1d",
+        "arch_capabilities",
     ]
 
 
 class MockFileSystem:
     """Mock file system for testing file operations."""
-    
+
     def __init__(self):
         self.files: Dict[str, str] = {}
         self.file_sizes: Dict[str, int] = {}
-        
+
     def add_file(self, path: str, content: str, size: Optional[int] = None):
         """Add a file to the mock filesystem."""
         self.files[path] = content
         self.file_sizes[path] = size or len(content)
-        
+
     def read_file(self, path: str) -> Optional[str]:
         """Mock file reading."""
         return self.files.get(path)
-        
+
     def file_exists(self, path: str) -> bool:
         """Mock file existence check."""
         return path in self.files
-        
+
     def get_file_size(self, path: str) -> int:
         """Mock file size check."""
         return self.file_sizes.get(path, 0)
@@ -225,38 +323,43 @@ class MockFileSystem:
 def mock_filesystem():
     """Create a mock filesystem for testing."""
     fs = MockFileSystem()
-    
+
     # Add common system files
-    fs.add_file('/proc/cpuinfo', pytest.lazy_fixture('sample_cpuinfo'))
-    fs.add_file('/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq', '2000000')
-    fs.add_file('/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq', '400000')
-    fs.add_file('/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq', '4600000')
-    fs.add_file('/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor', 'powersave')
-    fs.add_file('/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors', 
-                'conservative ondemand userspace powersave performance schedutil')
-    
+    fs.add_file("/proc/cpuinfo", pytest.lazy_fixture("sample_cpuinfo"))
+    fs.add_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq", "2000000")
+    fs.add_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq", "400000")
+    fs.add_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq", "4600000")
+    fs.add_file("/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor", "powersave")
+    fs.add_file(
+        "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors",
+        "conservative ondemand userspace powersave performance schedutil",
+    )
+
     # Add vulnerability files
-    vuln_base = '/sys/devices/system/cpu/vulnerabilities'
-    fs.add_file(f'{vuln_base}/spectre_v1', 'Mitigation: usercopy/swapgs barriers')
-    fs.add_file(f'{vuln_base}/spectre_v2', 'Mitigation: Enhanced IBRS')
-    fs.add_file(f'{vuln_base}/meltdown', 'Mitigation: PTI')
-    fs.add_file(f'{vuln_base}/spec_store_bypass', 'Mitigation: Speculative Store Bypass disabled')
-    
+    vuln_base = "/sys/devices/system/cpu/vulnerabilities"
+    fs.add_file(f"{vuln_base}/spectre_v1", "Mitigation: usercopy/swapgs barriers")
+    fs.add_file(f"{vuln_base}/spectre_v2", "Mitigation: Enhanced IBRS")
+    fs.add_file(f"{vuln_base}/meltdown", "Mitigation: PTI")
+    fs.add_file(
+        f"{vuln_base}/spec_store_bypass",
+        "Mitigation: Speculative Store Bypass disabled",
+    )
+
     # Add cache information
-    cache_base = '/sys/devices/system/cpu/cpu0/cache'
-    fs.add_file(f'{cache_base}/index0/size', '32K')
-    fs.add_file(f'{cache_base}/index0/type', 'Data')
-    fs.add_file(f'{cache_base}/index0/level', '1')
-    fs.add_file(f'{cache_base}/index1/size', '32K')
-    fs.add_file(f'{cache_base}/index1/type', 'Instruction')
-    fs.add_file(f'{cache_base}/index1/level', '1')
-    fs.add_file(f'{cache_base}/index2/size', '256K')
-    fs.add_file(f'{cache_base}/index2/type', 'Unified')
-    fs.add_file(f'{cache_base}/index2/level', '2')
-    fs.add_file(f'{cache_base}/index3/size', '8192K')
-    fs.add_file(f'{cache_base}/index3/type', 'Unified')
-    fs.add_file(f'{cache_base}/index3/level', '3')
-    
+    cache_base = "/sys/devices/system/cpu/cpu0/cache"
+    fs.add_file(f"{cache_base}/index0/size", "32K")
+    fs.add_file(f"{cache_base}/index0/type", "Data")
+    fs.add_file(f"{cache_base}/index0/level", "1")
+    fs.add_file(f"{cache_base}/index1/size", "32K")
+    fs.add_file(f"{cache_base}/index1/type", "Instruction")
+    fs.add_file(f"{cache_base}/index1/level", "1")
+    fs.add_file(f"{cache_base}/index2/size", "256K")
+    fs.add_file(f"{cache_base}/index2/type", "Unified")
+    fs.add_file(f"{cache_base}/index2/level", "2")
+    fs.add_file(f"{cache_base}/index3/size", "8192K")
+    fs.add_file(f"{cache_base}/index3/type", "Unified")
+    fs.add_file(f"{cache_base}/index3/level", "3")
+
     return fs
 
 
@@ -264,42 +367,37 @@ def mock_filesystem():
 def command_results():
     """Create sample command results for testing."""
     return {
-        'lscpu': CommandResult(
+        "lscpu": CommandResult(
             success=True,
-            stdout=pytest.lazy_fixture('sample_lscpu'),
-            stderr='',
-            returncode=0
+            stdout=pytest.lazy_fixture("sample_lscpu"),
+            stderr="",
+            returncode=0,
         ),
-        'nproc': CommandResult(
-            success=True,
-            stdout='8',
-            stderr='',
-            returncode=0
-        ),
-        'lscpu_fail': CommandResult(
+        "nproc": CommandResult(success=True, stdout="8", stderr="", returncode=0),
+        "lscpu_fail": CommandResult(
             success=False,
-            stdout='',
-            stderr='lscpu: command not found',
+            stdout="",
+            stderr="lscpu: command not found",
             returncode=127,
-            error='Command not found'
-        )
+            error="Command not found",
+        ),
     }
 
 
 @pytest.fixture(autouse=True)
 def clean_environment():
     """Clean environment variables for consistent testing."""
-    env_vars_to_remove = ['NO_COLOR', 'FORCE_COLOR', 'TINEL_CONFIG']
+    env_vars_to_remove = ["NO_COLOR", "FORCE_COLOR", "TINEL_CONFIG"]
     original_values = {}
-    
+
     # Store original values and remove them
     for var in env_vars_to_remove:
         if var in os.environ:
             original_values[var] = os.environ[var]
             del os.environ[var]
-    
+
     yield
-    
+
     # Restore original values
     for var, value in original_values.items():
         os.environ[var] = value
@@ -309,41 +407,43 @@ def clean_environment():
 def performance_monitor():
     """Performance monitoring fixture for tests."""
     import time
-    
+
     class PerformanceMonitor:
         def __init__(self):
             self.start_time = None
             self.end_time = None
-            
+
         def start(self):
             self.start_time = time.perf_counter()
-            
+
         def stop(self):
             self.end_time = time.perf_counter()
-            
+
         @property
         def elapsed(self):
             if self.start_time is None or self.end_time is None:
                 return None
             return self.end_time - self.start_time
-            
+
         def assert_max_time(self, max_seconds: float):
             """Assert that elapsed time is under the maximum."""
             assert self.elapsed is not None, "Timer not started/stopped"
-            assert self.elapsed <= max_seconds, f"Operation took {self.elapsed:.3f}s, expected <= {max_seconds}s"
-    
+            assert (
+                self.elapsed <= max_seconds
+            ), f"Operation took {self.elapsed:.3f}s, expected <= {max_seconds}s"
+
     return PerformanceMonitor()
 
 
 # Test markers for different types of tests
 pytest_markers = {
-    'unit': 'Unit tests',
-    'integration': 'Integration tests',
-    'performance': 'Performance tests',
-    'security': 'Security tests',
-    'slow': 'Slow tests that may take longer to run',
-    'network': 'Tests that require network access',
-    'sudo': 'Tests that require sudo privileges'
+    "unit": "Unit tests",
+    "integration": "Integration tests",
+    "performance": "Performance tests",
+    "security": "Security tests",
+    "slow": "Slow tests that may take longer to run",
+    "network": "Tests that require network access",
+    "sudo": "Tests that require sudo privileges",
 }
 
 # Register custom markers
