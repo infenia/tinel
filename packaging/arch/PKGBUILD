@@ -1,0 +1,94 @@
+# Maintainer: Infenia Private Limited <arun@infenia.com>
+# Contributor: Infenia Private Limited <arun@infenia.com>
+
+pkgname=tinel
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Next-generation Linux system analysis platform"
+arch=('any')
+url="https://github.com/infenia/tinel"
+license=('Apache-2.0')
+depends=(
+    'python>=3.11'
+    'python-psutil'
+    'python-cryptography'
+    'python-yaml'
+    'util-linux'
+    'pciutils'
+    'usbutils'
+    'lshw'
+    'dmidecode'
+)
+makedepends=(
+    'python-build'
+    'python-installer'
+    'python-wheel'
+    'python-setuptools'
+)
+optdepends=(
+    'smartmontools: Storage device information'
+    'hdparm: Hard disk parameter information'
+    'ethtool: Network interface information'
+    'nvidia-utils: NVIDIA GPU information'
+    'mesa-utils: Mesa GPU information'
+)
+provides=('tinel')
+conflicts=('tinel-git')
+source=("${pkgname}-${pkgver}.tar.gz::https://github.com/infenia/tinel/archive/v${pkgver}.tar.gz")
+sha256sums=('SKIP')  # Will be updated automatically
+
+build() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+    python -m build --wheel --no-isolation
+}
+
+check() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+    
+    # Basic import test
+    python -c "
+import sys
+sys.path.insert(0, 'tinel')
+import tinel
+print(f'Tinel version: {tinel.__version__}')
+"
+}
+
+package() {
+    cd "${srcdir}/${pkgname}-${pkgver}"
+    
+    # Install Python package
+    python -m installer --destdir="$pkgdir" dist/*.whl
+    
+    # Install systemd service
+    install -Dm644 packaging/debian/tinel.service \
+        "${pkgdir}/usr/lib/systemd/system/tinel.service"
+    
+    # Install configuration file
+    install -Dm644 packaging/rpm/tinel.conf \
+        "${pkgdir}/etc/tinel/config.yaml"
+    
+    # Install desktop file
+    install -Dm644 packaging/debian/tinel.desktop \
+        "${pkgdir}/usr/share/applications/tinel.desktop"
+    
+    # Install man page
+    install -Dm644 packaging/debian/tinel.1 \
+        "${pkgdir}/usr/share/man/man1/tinel.1"
+    
+    # Install bash completion
+    install -Dm644 packaging/debian/bash_completion \
+        "${pkgdir}/usr/share/bash-completion/completions/tinel"
+    
+    # Create necessary directories
+    install -dm755 "${pkgdir}/var/lib/tinel"
+    install -dm755 "${pkgdir}/var/log/tinel"
+    
+    # Install license
+    install -Dm644 LICENSE \
+        "${pkgdir}/usr/share/licenses/${pkgname}/LICENSE"
+    
+    # Install documentation
+    install -Dm644 README.md \
+        "${pkgdir}/usr/share/doc/${pkgname}/README.md"
+}

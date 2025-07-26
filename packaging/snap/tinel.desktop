@@ -1,0 +1,11 @@
+[Desktop Entry]
+Name=Tinel System Analyzer
+Comment=Next-generation Linux system analysis platform
+Exec=tinel
+Icon=${SNAP}/meta/gui/tinel.png
+Terminal=true
+Type=Application
+Categories=System;Monitor;Utility;
+Keywords=system;hardware;analysis;diagnostics;monitoring;performance;
+StartupNotify=false
+X-SnapInstanceName=tinel

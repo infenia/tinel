@@ -1,9 +1,11 @@
 {
     "cSpell.words": [
+        "Infenia",
         "pytest",
         "Tinel"
     ],
     "[markdown]": {
         "editor.formatOnSave": false
-    }
+    },
+    "kiroAgent.configureMCP": "Disabled"
 }

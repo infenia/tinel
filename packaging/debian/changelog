@@ -1,0 +1,12 @@
+tinel (0.1.0-1) unstable; urgency=medium
+
+  * Initial release
+  * Hardware analysis and system diagnostics
+  * AI-powered system optimization
+  * Model Context Protocol (MCP) server support
+  * Comprehensive Linux system information gathering
+  * RESTful API interface
+  * Command-line tools for system administrators
+  * Support for multiple hardware detection utilities
+
+ -- Infenia Private Limited <arun@infenia.com>  Mon, 25 Jul 2025 12:00:00 +0000

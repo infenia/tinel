@@ -1,0 +1,47 @@
+#!/bin/bash
+# Tinel Snap Configure Hook
+
+set -e
+
+# Handle configuration changes
+if snapctl is-connected hardware-observe; then
+    echo "Hardware observation interface connected"
+else
+    echo "Warning: hardware-observe interface not connected"
+    echo "Run: snap connect tinel:hardware-observe"
+fi
+
+if snapctl is-connected system-observe; then
+    echo "System observation interface connected"
+else
+    echo "Warning: system-observe interface not connected"
+    echo "Run: snap connect tinel:system-observe"
+fi
+
+# Update configuration based on snap options
+CONFIG_FILE="$SNAP_DATA/etc/tinel/config.yaml"
+
+# Check for custom port setting
+if PORT=$(snapctl get port); then
+    if [ -n "$PORT" ]; then
+        # Update port in config file (simple sed replacement)
+        sed -i "s/port: [0-9]*/port: $PORT/" "$CONFIG_FILE"
+        echo "Server port updated to: $PORT"
+    fi
+fi
+
+# Check for log level setting
+if LOG_LEVEL=$(snapctl get log-level); then
+    if [ -n "$LOG_LEVEL" ]; then
+        sed -i "s/level: \"[A-Z]*\"/level: \"$LOG_LEVEL\"/" "$CONFIG_FILE"
+        echo "Log level updated to: $LOG_LEVEL"
+    fi
+fi
+
+# Restart daemon if it's running
+if snapctl services tinel.server | grep -q "active"; then
+    snapctl restart tinel.server
+    echo "Tinel server restarted with new configuration"
+fi
+
+echo "Configuration updated successfully!"

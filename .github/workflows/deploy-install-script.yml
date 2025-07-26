@@ -1,0 +1,321 @@
+name: Deploy Installation Script
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'scripts/install.sh'
+      - 'INSTALLATION.md'
+      - '.github/workflows/deploy-install-script.yml'
+  workflow_dispatch:
+
+env:
+  INSTALL_SCRIPT_URL: "https://install.tinel.dev"
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+jobs:
+  deploy-install-script:
+    name: Deploy Installation Script
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Create installation site
+      run: |
+        echo "::group::Installation Site Creation"
+        
+        # Create site directory
+        mkdir -p site
+        
+        # Copy installation script
+        cp scripts/install.sh site/install.sh
+        
+        # Create index page with installation instructions
+        cat > site/index.html << 'EOF'
+        <!DOCTYPE html>
+        <html lang="en">
+        <head>
+            <meta charset="UTF-8">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
+            <title>Tinel - Easy Installation</title>
+            <style>
+                body {
+                    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+                    max-width: 800px;
+                    margin: 0 auto;
+                    padding: 2rem;
+                    line-height: 1.6;
+                    color: #333;
+                }
+                .header {
+                    text-align: center;
+                    margin-bottom: 3rem;
+                }
+                .logo {
+                    font-size: 3rem;
+                    font-weight: bold;
+                    color: #2563eb;
+                }
+                .tagline {
+                    font-size: 1.2rem;
+                    color: #666;
+                    margin-top: 0.5rem;
+                }
+                .install-box {
+                    background: #f8fafc;
+                    border: 2px solid #e2e8f0;
+                    border-radius: 8px;
+                    padding: 2rem;
+                    margin: 2rem 0;
+                    text-align: center;
+                }
+                .install-command {
+                    background: #1a1a1a;
+                    color: #fff;
+                    padding: 1rem;
+                    border-radius: 6px;
+                    font-family: 'Monaco', 'Consolas', monospace;
+                    font-size: 1.1rem;
+                    margin: 1rem 0;
+                    word-break: break-all;
+                }
+                .copy-btn {
+                    background: #2563eb;
+                    color: white;
+                    border: none;
+                    padding: 0.5rem 1rem;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    margin-top: 1rem;
+                }
+                .copy-btn:hover {
+                    background: #1d4ed8;
+                }
+                .methods {
+                    display: grid;
+                    grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+                    gap: 2rem;
+                    margin: 3rem 0;
+                }
+                .method {
+                    background: white;
+                    border: 1px solid #e2e8f0;
+                    border-radius: 8px;
+                    padding: 1.5rem;
+                    text-align: center;
+                }
+                .method h3 {
+                    margin-top: 0;
+                    color: #2563eb;
+                }
+                .method code {
+                    background: #f1f5f9;
+                    padding: 0.2rem 0.4rem;
+                    border-radius: 3px;
+                    font-size: 0.9rem;
+                }
+            </style>
+        </head>
+        <body>
+            <div class="header">
+                <div class="logo">🔧 Tinel</div>
+                <div class="tagline">Next-generation Linux system analysis platform</div>
+            </div>
+
+            <div class="install-box">
+                <h2>Quick Installation</h2>
+                <p>Install Tinel with a single command:</p>
+                <div class="install-command" id="install-command">
+                    curl -sSL https://install.tinel.dev | bash
+                </div>
+                <button class="copy-btn" onclick="copyToClipboard()">📋 Copy Command</button>
+            </div>
+
+            <div class="methods">
+                <div class="method">
+                    <h3>🐍 PyPI</h3>
+                    <p>For Python developers</p>
+                    <code>pip install tinel</code>
+                </div>
+                
+                <div class="method">
+                    <h3>🐳 Docker</h3>
+                    <p>Containerized deployment</p>
+                    <code>docker run tinel/tinel:latest</code>
+                </div>
+                
+                <div class="method">
+                    <h3>📦 System Packages</h3>
+                    <p>Native integration</p>
+                    <code>apt install tinel</code>
+                </div>
+                
+                <div class="method">
+                    <h3>📱 Snap</h3>
+                    <p>Universal packages</p>
+                    <code>snap install tinel</code>
+                </div>
+            </div>
+
+            <div style="text-align: center; margin-top: 3rem; padding-top: 2rem; border-top: 1px solid #e2e8f0;">
+                <p>
+                    <a href="https://github.com/infenia/tinel">📚 Documentation</a> • 
+                    <a href="https://github.com/infenia/tinel/releases">📦 Releases</a> • 
+                    <a href="https://github.com/infenia/tinel/issues">🐛 Issues</a>
+                </p>
+                <p style="color: #666; font-size: 0.9rem;">
+                    Made with ❤️ by <a href="https://infenia.com">Infenia</a>
+                </p>
+            </div>
+
+            <script>
+                function copyToClipboard() {
+                    const command = document.getElementById('install-command').textContent;
+                    navigator.clipboard.writeText(command).then(function() {
+                        const btn = document.querySelector('.copy-btn');
+                        const originalText = btn.textContent;
+                        btn.textContent = '✅ Copied!';
+                        setTimeout(() => {
+                            btn.textContent = originalText;
+                        }, 2000);
+                    });
+                }
+            </script>
+        </body>
+        </html>
+        EOF
+        
+        # Create a simple redirect for the bash script
+        cat > site/bash << 'EOF'
+        #!/bin/bash
+        # Redirect to install.sh
+        exec curl -sSL https://install.tinel.dev/install.sh
+        EOF
+        chmod +x site/bash
+        
+        # Create robots.txt
+        cat > site/robots.txt << 'EOF'
+        User-agent: *
+        Allow: /
+        
+        Sitemap: https://install.tinel.dev/sitemap.xml
+        EOF
+        
+        # Create sitemap.xml
+        cat > site/sitemap.xml << 'EOF'
+        <?xml version="1.0" encoding="UTF-8"?>
+        <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+          <url>
+            <loc>https://install.tinel.dev/</loc>
+            <changefreq>weekly</changefreq>
+            <priority>1.0</priority>
+          </url>
+          <url>
+            <loc>https://install.tinel.dev/install.sh</loc>
+            <changefreq>weekly</changefreq>
+            <priority>0.8</priority>
+          </url>
+        </urlset>
+        EOF
+        
+        echo "Installation site created:"
+        ls -la site/
+        echo "::endgroup::"
+
+    - name: Setup Pages
+      uses: actions/configure-pages@v4
+
+    - name: Upload to GitHub Pages
+      uses: actions/upload-pages-artifact@v3
+      with:
+        path: ./site
+
+    - name: Deploy to GitHub Pages
+      id: deployment
+      uses: actions/deploy-pages@v4
+
+    - name: Update README with install URL
+      run: |
+        echo "::group::README Update"
+        
+        # Update README.md if it contains installation instructions
+        if grep -q "curl.*install" README.md; then
+          sed -i 's|curl -sSL [^|]*|curl -sSL https://install.tinel.dev|g' README.md
+          echo "README.md updated with installation URL"
+        fi
+        
+        # Check if INSTALLATION.md needs updates
+        if grep -q "curl.*install" INSTALLATION.md; then
+          sed -i 's|curl -sSL [^|]*|curl -sSL https://install.tinel.dev|g' INSTALLATION.md
+          echo "INSTALLATION.md updated with installation URL"
+        fi
+        
+        echo "::endgroup::"
+
+    - name: Verify deployment
+      run: |
+        echo "::group::Deployment Verification"
+        
+        # Wait a moment for deployment
+        sleep 30
+        
+        # Test the deployed script (basic check)
+        echo "Testing installation script accessibility..."
+        if curl -sSf "${{ steps.deployment.outputs.page_url }}install.sh" > /dev/null; then
+          echo "✅ Installation script is accessible"
+        else
+          echo "❌ Installation script verification failed"
+          exit 1
+        fi
+        
+        # Test the main page
+        echo "Testing main installation page..."
+        if curl -sSf "${{ steps.deployment.outputs.page_url }}" > /dev/null; then
+          echo "✅ Installation page is accessible"
+        else
+          echo "❌ Installation page verification failed"
+          exit 1
+        fi
+        
+        echo "🚀 Deployment verification completed successfully"
+        echo "Installation URL: ${{ steps.deployment.outputs.page_url }}"
+        echo "::endgroup::"
+
+    - name: Update deployment status
+      run: |
+        echo "## 🚀 Installation Script Deployment" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Status**: ✅ Successfully deployed" >> $GITHUB_STEP_SUMMARY
+        echo "**URL**: ${{ steps.deployment.outputs.page_url }}" >> $GITHUB_STEP_SUMMARY
+        echo "**Script URL**: ${{ steps.deployment.outputs.page_url }}install.sh" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 📋 Installation Commands" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`bash" >> $GITHUB_STEP_SUMMARY
+        echo "# One-line installation" >> $GITHUB_STEP_SUMMARY
+        echo "curl -sSL ${{ steps.deployment.outputs.page_url }} | bash" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "# Download and inspect first" >> $GITHUB_STEP_SUMMARY
+        echo "curl -sSL ${{ steps.deployment.outputs.page_url }}install.sh -o install.sh" >> $GITHUB_STEP_SUMMARY
+        echo "chmod +x install.sh" >> $GITHUB_STEP_SUMMARY
+        echo "./install.sh" >> $GITHUB_STEP_SUMMARY
+        echo "\`\`\`" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### 🔗 Quick Links" >> $GITHUB_STEP_SUMMARY
+        echo "- [Installation Page](${{ steps.deployment.outputs.page_url }})" >> $GITHUB_STEP_SUMMARY
+        echo "- [Installation Script](${{ steps.deployment.outputs.page_url }}install.sh)" >> $GITHUB_STEP_SUMMARY
+        echo "- [Full Installation Guide](https://github.com/${{ github.repository }}/blob/main/INSTALLATION.md)" >> $GITHUB_STEP_SUMMARY

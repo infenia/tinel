@@ -1,0 +1,82 @@
+# Tinel Docker Configuration
+# Optimized for containerized deployment
+
+# Server settings
+server:
+  host: "0.0.0.0"  # Bind to all interfaces in container
+  port: 8080
+  workers: 4
+  debug: false
+  
+# Logging configuration  
+logging:
+  level: "INFO"
+  file: "/var/log/tinel/tinel.log"
+  max_size: "10MB"
+  backup_count: 3
+  format: "json"  # Structured logging for containers
+  
+# Hardware detection settings
+hardware:
+  # Container-specific paths for host system access
+  host_prefix: "/host"
+  
+  # Enable/disable specific detection modules
+  cpu: true
+  memory: true
+  storage: true
+  network: true
+  gpu: false  # Usually not available in containers
+  
+  # Detection utilities
+  utilities:
+    lscpu: true
+    lspci: true
+    lsusb: true
+    lshw: true
+    dmidecode: true
+    
+# Security settings
+security:
+  # Container security considerations
+  require_auth: false
+  
+  # Restricted command set for container environment
+  allowed_commands:
+    - "lscpu"
+    - "lspci"
+    - "lsusb"
+    - "lsblk"
+    - "df"
+    - "free"
+    - "cat /host/proc/cpuinfo"
+    - "cat /host/proc/meminfo"
+    
+# Cache settings
+cache:
+  directory: "/var/lib/tinel/cache"
+  ttl: 300
+  max_size: "50MB"  # Reduced for container environment
+  
+# Container-specific settings
+container:
+  # Enable container-aware features
+  enable_host_analysis: true
+  
+  # Paths to host system information
+  host_paths:
+    proc: "/host/proc"
+    sys: "/host/sys"
+    dev: "/host/dev"
+    
+# Health check configuration
+health:
+  endpoint: "/health"
+  detailed: false  # Simple health check for containers
+  
+# Monitoring integration
+monitoring:
+  prometheus:
+    enabled: true
+    endpoint: "/metrics"
+    port: 8080
