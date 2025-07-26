@@ -196,9 +196,9 @@ class TestCPUAnalyzer:
         AssertionHelpers.assert_contains_keys(virt_features, expected_features)
 
         # VMX and SVM are mutually exclusive (Intel vs AMD)
-        assert not (
-            virt_features.get("vmx") and virt_features.get("svm")
-        ), "VMX and SVM should be mutually exclusive"
+        assert not (virt_features.get("vmx") and virt_features.get("svm")), (
+            "VMX and SVM should be mutually exclusive"
+        )
 
     @unit_test
     def test_frequency_info_parsing(self):

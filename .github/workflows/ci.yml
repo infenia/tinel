@@ -101,7 +101,6 @@ jobs:
         {
           echo "📝 Format checking..."
           uv run ruff format --check .
-          uv run black --check .
         } &
         
         {
@@ -380,7 +379,7 @@ jobs:
             echo "#### ❌ Quality & Security Gates Failed" >> $GITHUB_STEP_SUMMARY
             echo "**Possible causes:**" >> $GITHUB_STEP_SUMMARY
             echo "- Linting errors (ruff check failures)" >> $GITHUB_STEP_SUMMARY
-            echo "- Formatting issues (black/ruff format)" >> $GITHUB_STEP_SUMMARY
+            echo "- Formatting issues (ruff format)" >> $GITHUB_STEP_SUMMARY
             echo "- Type checking errors (mypy failures)" >> $GITHUB_STEP_SUMMARY
             echo "- Test failures or insufficient coverage" >> $GITHUB_STEP_SUMMARY
             echo "- Security vulnerabilities detected" >> $GITHUB_STEP_SUMMARY
@@ -389,7 +388,6 @@ jobs:
             echo '```bash' >> $GITHUB_STEP_SUMMARY
             echo "# Fix formatting" >> $GITHUB_STEP_SUMMARY
             echo "uv run ruff format ." >> $GITHUB_STEP_SUMMARY
-            echo "uv run black ." >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "# Fix linting issues" >> $GITHUB_STEP_SUMMARY
             echo "uv run ruff check --fix ." >> $GITHUB_STEP_SUMMARY

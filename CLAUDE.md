@@ -19,7 +19,7 @@ Tinel is a next-generation open-source platform designed to control, optimize, a
 - Coverage threshold is set to 90%
 
 ### Code Quality
-- Format code: `python -m ruff format .` and `python -m black .`
+- Format code: `python -m ruff format .`
 - Lint code: `python -m ruff check .`
 - Auto-fix lint issues: `python -m ruff check --fix .`
 - Type checking: `python -m mypy tinel`
@@ -29,15 +29,36 @@ Tinel is a next-generation open-source platform designed to control, optimize, a
 - Build package: `python -m build` or `nox -s build`
 - Generate docs: `python -m pdoc --html --output-dir docs tinel`
 
-### Alternative Script-based Commands
-Use `scripts/dev_tasks.sh` for common tasks:
-- `./scripts/dev_tasks.sh install`
-- `./scripts/dev_tasks.sh test`
-- `./scripts/dev_tasks.sh lint`
-- `./scripts/dev_tasks.sh format`
-- `./scripts/dev_tasks.sh typecheck`
-- `./scripts/dev_tasks.sh build`
-- `./scripts/dev_tasks.sh clean`
+### Local Development Scripts
+
+#### Quick Development Helper
+Use `scripts/dev.sh` for common development tasks:
+- `./scripts/dev.sh setup` - Setup complete development environment
+- `./scripts/dev.sh fix` - Auto-fix linting issues and format code
+- `./scripts/dev.sh test-cov` - Run tests with coverage
+- `./scripts/dev.sh coverage` - Generate detailed coverage reports (HTML/XML)
+- `./scripts/dev.sh check` - Run all quality checks (lint + typecheck + test)
+- `./scripts/dev.sh pre-commit` - Run pre-commit checks
+- `./scripts/dev.sh ci` - Run full CI verification locally
+- `./scripts/dev.sh clean` - Clean build artifacts and caches
+
+#### Full CI Verification
+Use `scripts/local_ci_check.sh` to run comprehensive checks that mirror the GitHub workflow:
+- `./scripts/local_ci_check.sh` - Run all CI checks locally
+- `./scripts/local_ci_check.sh -v` - Verbose mode with detailed output
+- `./scripts/local_ci_check.sh -p 3.11` - Use specific Python version
+- `./scripts/local_ci_check.sh --skip-build` - Skip build verification
+- `./scripts/local_ci_check.sh --help` - Show all options
+
+**Recommended workflow:**
+1. `./scripts/dev.sh setup` - One-time setup (first run)
+2. `./scripts/dev.sh fix` - Fix formatting and linting
+3. `./scripts/dev.sh test-cov` - Run tests with coverage
+4. `./scripts/local_ci_check.sh` - Verify everything works before push
+
+#### Additional Setup
+Use `scripts/setup_dev_env.sh` for complete environment setup:
+- `./scripts/setup_dev_env.sh` - Install uv, create venv, install dependencies
 
 ## Architecture Overview
 
