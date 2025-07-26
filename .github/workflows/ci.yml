@@ -43,7 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ${{ github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12", "3.13"]' }}
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12", "3.13"]') }}
     
     steps:
     - name: Harden Runner
