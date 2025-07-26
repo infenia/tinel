@@ -467,9 +467,9 @@ def performance_monitor():
         def assert_max_time(self, max_seconds: float):
             """Assert that elapsed time is under the maximum."""
             assert self.elapsed is not None, "Timer not started/stopped"
-            assert (
-                self.elapsed <= max_seconds
-            ), f"Operation took {self.elapsed:.3f}s, expected <= {max_seconds}s"
+            assert self.elapsed <= max_seconds, (
+                f"Operation took {self.elapsed:.3f}s, expected <= {max_seconds}s"
+            )
 
     return PerformanceMonitor()
 

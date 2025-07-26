@@ -228,16 +228,16 @@ class SecurityTestHelpers:
         # Check for dangerous commands
         if command:
             base_cmd = command[0].split("/")[-1]  # Get just the command name
-            assert (
-                base_cmd not in dangerous_commands
-            ), f"Dangerous command detected: {base_cmd}"
+            assert base_cmd not in dangerous_commands, (
+                f"Dangerous command detected: {base_cmd}"
+            )
 
         # Check for dangerous characters in arguments
         for arg in command:
             for char in dangerous_chars:
-                assert (
-                    char not in arg
-                ), f"Dangerous character '{char}' found in argument: {arg}"
+                assert char not in arg, (
+                    f"Dangerous character '{char}' found in argument: {arg}"
+                )
 
 
 class PerformanceTestHelpers:

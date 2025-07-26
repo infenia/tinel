@@ -54,7 +54,6 @@ dependencies = [
 dev = [
     "pytest>=7.4.0",
     "pytest-cov>=4.1.0",
-    "black>=23.7.0",
     "ruff>=0.0.287",
     "mypy>=1.5.1",
     "types-PyYAML>=6.0.12.20250516",
@@ -94,28 +93,11 @@ allow-direct-references = true
 [tool.hatch.version]
 path = "tinel/__init__.py"
 
-[tool.black]
-line-length = 88
-target-version = ["py311", "py312"]
-include = '\.pyi?$'
-exclude = '''
-/(
-    \.git
-  | \.hg
-  | \.mypy_cache
-  | \.tox
-  | \.venv
-  | _build
-  | buck-out
-  | build
-  | dist
-)/
-'''
 
 [tool.ruff]
 line-length = 88
 target-version = "py311"
-exclude = [".git", ".ruff_cache", ".venv", "__pypackages__", "dist", "build"]
+exclude = [".git", ".ruff_cache", ".nox", ".venv", "__pypackages__", "dist", "build"]
 
 [tool.ruff.lint]
 # Enable Pyflakes (`F`) and a subset of the pycodestyle (`E`) codes by default.
@@ -142,6 +124,10 @@ skip-magic-trailing-comma = false
 
 # Like Black, automatically detect the appropriate line ending.
 line-ending = "auto"
+
+# Configure docstring formatting to be compatible with Black
+docstring-code-format = true
+docstring-code-line-length = 88
 
 [tool.mypy]
 python_version = "3.11"

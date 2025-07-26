@@ -500,9 +500,9 @@ def test_hardware_command_attributes(command, subcommand, expected_attrs):
     args = parser.parse_args([command, subcommand])
 
     for attr in expected_attrs:
-        assert hasattr(
-            args, attr
-        ), f"Missing attribute {attr} for {command} {subcommand}"
+        assert hasattr(args, attr), (
+            f"Missing attribute {attr} for {command} {subcommand}"
+        )
         assert getattr(args, attr) is False  # Default should be False
 
 

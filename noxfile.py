@@ -59,10 +59,9 @@ def lint_fix(session):
 
 @nox.session(python=DEFAULT_PYTHON)
 def format(session):
-    """Format the codebase using ruff and black."""
+    """Format the codebase using ruff."""
     install_with_uv(session)
     session.run("ruff", "format", *LOCATIONS)
-    session.run("black", *LOCATIONS)
 
 
 @nox.session(python=DEFAULT_PYTHON)
@@ -91,6 +90,6 @@ def check(session):
     """Run all checks: lint, format, typecheck, and tests."""
     install_with_uv(session)
     session.run("ruff", "check", *LOCATIONS)
-    session.run("black", "--check", *LOCATIONS)
+    session.run("ruff", "format", "--check", *LOCATIONS)
     session.run("mypy", PACKAGE)
     session.run("pytest", "--cov")

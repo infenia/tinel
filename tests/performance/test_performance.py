@@ -251,9 +251,9 @@ class TestCPUAnalyzerPerformance:
         memory_increase = final_memory - initial_memory
 
         # Memory increase should be reasonable (under 50MB)
-        assert (
-            memory_increase < 50 * 1024 * 1024
-        ), f"Memory usage increased by {memory_increase / 1024 / 1024:.2f}MB"
+        assert memory_increase < 50 * 1024 * 1024, (
+            f"Memory usage increased by {memory_increase / 1024 / 1024:.2f}MB"
+        )
 
     @performance_test
     def test_cache_eviction_performance(self):
