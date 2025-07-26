@@ -22,7 +22,7 @@ class TestDeviceAnalyzer:
         self.analyzer = DeviceAnalyzer(self.mock_system)
 
     @unit_test
-    @patch('tinel.hardware.device_analyzer.CPUAnalyzer')
+    @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
     def test_initialization(self, mock_cpu_analyzer_class):
         """Test device analyzer initialization."""
         # Setup mock CPU analyzer
@@ -37,11 +37,11 @@ class TestDeviceAnalyzer:
         # Test with default system interface (should create LinuxSystemInterface)
         analyzer_default = DeviceAnalyzer()
         assert analyzer_default.system is not None
-        assert hasattr(analyzer_default.system, 'run_command')
+        assert hasattr(analyzer_default.system, "run_command")
         assert analyzer_default.cpu_analyzer == mock_cpu_analyzer
 
     @unit_test
-    @patch('tinel.hardware.device_analyzer.CPUAnalyzer')
+    @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
     def test_get_cpu_info(self, mock_cpu_analyzer_class):
         """Test getting CPU info delegates to CPUAnalyzer."""
         # Setup
@@ -61,7 +61,7 @@ class TestDeviceAnalyzer:
         mock_cpu_analyzer.get_cpu_info.assert_called_once()
 
     @unit_test
-    @patch('tinel.hardware.device_analyzer.CPUAnalyzer')
+    @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
     def test_get_all_hardware_info(self, mock_cpu_analyzer_class):
         """Test getting all hardware info returns a HardwareInfo object."""
         # Setup

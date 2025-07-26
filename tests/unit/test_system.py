@@ -51,7 +51,8 @@ class TestLinuxSystemInterface:
             result = self.system.run_command(["lscpu", "--invalid-flag"])
 
             assert result.success is False
-            assert result.returncode == 127
+            command_not_found_exit_code = 127
+            assert result.returncode == command_not_found_exit_code
             assert result.stderr == "command not found"
 
     @unit_test
@@ -131,16 +132,18 @@ class TestLinuxSystemInterface:
         """Test successful file reading."""
         mock_content = "test file content"
 
-        with patch("builtins.open", mock_open(read_data=mock_content)):
-            with patch.object(
+        with (
+            patch("builtins.open", mock_open(read_data=mock_content)),
+            patch.object(
                 self.system, "_validate_file_path", return_value="/proc/cpuinfo"
-            ):
-                with patch("pathlib.Path.stat") as mock_stat:
-                    mock_stat.return_value = Mock(st_size=100)
+            ),
+            patch("pathlib.Path.stat") as mock_stat,
+        ):
+            mock_stat.return_value = Mock(st_size=100)
 
-                    result = self.system.read_file("/proc/cpuinfo")
+            result = self.system.read_file("/proc/cpuinfo")
 
-                    assert result == mock_content.strip()
+            assert result == mock_content.strip()
 
     @unit_test
     def test_read_file_invalid_path(self):
@@ -152,9 +155,12 @@ class TestLinuxSystemInterface:
     @unit_test
     def test_read_file_too_large(self):
         """Test file reading with file too large."""
-        with patch.object(
-            self.system, "_validate_file_path", return_value="/proc/cpuinfo"
-        ), patch("pathlib.Path.stat") as mock_stat:
+        with (
+            patch.object(
+                self.system, "_validate_file_path", return_value="/proc/cpuinfo"
+            ),
+            patch("pathlib.Path.stat") as mock_stat,
+        ):
             mock_stat.return_value = Mock(st_size=20 * 1024 * 1024)  # 20MB
 
             result = self.system.read_file("/proc/cpuinfo")
@@ -163,9 +169,12 @@ class TestLinuxSystemInterface:
     @unit_test
     def test_read_file_permission_error(self):
         """Test file reading with permission error."""
-        with patch.object(
-            self.system, "_validate_file_path", return_value="/proc/cpuinfo"
-        ), patch("pathlib.Path.stat") as mock_stat:
+        with (
+            patch.object(
+                self.system, "_validate_file_path", return_value="/proc/cpuinfo"
+            ),
+            patch("pathlib.Path.stat") as mock_stat,
+        ):
             mock_stat.return_value = Mock(st_size=100)
             with patch("builtins.open", side_effect=PermissionError()):
                 result = self.system.read_file("/proc/cpuinfo")

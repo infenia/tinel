@@ -43,7 +43,8 @@ class TestCLIConfig:
 
         assert config.format_type == "json"
         assert config.use_color is False
-        assert config.verbose == 2
+        expected_verbose_level = 2
+        assert config.verbose == expected_verbose_level
         assert config.quiet is True
         assert config.config_file == "/path/to/config.yaml"
 
@@ -81,7 +82,8 @@ class TestFromArgs:
 
         assert config.format_type == "json"
         assert config.use_color is False  # no_color is True
-        assert config.verbose == 2
+        expected_verbose_level = 2
+        assert config.verbose == expected_verbose_level
         assert config.quiet is False
         assert config.config_file == "/home/user/.tinel.yaml"
 
@@ -244,11 +246,13 @@ class TestShouldUseColor:
             assert config.should_use_color is False
 
         # FORCE_COLOR works when NO_COLOR is not set
-        with patch.dict(os.environ, {"FORCE_COLOR": "1"}):
+        with (
+            patch.dict(os.environ, {"FORCE_COLOR": "1"}),
+            patch.dict(os.environ, {"NO_COLOR": ""}, clear=False),
+        ):
             # Remove NO_COLOR if it exists
-            with patch.dict(os.environ, {"NO_COLOR": ""}, clear=False):
-                os.environ.pop("NO_COLOR", None)
-                assert config.should_use_color is True
+            os.environ.pop("NO_COLOR", None)
+            assert config.should_use_color is True
 
 
 class TestLogLevel:
@@ -326,9 +330,11 @@ class TestIntegration:
         assert config.config_file == "/etc/tinel/config.yaml"
 
         # Test color determination (depends on environment and TTY)
-        with patch.dict(os.environ, {}, clear=True):
-            with patch("sys.stdout.isatty", return_value=True):
-                assert config.should_use_color is True
+        with (
+            patch.dict(os.environ, {}, clear=True),
+            patch("sys.stdout.isatty", return_value=True),
+        ):
+            assert config.should_use_color is True
 
     @unit_test
     def test_configuration_with_validation_errors(self):
@@ -400,9 +406,11 @@ def test_color_environment_combinations(env_vars, use_color, expected):
     """Test various environment variable combinations for color."""
     config = CLIConfig(use_color=use_color)
 
-    with patch.dict(os.environ, env_vars, clear=True):
-        with patch("sys.stdout.isatty", return_value=True):
-            assert config.should_use_color == expected
+    with (
+        patch.dict(os.environ, env_vars, clear=True),
+        patch("sys.stdout.isatty", return_value=True),
+    ):
+        assert config.should_use_color == expected
 
 
 @pytest.mark.parametrize(

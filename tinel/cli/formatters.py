@@ -17,6 +17,7 @@ limitations under the License.
 
 import csv
 import json
+import os
 import sys
 from abc import ABC, abstractmethod
 from enum import Enum
@@ -29,6 +30,10 @@ try:
     YAML_AVAILABLE = True
 except ImportError:
     YAML_AVAILABLE = False
+
+
+# Verbosity constants
+DEBUG_VERBOSITY_LEVEL = 2
 
 
 # Constants for commonly used strings
@@ -259,7 +264,7 @@ class TextFormatter(BaseFormatter):
             lines.append(str(data))
 
         # Add verbose information if enabled
-        if self.verbose >= 2 and isinstance(data, dict):
+        if self.verbose >= DEBUG_VERBOSITY_LEVEL and isinstance(data, dict):
             lines.extend(self._add_verbose_info(data))
 
         return "\n".join(lines)
@@ -320,20 +325,17 @@ class TextFormatter(BaseFormatter):
 
         for key, value in data.items():
             if isinstance(value, dict):
-                lines.append(
-                    f"{indent_str}{self.colorizer.colorize(key + ':', Color.BOLD_WHITE)}"
-                )
+                colored_key = self.colorizer.colorize(key + ":", Color.BOLD_WHITE)
+                lines.append(f"{indent_str}{colored_key}")
                 lines.extend(self._format_dict(value, indent + 1))
             elif isinstance(value, list):
-                lines.append(
-                    f"{indent_str}{self.colorizer.colorize(key + ':', Color.BOLD_WHITE)}"
-                )
+                colored_key = self.colorizer.colorize(key + ":", Color.BOLD_WHITE)
+                lines.append(f"{indent_str}{colored_key}")
                 lines.extend(self._format_list(value, indent + 1))
             else:
                 formatted_value = self._format_value(value)
-                lines.append(
-                    f"{indent_str}{self.colorizer.colorize(key + ':', Color.BOLD_WHITE)} {formatted_value}"
-                )
+                colored_key = self.colorizer.colorize(key + ":", Color.BOLD_WHITE)
+                lines.append(f"{indent_str}{colored_key} {formatted_value}")
 
         return lines
 
@@ -355,13 +357,12 @@ class TextFormatter(BaseFormatter):
                 lines.extend(self._format_list(item, indent + 1))
             else:
                 formatted_value = self._format_value(item)
-                lines.append(
-                    f"{indent_str}{self.colorizer.colorize('-', Color.YELLOW)} {formatted_value}"
-                )
+                colored_dash = self.colorizer.colorize("-", Color.YELLOW)
+                lines.append(f"{indent_str}{colored_dash} {formatted_value}")
 
         return lines
 
-    def _format_value(self, value: Any) -> str:
+    def _format_value(self, value: Any) -> str:  # noqa: PLR0911
         """Format individual values with appropriate colors."""
         if isinstance(value, bool):
             color = Color.GREEN if value else Color.RED
@@ -400,7 +401,10 @@ class FormatterFactory:
 
     @staticmethod
     def create_formatter(
-        format_type: FormatType, colorizer: Any = None, quiet: bool = False, verbose: int = 0
+        format_type: FormatType,
+        colorizer: Any = None,
+        quiet: bool = False,
+        verbose: int = 0,
     ) -> BaseFormatter:
         """Create a formatter instance based on format type.
 
@@ -457,7 +461,7 @@ class ColorUtility:
 
     def _supports_color(self) -> bool:
         """Check if the terminal supports color output."""
-        import os
+        # Import moved to top
 
         # Check for NO_COLOR environment variable (https://no-color.org/)
         if os.environ.get("NO_COLOR"):
@@ -762,7 +766,7 @@ class OutputFormatter:
         Args:
             message: Debug message to print
         """
-        if self.quiet or self.verbose < 2:
+        if self.quiet or self.verbose < DEBUG_VERBOSITY_LEVEL:
             return
 
         colored_message = self.colorize(f"Debug: {message}", Color.MAGENTA)

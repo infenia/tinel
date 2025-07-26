@@ -20,16 +20,22 @@ import sys
 import time
 from typing import Any, List, Optional
 
+from .commands import CommandRouter
 from .config import CLIConfig
 from .error_handler import CLIErrorHandler
 from .formatters import OutputFormatter
 from .parser import parse_arguments
 
+# CLI constants
+DEBUG_VERBOSITY_THRESHOLD = 2
+MAX_ARGUMENTS_COUNT = 100
+MAX_ARGUMENT_LENGTH = 1000
 
-# Lazy import for CommandRouter to improve startup time
+
+# Command router initialization
 def _get_command_router(formatter: Any, error_handler: Any) -> Any:
-    """Lazy load command router to improve startup performance."""
-    from .commands import CommandRouter
+    """Initialize command router."""
+    # Import moved to top
 
     return CommandRouter(formatter, error_handler)
 
@@ -47,14 +53,17 @@ def setup_logging(verbosity: int, quiet: bool) -> None:
         level = logging.WARNING
     elif verbosity == 1:
         level = logging.INFO
-    elif verbosity == 2:
+    elif verbosity == DEBUG_VERBOSITY_THRESHOLD:
         level = logging.DEBUG
     else:  # verbosity >= 3
         level = logging.DEBUG
 
     # Configure logging format with more context for debugging
-    if verbosity >= 2:
-        format_str = "%(asctime)s - %(name)s - %(levelname)s - [%(filename)s:%(lineno)d] - %(message)s"
+    if verbosity >= DEBUG_VERBOSITY_THRESHOLD:
+        format_str = (
+            "%(asctime)s - %(name)s - %(levelname)s - "
+            "[%(filename)s:%(lineno)d] - %(message)s"
+        )
     elif verbosity >= 1:
         format_str = "%(asctime)s - %(levelname)s - %(message)s"
     else:
@@ -68,7 +77,7 @@ def setup_logging(verbosity: int, quiet: bool) -> None:
     )
 
     # Suppress some noisy loggers unless in debug mode
-    if verbosity < 2:
+    if verbosity < DEBUG_VERBOSITY_THRESHOLD:
         logging.getLogger("urllib3").setLevel(logging.WARNING)
         logging.getLogger("requests").setLevel(logging.WARNING)
         logging.getLogger("urllib3.connectionpool").setLevel(logging.WARNING)
@@ -94,8 +103,10 @@ def _validate_and_sanitize_argv(argv: Optional[List[str]]) -> Optional[List[str]
         return None
 
     # Reasonable limits to prevent abuse
-    if len(argv) > 100:
-        raise ValueError("Too many arguments provided (maximum: 100)")
+    if len(argv) > MAX_ARGUMENTS_COUNT:
+        raise ValueError(
+            f"Too many arguments provided (maximum: {MAX_ARGUMENTS_COUNT})"
+        )
 
     # Sanitize arguments - remove empty strings and strip whitespace
     sanitized = []
@@ -106,9 +117,10 @@ def _validate_and_sanitize_argv(argv: Optional[List[str]]) -> Optional[List[str]
         stripped = arg.strip()
         if stripped:  # Only keep non-empty arguments
             # Basic security check - prevent extremely long arguments
-            if len(stripped) > 1000:
+            if len(stripped) > MAX_ARGUMENT_LENGTH:
                 raise ValueError(
-                    f"Argument too long (maximum: 1000 characters): {stripped[:50]}..."
+                    f"Argument too long (maximum: {MAX_ARGUMENT_LENGTH} characters): "
+                    f"{stripped[:50]}..."
                 )
             sanitized.append(stripped)
 
@@ -134,7 +146,7 @@ def display_banner() -> None:
     print(banner)
 
 
-def main(argv: Optional[List[str]] = None) -> int:
+def main(argv: Optional[List[str]] = None) -> int:  # noqa: PLR0911
     """Main CLI entry point.
 
     Args:

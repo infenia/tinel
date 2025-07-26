@@ -17,7 +17,10 @@ limitations under the License.
 
 import argparse
 import sys
-from typing import List, Optional
+from typing import List, Optional, Sequence
+
+# Parser constants
+MAX_VERBOSITY_LEVEL = 3
 
 
 def _add_global_options(parser: argparse.ArgumentParser) -> None:
@@ -112,7 +115,6 @@ def create_argument_parser() -> argparse.ArgumentParser:
     # Hardware information commands
     _add_hardware_commands(subparsers)
 
-
     return parser
 
 
@@ -153,7 +155,6 @@ def _add_hardware_commands(subparsers: argparse._SubParsersAction) -> None:
         "--features", action="store_true", help="Show CPU features and capabilities"
     )
 
-
     # All hardware information
     all_parser = hw_subparsers.add_parser(
         "all", parents=[hardware_parent], help="All hardware information"
@@ -166,12 +167,60 @@ def _add_hardware_commands(subparsers: argparse._SubParsersAction) -> None:
     )
 
 
+def _validate_verbosity_options(args: argparse.Namespace) -> bool:
+    """Validate verbosity-related arguments."""
+    # Check for conflicting verbosity options
+    if args.verbose > 0 and args.quiet:
+        print("Error: Cannot use --verbose and --quiet together", file=sys.stderr)
+        return False
+
+    # Validate verbosity level
+    if args.verbose > MAX_VERBOSITY_LEVEL:
+        print(
+            f"Error: Maximum verbosity level is {MAX_VERBOSITY_LEVEL} (-vvv)",
+            file=sys.stderr,
+        )
+        return False
+
+    return True
 
 
+def _validate_basic_options(args: argparse.Namespace) -> bool:
+    """Validate basic command arguments."""
+    # Check if command is provided
+    if not args.command:
+        print(
+            "Error: No command specified. Use --help for available commands.",
+            file=sys.stderr,
+        )
+        return False
+
+    return True
 
 
-
-
+def _validate_subcommand(
+    args: argparse.Namespace,
+    command: str | Sequence[str],
+    attr_name: str,
+    help_cmd: str,
+) -> bool:
+    """Validate that a subcommand is provided when required."""
+    if (
+        (
+            args.command == command
+            or (isinstance(command, list) and args.command in command)
+        )
+        and hasattr(args, attr_name)
+        and not getattr(args, attr_name)
+    ):
+        cmd_title = command.title() if isinstance(command, str) else command[0].title()
+        print(
+            f"Error: {cmd_title} command requires a subcommand. "
+            f"Use '{help_cmd}' for options.",
+            file=sys.stderr,
+        )
+        return False
+    return True
 
 
 def validate_arguments(args: argparse.Namespace) -> bool:
@@ -183,73 +232,25 @@ def validate_arguments(args: argparse.Namespace) -> bool:
     Returns:
         True if arguments are valid, False otherwise
     """
-    # Check for conflicting verbosity options
-    if args.verbose > 0 and args.quiet:
-        print("Error: Cannot use --verbose and --quiet together", file=sys.stderr)
+    # Validate verbosity options
+    if not _validate_verbosity_options(args):
         return False
 
-    # Validate verbosity level
-    if args.verbose > 3:
-        print("Error: Maximum verbosity level is 3 (-vvv)", file=sys.stderr)
+    # Validate basic options
+    if not _validate_basic_options(args):
         return False
-
-    # Check if command is provided
-    if not args.command:
-        print(
-            "Error: No command specified. Use --help for available commands.",
-            file=sys.stderr,
-        )
-        return False
-
-    # Validate format-specific options
-    if args.format == "json" and args.no_color:
-        # JSON output doesn't use colors anyway, so this is fine
-        pass
 
     # Command-specific validations
-    if args.command in ["hardware", "hw"]:
-        if hasattr(args, "hardware_command") and not args.hardware_command:
-            print(
-                "Error: Hardware command requires a subcommand. "
-                "Use 'tinel hardware --help' for options.",
-                file=sys.stderr,
-            )
-            return False
+    validations = [
+        (["hardware", "hw"], "hardware_command", "tinel hardware --help"),
+        ("kernel", "kernel_command", "tinel kernel --help"),
+        ("logs", "logs_command", "tinel logs --help"),
+        (["diagnose", "diag"], "diag_command", "tinel diagnose --help"),
+        ("server", "server_command", "tinel server --help"),
+    ]
 
-    if args.command == "kernel":
-        if hasattr(args, "kernel_command") and not args.kernel_command:
-            print(
-                "Error: Kernel command requires a subcommand. "
-                "Use 'tinel kernel --help' for options.",
-                file=sys.stderr,
-            )
-            return False
-
-    if args.command == "logs":
-        if hasattr(args, "logs_command") and not args.logs_command:
-            print(
-                "Error: Logs command requires a subcommand. "
-                "Use 'tinel logs --help' for options.",
-                file=sys.stderr,
-            )
-            return False
-
-    if args.command in ["diagnose", "diag"]:
-        if hasattr(args, "diag_command") and not args.diag_command:
-            print(
-                "Error: Diagnose command requires a subcommand. "
-                "Use 'tinel diagnose --help' for options.",
-                file=sys.stderr,
-            )
-            return False
-
-    if args.command == "server":
-        if hasattr(args, "server_command") and not args.server_command:
-            print(
-                "Error: Server command requires a subcommand. "
-                "Use 'tinel server --help' for options.",
-                file=sys.stderr,
-            )
+    for command, attr_name, help_cmd in validations:
+        if not _validate_subcommand(args, command, attr_name, help_cmd):
             return False
 
     return True

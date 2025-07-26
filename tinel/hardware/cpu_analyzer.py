@@ -17,7 +17,7 @@ limitations under the License.
 
 import re
 import time
-from typing import Any, Callable, Dict, List, Optional, Tuple
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
@@ -65,9 +65,10 @@ class CPUAnalyzer:
         Returns:
             Dictionary containing detailed CPU information
         """
-        return self._get_cached_or_compute(
-            "cpu_info_full", self._compute_cpu_info
-        )  # type: ignore[no-any-return]
+        return cast(
+            Dict[str, Any],
+            self._get_cached_or_compute("cpu_info_full", self._compute_cpu_info),
+        )
 
     def _compute_cpu_info(self) -> Dict[str, Any]:
         """Compute CPU information efficiently.

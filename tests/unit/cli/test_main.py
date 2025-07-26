@@ -113,18 +113,20 @@ class TestSetupLogging:
     @unit_test
     def test_setup_logging_suppress_noisy_loggers(self):
         """Test that noisy loggers are suppressed in non-debug mode."""
-        with patch("logging.basicConfig"):
-            with patch("logging.getLogger") as mock_get_logger:
-                mock_logger = Mock()
-                mock_get_logger.return_value = mock_logger
+        with (
+            patch("logging.basicConfig"),
+            patch("logging.getLogger") as mock_get_logger,
+        ):
+            mock_logger = Mock()
+            mock_get_logger.return_value = mock_logger
 
-                setup_logging(verbosity=1, quiet=False)
+            setup_logging(verbosity=1, quiet=False)
 
-                # Should suppress urllib3 and requests loggers
-                calls = mock_get_logger.call_args_list
-                logger_names = [call[0][0] for call in calls if call[0]]
-                assert "urllib3" in logger_names
-                assert "requests" in logger_names
+            # Should suppress urllib3 and requests loggers
+            calls = mock_get_logger.call_args_list
+            logger_names = [call[0][0] for call in calls if call[0]]
+            assert "urllib3" in logger_names
+            assert "requests" in logger_names
 
 
 class TestValidateAndSanitizeArgv:
@@ -214,8 +216,8 @@ class TestGetCommandRouter:
         formatter = Mock()
         error_handler = Mock()
 
-        # CommandRouter is imported inside the function, so patch the import path
-        with patch("tinel.cli.commands.CommandRouter") as mock_router_class:
+        # CommandRouter is imported at top level, so patch the main module's import
+        with patch("tinel.cli.main.CommandRouter") as mock_router_class:
             mock_router = Mock()
             mock_router_class.return_value = mock_router
 
@@ -231,40 +233,49 @@ class TestMain:
     @unit_test
     def test_main_displays_banner_by_default(self):
         """Test that main displays banner by default."""
-        with patch("tinel.cli.main.display_banner") as mock_banner:
-            with patch("tinel.cli.main._execute_main_logic", return_value=0):
-                result = main(["hardware", "cpu"])
+        with (
+            patch("tinel.cli.main.display_banner") as mock_banner,
+            patch("tinel.cli.main._execute_main_logic", return_value=0),
+        ):
+            result = main(["hardware", "cpu"])
 
-                mock_banner.assert_called_once()
-                assert result == 0
+            mock_banner.assert_called_once()
+            assert result == 0
 
     @unit_test
     def test_main_suppresses_banner_quiet_short(self):
         """Test that main suppresses banner with -q flag."""
-        with patch("tinel.cli.main.display_banner") as mock_banner:
-            with patch("tinel.cli.main._execute_main_logic", return_value=0):
-                result = main(["-q", "hardware", "cpu"])
+        with (
+            patch("tinel.cli.main.display_banner") as mock_banner,
+            patch("tinel.cli.main._execute_main_logic", return_value=0),
+        ):
+            result = main(["-q", "hardware", "cpu"])
 
-                mock_banner.assert_not_called()
-                assert result == 0
+            mock_banner.assert_not_called()
+            assert result == 0
 
     @unit_test
     def test_main_suppresses_banner_quiet_long(self):
         """Test that main suppresses banner with --quiet flag."""
-        with patch("tinel.cli.main.display_banner") as mock_banner:
-            with patch("tinel.cli.main._execute_main_logic", return_value=0):
-                result = main(["--quiet", "hardware", "cpu"])
+        with (
+            patch("tinel.cli.main.display_banner") as mock_banner,
+            patch("tinel.cli.main._execute_main_logic", return_value=0),
+        ):
+            result = main(["--quiet", "hardware", "cpu"])
 
-                mock_banner.assert_not_called()
-                assert result == 0
+            mock_banner.assert_not_called()
+            assert result == 0
 
     @unit_test
     def test_main_validation_error(self):
         """Test main handles validation errors."""
-        with patch(
-            "tinel.cli.main._validate_and_sanitize_argv",
-            side_effect=ValueError("Invalid args"),
-        ), patch("sys.stderr", new_callable=StringIO) as mock_stderr:
+        with (
+            patch(
+                "tinel.cli.main._validate_and_sanitize_argv",
+                side_effect=ValueError("Invalid args"),
+            ),
+            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
+        ):
             result = main(["invalid"])
 
             assert result == 1
@@ -273,15 +284,19 @@ class TestMain:
     @unit_test
     def test_main_keyboard_interrupt(self):
         """Test main handles keyboard interrupt."""
-        with patch(
-            "tinel.cli.main._execute_main_logic", side_effect=KeyboardInterrupt()
-        ), patch(
-            "tinel.cli.main._handle_keyboard_interrupt", return_value=130
-        ) as mock_handler:
+        with (
+            patch(
+                "tinel.cli.main._execute_main_logic", side_effect=KeyboardInterrupt()
+            ),
+            patch(
+                "tinel.cli.main._handle_keyboard_interrupt", return_value=130
+            ) as mock_handler,
+        ):
             result = main(["hardware", "cpu"])
 
             mock_handler.assert_called_once()
-            assert result == 130
+            keyboard_interrupt_exit_code = 130
+            assert result == keyboard_interrupt_exit_code
 
     @unit_test
     def test_main_system_exit_with_code(self):
@@ -289,7 +304,8 @@ class TestMain:
         with patch("tinel.cli.main._execute_main_logic", side_effect=SystemExit(2)):
             result = main(["hardware", "cpu"])
 
-            assert result == 2
+            system_exit_code = 2
+            assert result == system_exit_code
 
     @unit_test
     def test_main_system_exit_without_code(self):
@@ -302,7 +318,9 @@ class TestMain:
     @unit_test
     def test_main_system_exit_with_string_code(self):
         """Test main handles SystemExit with string code."""
-        with patch("tinel.cli.main._execute_main_logic", side_effect=SystemExit("error")):
+        with patch(
+            "tinel.cli.main._execute_main_logic", side_effect=SystemExit("error")
+        ):
             result = main(["hardware", "cpu"])
 
             assert result == 1
@@ -310,11 +328,15 @@ class TestMain:
     @unit_test
     def test_main_unexpected_error(self):
         """Test main handles unexpected errors."""
-        with patch(
-            "tinel.cli.main._execute_main_logic", side_effect=RuntimeError("Unexpected")
-        ), patch(
-            "tinel.cli.main._handle_unexpected_error", return_value=1
-        ) as mock_handler:
+        with (
+            patch(
+                "tinel.cli.main._execute_main_logic",
+                side_effect=RuntimeError("Unexpected"),
+            ),
+            patch(
+                "tinel.cli.main._handle_unexpected_error", return_value=1
+            ) as mock_handler,
+        ):
             result = main(["hardware", "cpu"])
 
             mock_handler.assert_called_once()
@@ -336,26 +358,18 @@ class TestExecuteMainLogic:
         mock_router = Mock()
         mock_router.execute_command.return_value = 0
 
-        with patch("tinel.cli.main.parse_arguments", return_value=mock_args):
-            with patch("tinel.cli.main.CLIConfig.from_args", return_value=mock_config):
-                with patch("tinel.cli.main.setup_logging"):
-                    with patch(
-                        "tinel.cli.main.OutputFormatter", return_value=mock_formatter
-                    ):
-                        with patch(
-                            "tinel.cli.main.CLIErrorHandler",
-                            return_value=mock_error_handler,
-                        ):
-                            with patch(
-                                "tinel.cli.main._get_command_router",
-                                return_value=mock_router,
-                            ):
-                                result = _execute_main_logic(["hardware", "cpu"])
+        with (
+            patch("tinel.cli.main.parse_arguments", return_value=mock_args),
+            patch("tinel.cli.main.CLIConfig.from_args", return_value=mock_config),
+            patch("tinel.cli.main.setup_logging"),
+            patch("tinel.cli.main.OutputFormatter", return_value=mock_formatter),
+            patch("tinel.cli.main.CLIErrorHandler", return_value=mock_error_handler),
+            patch("tinel.cli.main._get_command_router", return_value=mock_router),
+        ):
+            result = _execute_main_logic(["hardware", "cpu"])
 
-                                assert result == 0
-                                mock_router.execute_command.assert_called_once_with(
-                                    mock_args
-                                )
+            assert result == 0
+            mock_router.execute_command.assert_called_once_with(mock_args)
 
     @unit_test
     def test_execute_main_logic_with_timing(self):
@@ -365,34 +379,39 @@ class TestExecuteMainLogic:
             verbose=1, quiet=False, format_type="text", should_use_color=False
         )
 
-        with patch("tinel.cli.main.parse_arguments", return_value=mock_args):
-            with patch("tinel.cli.main.CLIConfig.from_args", return_value=mock_config):
-                with patch("tinel.cli.main.setup_logging"):
-                    with patch("tinel.cli.main.OutputFormatter"):
-                        with patch("tinel.cli.main.CLIErrorHandler"):
-                            with patch(
-                                "tinel.cli.main._get_command_router"
-                            ) as mock_get_router:
-                                mock_router = Mock()
-                                mock_router.execute_command.return_value = 0
-                                mock_get_router.return_value = mock_router
+        with (
+            patch("tinel.cli.main.parse_arguments", return_value=mock_args),
+            patch("tinel.cli.main.CLIConfig.from_args", return_value=mock_config),
+            patch("tinel.cli.main.setup_logging"),
+            patch("tinel.cli.main.OutputFormatter"),
+            patch("tinel.cli.main.CLIErrorHandler"),
+            patch("tinel.cli.main._get_command_router") as mock_get_router,
+            patch("logging.getLogger") as mock_get_logger,
+        ):
+            mock_router = Mock()
+            mock_router.execute_command.return_value = 0
+            mock_get_router.return_value = mock_router
 
-                                with patch("logging.getLogger") as mock_get_logger:
-                                    mock_logger = Mock()
-                                    mock_get_logger.return_value = mock_logger
+            mock_logger = Mock()
+            mock_get_logger.return_value = mock_logger
 
-                                    result = _execute_main_logic(["hardware", "cpu"])
+            result = _execute_main_logic(["hardware", "cpu"])
 
-                                    assert result == 0
-                                    # Check that info logging was called for start and completion
-                                    assert mock_logger.info.call_count >= 2
+            assert result == 0
+            # Check that info logging was called for start and completion
+            min_expected_log_calls = 2
+            assert mock_logger.info.call_count >= min_expected_log_calls
 
     @unit_test
     def test_execute_main_logic_exception_handling(self):
         """Test exception handling in main logic."""
-        with patch(
-            "tinel.cli.main.parse_arguments", side_effect=RuntimeError("Parse error")
-        ), patch("logging.getLogger") as mock_get_logger:
+        with (
+            patch(
+                "tinel.cli.main.parse_arguments",
+                side_effect=RuntimeError("Parse error"),
+            ),
+            patch("logging.getLogger") as mock_get_logger,
+        ):
             mock_logger = Mock()
             mock_get_logger.return_value = mock_logger
 
@@ -412,7 +431,8 @@ class TestErrorHandlers:
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             result = _handle_keyboard_interrupt()
 
-            assert result == 130
+            keyboard_interrupt_exit_code = 130
+            assert result == keyboard_interrupt_exit_code
             assert "Operation cancelled by user" in mock_stderr.getvalue()
 
     @unit_test
@@ -420,15 +440,17 @@ class TestErrorHandlers:
         """Test unexpected error handler."""
         error = RuntimeError("Something went wrong")
 
-        with patch("logging.exception") as mock_log_exception:
-            with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-                result = _handle_unexpected_error(error)
+        with (
+            patch("logging.exception") as mock_log_exception,
+            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
+        ):
+            result = _handle_unexpected_error(error)
 
-                assert result == 1
-                mock_log_exception.assert_called_once()
-                stderr_output = mock_stderr.getvalue()
-                assert "Fatal error: Something went wrong" in stderr_output
-                assert "internal error" in stderr_output
+            assert result == 1
+            mock_log_exception.assert_called_once()
+            stderr_output = mock_stderr.getvalue()
+            assert "Fatal error: Something went wrong" in stderr_output
+            assert "internal error" in stderr_output
 
 
 class TestMainIntegration:
@@ -437,11 +459,13 @@ class TestMainIntegration:
     @unit_test
     def test_main_none_argv(self):
         """Test main with None argv (uses sys.argv)."""
-        with patch("tinel.cli.main.display_banner"):
-            with patch("tinel.cli.main._execute_main_logic", return_value=0):
-                result = main(None)
+        with (
+            patch("tinel.cli.main.display_banner"),
+            patch("tinel.cli.main._execute_main_logic", return_value=0),
+        ):
+            result = main(None)
 
-                assert result == 0
+            assert result == 0
 
     @unit_test
     def test_main_end_to_end_success(self):
@@ -451,24 +475,22 @@ class TestMainIntegration:
             verbose=0, quiet=False, format_type="text", should_use_color=False
         )
 
-        with patch("tinel.cli.main.display_banner"):
-            with patch("tinel.cli.main.parse_arguments", return_value=mock_args):
-                with patch(
-                    "tinel.cli.main.CLIConfig.from_args", return_value=mock_config
-                ):
-                    with patch("tinel.cli.main.setup_logging"):
-                        with patch("tinel.cli.main.OutputFormatter"):
-                            with patch("tinel.cli.main.CLIErrorHandler"):
-                                with patch(
-                                    "tinel.cli.main._get_command_router"
-                                ) as mock_get_router:
-                                    mock_router = Mock()
-                                    mock_router.execute_command.return_value = 0
-                                    mock_get_router.return_value = mock_router
+        with (
+            patch("tinel.cli.main.display_banner"),
+            patch("tinel.cli.main.parse_arguments", return_value=mock_args),
+            patch("tinel.cli.main.CLIConfig.from_args", return_value=mock_config),
+            patch("tinel.cli.main.setup_logging"),
+            patch("tinel.cli.main.OutputFormatter"),
+            patch("tinel.cli.main.CLIErrorHandler"),
+            patch("tinel.cli.main._get_command_router") as mock_get_router,
+        ):
+            mock_router = Mock()
+            mock_router.execute_command.return_value = 0
+            mock_get_router.return_value = mock_router
 
-                                    result = main(["hardware", "cpu"])
+            result = main(["hardware", "cpu"])
 
-                                    assert result == 0
+            assert result == 0
 
     @unit_test
     def test_main_py_entry_point(self):
@@ -519,11 +541,13 @@ def test_setup_logging_verbosity_levels(verbosity, expected_level):
 @unit_test
 def test_main_banner_display_conditions(argv, should_show_banner):
     """Test banner display under different conditions."""
-    with patch("tinel.cli.main.display_banner") as mock_banner:
-        with patch("tinel.cli.main._execute_main_logic", return_value=0):
-            main(argv)
+    with (
+        patch("tinel.cli.main.display_banner") as mock_banner,
+        patch("tinel.cli.main._execute_main_logic", return_value=0),
+    ):
+        main(argv)
 
-            if should_show_banner:
-                mock_banner.assert_called_once()
-            else:
-                mock_banner.assert_not_called()
+        if should_show_banner:
+            mock_banner.assert_called_once()
+        else:
+            mock_banner.assert_not_called()

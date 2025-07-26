@@ -16,8 +16,13 @@ limitations under the License.
 """
 
 import argparse
+import os
+import sys
 from dataclasses import dataclass
 from typing import Optional
+
+# Verbosity constants
+MAX_VERBOSITY_LEVEL = 3
 
 
 @dataclass
@@ -60,20 +65,20 @@ class CLIConfig:
         if self.verbose < 0:
             raise ValueError("Verbosity level cannot be negative")
 
-        if self.verbose > 3:
-            raise ValueError("Maximum verbosity level is 3")
+        if self.verbose > MAX_VERBOSITY_LEVEL:
+            raise ValueError(f"Maximum verbosity level is {MAX_VERBOSITY_LEVEL}")
 
         valid_formats = ["text", "json", "yaml", "csv"]
         if self.format_type not in valid_formats:
             raise ValueError(
-                f"Invalid format '{self.format_type}'. Valid formats: {', '.join(valid_formats)}"
+                f"Invalid format '{self.format_type}'. "
+                f"Valid formats: {', '.join(valid_formats)}"
             )
 
     @property
     def should_use_color(self) -> bool:
         """Determine if color should be used based on configuration and environment."""
-        import os
-        import sys
+        # Imports moved to top
 
         # Respect NO_COLOR environment variable (https://no-color.org/)
         if os.environ.get("NO_COLOR"):

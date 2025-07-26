@@ -36,10 +36,12 @@ class TestGlobalOptions:
         assert args.verbose == 1
 
         args = parser.parse_args(["-vv"])
-        assert args.verbose == 2
+        verbose_level_2 = 2
+        assert args.verbose == verbose_level_2
 
         args = parser.parse_args(["-vvv"])
-        assert args.verbose == 3
+        verbose_level_3 = 3
+        assert args.verbose == verbose_level_3
 
         # Test quiet option
         args = parser.parse_args(["--quiet"])
@@ -214,8 +216,8 @@ class TestArgumentValidation:
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             assert validate_arguments(args) is False
             assert (
-                "Error: Hardware command requires a subcommand. Use 'tinel hardware --help' for options."
-                in mock_stderr.getvalue()
+                "Error: Hardware command requires a subcommand. "
+                "Use 'tinel hardware --help' for options." in mock_stderr.getvalue()
             )
 
     @unit_test
@@ -232,8 +234,8 @@ class TestArgumentValidation:
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             assert validate_arguments(args) is False
             assert (
-                "Error: Hardware command requires a subcommand. Use 'tinel hardware --help' for options."
-                in mock_stderr.getvalue()
+                "Error: Hardware command requires a subcommand. "
+                "Use 'tinel hardware --help' for options." in mock_stderr.getvalue()
             )
 
     @unit_test
@@ -250,8 +252,8 @@ class TestArgumentValidation:
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             assert validate_arguments(args) is False
             assert (
-                "Error: Kernel command requires a subcommand. Use 'tinel kernel --help' for options."
-                in mock_stderr.getvalue()
+                "Error: Kernel command requires a subcommand. "
+                "Use 'tinel kernel --help' for options." in mock_stderr.getvalue()
             )
 
     @unit_test
@@ -268,8 +270,8 @@ class TestArgumentValidation:
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             assert validate_arguments(args) is False
             assert (
-                "Error: Logs command requires a subcommand. Use 'tinel logs --help' for options."
-                in mock_stderr.getvalue()
+                "Error: Logs command requires a subcommand. "
+                "Use 'tinel logs --help' for options." in mock_stderr.getvalue()
             )
 
     @unit_test
@@ -286,8 +288,8 @@ class TestArgumentValidation:
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             assert validate_arguments(args) is False
             assert (
-                "Error: Diagnose command requires a subcommand. Use 'tinel diagnose --help' for options."
-                in mock_stderr.getvalue()
+                "Error: Diagnose command requires a subcommand. "
+                "Use 'tinel diagnose --help' for options." in mock_stderr.getvalue()
             )
 
     @unit_test
@@ -304,8 +306,8 @@ class TestArgumentValidation:
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             assert validate_arguments(args) is False
             assert (
-                "Error: Diagnose command requires a subcommand. Use 'tinel diagnose --help' for options."
-                in mock_stderr.getvalue()
+                "Error: Diagnose command requires a subcommand. "
+                "Use 'tinel diagnose --help' for options." in mock_stderr.getvalue()
             )
 
     @unit_test
@@ -322,8 +324,8 @@ class TestArgumentValidation:
         with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
             assert validate_arguments(args) is False
             assert (
-                "Error: Server command requires a subcommand. Use 'tinel server --help' for options."
-                in mock_stderr.getvalue()
+                "Error: Server command requires a subcommand. "
+                "Use 'tinel server --help' for options." in mock_stderr.getvalue()
             )
 
     @unit_test
@@ -428,7 +430,8 @@ class TestParseArguments:
     @unit_test
     def test_parse_arguments_with_global_options(self):
         """Test parse_arguments with global options at main level."""
-        # Global options only work when placed before the command due to parser structure
+        # Global options only work when placed before the command due to parser
+        # structure
         custom_argv = ["--verbose", "--format", "json", "hardware", "cpu"]
         args = parse_arguments(custom_argv)
         # Due to parser structure, global options on main parser conflict with subparser
@@ -440,9 +443,11 @@ class TestParseArguments:
     def test_parse_arguments_validation_failure(self):
         """Test parse_arguments when validation fails."""
         # Create args that will fail validation
-        with patch("tinel.cli.parser.validate_arguments", return_value=False):
-            with pytest.raises(SystemExit):
-                parse_arguments(["--quiet", "--verbose", "hardware", "cpu"])
+        with (
+            patch("tinel.cli.parser.validate_arguments", return_value=False),
+            pytest.raises(SystemExit),
+        ):
+            parse_arguments(["--quiet", "--verbose", "hardware", "cpu"])
 
     @unit_test
     def test_parse_arguments_empty_argv(self):

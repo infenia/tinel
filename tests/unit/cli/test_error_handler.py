@@ -8,6 +8,7 @@ Licensed under the Apache License, Version 2.0
 
 import socket
 from io import StringIO
+from types import SimpleNamespace
 from unittest.mock import Mock, mock_open, patch
 
 import pytest
@@ -36,12 +37,17 @@ class TestExitCode:
     @unit_test
     def test_exit_code_values(self):
         """Test that exit codes have correct values."""
+        expected_command_not_found_code = 127
+        expected_keyboard_interrupt_code = 130
+        expected_permission_denied_code = 10
+        expected_hardware_error_code = 14
+
         assert ExitCode.SUCCESS == 0
         assert ExitCode.GENERAL_ERROR == 1
-        assert ExitCode.COMMAND_NOT_FOUND == 127
-        assert ExitCode.KEYBOARD_INTERRUPT == 130
-        assert ExitCode.PERMISSION_DENIED == 10
-        assert ExitCode.HARDWARE_ERROR == 14
+        assert expected_command_not_found_code == ExitCode.COMMAND_NOT_FOUND
+        assert expected_keyboard_interrupt_code == ExitCode.KEYBOARD_INTERRUPT
+        assert expected_permission_denied_code == ExitCode.PERMISSION_DENIED
+        assert expected_hardware_error_code == ExitCode.HARDWARE_ERROR
 
 
 class TestCLIError:
@@ -265,24 +271,26 @@ class TestCLIErrorHandler:
     @unit_test
     def test_handle_error_with_suggestion(self):
         """Test error handling with custom suggestion."""
-        with patch("sys.exit"):
-            with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-                self.handler.handle_error("Test error", suggestion="Try this fix")
+        with (
+            patch("sys.exit"),
+            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
+        ):
+            self.handler.handle_error("Test error", suggestion="Try this fix")
 
-                stderr_output = mock_stderr.getvalue()
-                assert "Suggestion: Try this fix" in stderr_output
+            stderr_output = mock_stderr.getvalue()
+            assert "Suggestion: Try this fix" in stderr_output
 
     @unit_test
     def test_handle_error_default_suggestion(self):
         """Test error handling with default suggestion."""
-        with patch("sys.exit"):
-            with patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-                self.handler.handle_error(
-                    "Command not found", ExitCode.COMMAND_NOT_FOUND
-                )
+        with (
+            patch("sys.exit"),
+            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
+        ):
+            self.handler.handle_error("Command not found", ExitCode.COMMAND_NOT_FOUND)
 
-                stderr_output = mock_stderr.getvalue()
-                assert "tinel --help" in stderr_output
+            stderr_output = mock_stderr.getvalue()
+            assert "tinel --help" in stderr_output
 
     @unit_test
     def test_handle_error_save_report(self):
@@ -290,12 +298,14 @@ class TestCLIErrorHandler:
         details = {"context": "test"}
         self.formatter.verbose = 0  # Set verbose to an integer, not a Mock
 
-        with patch("sys.exit"), patch.object(
-            self.handler, "save_error_report", return_value="/tmp/report.json"
-        ), patch("sys.stderr", new_callable=StringIO) as mock_stderr:
-            self.handler.handle_error(
-                "General error", ExitCode.GENERAL_ERROR, details
-            )
+        with (
+            patch("sys.exit"),
+            patch.object(
+                self.handler, "save_error_report", return_value="/tmp/report.json"
+            ),
+            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
+        ):
+            self.handler.handle_error("General error", ExitCode.GENERAL_ERROR, details)
 
             stderr_output = mock_stderr.getvalue()
             assert "Error report saved to" in stderr_output
@@ -306,14 +316,15 @@ class TestCLIErrorHandler:
         details = {"context": "test"}
         self.formatter.verbose = 0
 
-        with patch("sys.exit"), patch.object(
-            self.handler, "save_error_report", side_effect=Exception("Save failed")
-        ), patch("sys.stderr", new_callable=StringIO) as mock_stderr, patch.object(
-            self.formatter, "print_error"
-        ) as mock_print_error:
-            self.handler.handle_error(
-                "General error", ExitCode.GENERAL_ERROR, details
-            )
+        with (
+            patch("sys.exit"),
+            patch.object(
+                self.handler, "save_error_report", side_effect=Exception("Save failed")
+            ),
+            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
+            patch.object(self.formatter, "print_error") as mock_print_error,
+        ):
+            self.handler.handle_error("General error", ExitCode.GENERAL_ERROR, details)
 
             mock_print_error.assert_called_once_with("General error")
             stderr_output = mock_stderr.getvalue()
@@ -352,12 +363,14 @@ class TestCLIErrorHandler:
         """Branch where save_error_report returns empty string."""
         self.formatter.verbose = 0
         details = {"ctx": "val"}
-        with patch("sys.exit"):
-            with patch.object(self.handler, "save_error_report", return_value=""):
-                # Capture stderr to ensure no 'Error report saved' line emitted
-                with patch("sys.stderr", new_callable=StringIO) as stderr:
-                    self.handler.handle_error("err", ExitCode.GENERAL_ERROR, details)
-                    assert "Error report saved" not in stderr.getvalue()
+        with (
+            patch("sys.exit"),
+            patch.object(self.handler, "save_error_report", return_value=""),
+            patch("sys.stderr", new_callable=StringIO) as stderr,
+        ):
+            # Capture stderr to ensure no 'Error report saved' line emitted
+            self.handler.handle_error("err", ExitCode.GENERAL_ERROR, details)
+            assert "Error report saved" not in stderr.getvalue()
 
     @unit_test
     def test_handle_exception_no_context(self):
@@ -381,41 +394,51 @@ class TestFileValidation:
     @unit_test
     def test_validate_file_access_file_not_found(self):
         """Test file validation when file doesn't exist."""
-        with patch("os.path.exists", return_value=False):
-            with pytest.raises(FileNotFoundError):
-                self.handler.validate_file_access("/nonexistent/file")
+        with (
+            patch("os.path.exists", return_value=False),
+            pytest.raises(FileNotFoundError),
+        ):
+            self.handler.validate_file_access("/nonexistent/file")
 
     @unit_test
     def test_validate_file_access_read_permission_denied(self):
         """Test file validation when read permission is denied."""
-        with patch("os.path.exists", return_value=True):
-            with patch("os.access", return_value=False):
-                with pytest.raises(PermissionError):
-                    self.handler.validate_file_access("/restricted/file", "read")
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.access", return_value=False),
+            pytest.raises(PermissionError),
+        ):
+            self.handler.validate_file_access("/restricted/file", "read")
 
     @unit_test
     def test_validate_file_access_write_permission_denied(self):
         """Test file validation when write permission is denied."""
-        with patch("os.path.exists", return_value=True):
-            with patch("os.access", return_value=False):
-                with pytest.raises(PermissionError):
-                    self.handler.validate_file_access("/restricted/file", "write")
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.access", return_value=False),
+            pytest.raises(PermissionError),
+        ):
+            self.handler.validate_file_access("/restricted/file", "write")
 
     @unit_test
     def test_validate_file_access_execute_permission_denied(self):
         """Test file validation when execute permission is denied."""
-        with patch("os.path.exists", return_value=True):
-            with patch("os.access", return_value=False):
-                with pytest.raises(PermissionError):
-                    self.handler.validate_file_access("/restricted/file", "execute")
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.access", return_value=False),
+            pytest.raises(PermissionError),
+        ):
+            self.handler.validate_file_access("/restricted/file", "execute")
 
     @unit_test
     def test_validate_file_access_success(self):
         """Test successful file validation."""
-        with patch("os.path.exists", return_value=True):
-            with patch("os.access", return_value=True):
-                # Should not raise any exception
-                self.handler.validate_file_access("/accessible/file", "read")
+        with (
+            patch("os.path.exists", return_value=True),
+            patch("os.access", return_value=True),
+        ):
+            # Should not raise any exception
+            self.handler.validate_file_access("/accessible/file", "read")
 
 
 class TestCommandValidation:
@@ -436,9 +459,11 @@ class TestCommandValidation:
     @unit_test
     def test_validate_command_availability_not_found(self):
         """Test command validation when command is not found."""
-        with patch("shutil.which", return_value=None):
-            with pytest.raises(CommandNotFoundError):
-                self.handler.validate_command_availability("nonexistent_command")
+        with (
+            patch("shutil.which", return_value=None),
+            pytest.raises(CommandNotFoundError),
+        ):
+            self.handler.validate_command_availability("nonexistent_command")
 
 
 class TestNetworkValidation:
@@ -465,23 +490,29 @@ class TestNetworkValidation:
         mock_socket = Mock()
         mock_socket.connect_ex.return_value = 1  # Connection failed
 
-        with patch("socket.socket", return_value=mock_socket):
-            with pytest.raises(NetworkError):
-                self.handler.validate_network_connectivity("example.com", 80)
+        with (
+            patch("socket.socket", return_value=mock_socket),
+            pytest.raises(NetworkError),
+        ):
+            self.handler.validate_network_connectivity("example.com", 80)
 
     @unit_test
     def test_validate_network_connectivity_dns_failure(self):
         """Test network validation when DNS resolution fails."""
-        with patch("socket.socket", side_effect=socket.gaierror("DNS failed")):
-            with pytest.raises(NetworkError):
-                self.handler.validate_network_connectivity("invalid.example", 80)
+        with (
+            patch("socket.socket", side_effect=socket.gaierror("DNS failed")),
+            pytest.raises(NetworkError),
+        ):
+            self.handler.validate_network_connectivity("invalid.example", 80)
 
     @unit_test
     def test_validate_network_connectivity_general_exception(self):
         """Test network validation with general exception."""
-        with patch("socket.socket", side_effect=OSError("General error")):
-            with pytest.raises(NetworkError):
-                self.handler.validate_network_connectivity("example.com", 80)
+        with (
+            patch("socket.socket", side_effect=OSError("General error")),
+            pytest.raises(NetworkError),
+        ):
+            self.handler.validate_network_connectivity("example.com", 80)
 
 
 class TestErrorReporting:
@@ -498,44 +529,50 @@ class TestErrorReporting:
         error = RuntimeError("Test error")
         context = {"test": "context"}
 
-        with patch("platform.platform", return_value="Linux"):
-            with patch("sys.version", "3.11.0"):
-                report = self.handler.create_error_report(error, context)
+        with (
+            patch("platform.platform", return_value="Linux"),
+            patch("sys.version", "3.11.0"),
+        ):
+            report = self.handler.create_error_report(error, context)
 
-                assert "timestamp" in report
-                assert report["error"]["type"] == "RuntimeError"
-                assert report["error"]["message"] == "Test error"
-                assert "traceback" in report["error"]
-                assert report["system"]["platform"] == "Linux"
-                assert report["context"] == context
+            assert "timestamp" in report
+            assert report["error"]["type"] == "RuntimeError"
+            assert report["error"]["message"] == "Test error"
+            assert "traceback" in report["error"]
+            assert report["system"]["platform"] == "Linux"
+            assert report["context"] == context
 
     @unit_test
     def test_save_error_report_success(self):
         """Test successful error report saving."""
         error = RuntimeError("Test error")
 
-        with patch("tempfile.gettempdir", return_value="/tmp"):
-            with patch("builtins.open", mock_open()) as mock_file:
-                with patch("json.dump") as mock_json_dump:
-                    filepath = self.handler.save_error_report(error)
+        with (
+            patch("tempfile.gettempdir", return_value="/tmp"),
+            patch("builtins.open", mock_open()) as mock_file,
+            patch("json.dump") as mock_json_dump,
+        ):
+            filepath = self.handler.save_error_report(error)
 
-                    assert filepath.startswith("/tmp/tinel_error_")
-                    assert filepath.endswith(".json")
-                    mock_file.assert_called_once()
-                    mock_json_dump.assert_called_once()
+            assert filepath.startswith("/tmp/tinel_error_")
+            assert filepath.endswith(".json")
+            mock_file.assert_called_once()
+            mock_json_dump.assert_called_once()
 
     @unit_test
     def test_save_error_report_failure(self):
         """Test error report saving failure."""
         error = RuntimeError("Test error")
 
-        with patch("tempfile.gettempdir", return_value="/tmp"):
-            with patch("builtins.open", side_effect=OSError("Write failed")):
-                with patch("tinel.cli.error_handler.logger") as mock_logger:
-                    filepath = self.handler.save_error_report(error)
+        with (
+            patch("tempfile.gettempdir", return_value="/tmp"),
+            patch("builtins.open", side_effect=OSError("Write failed")),
+            patch("tinel.cli.error_handler.logger") as mock_logger,
+        ):
+            filepath = self.handler.save_error_report(error)
 
-                    assert filepath == ""
-                    mock_logger.warning.assert_called_once()
+            assert filepath == ""
+            mock_logger.warning.assert_called_once()
 
 
 class TestSystemValidation:
@@ -549,40 +586,48 @@ class TestSystemValidation:
     @unit_test
     def test_validate_system_requirements_python_version_too_old(self):
         """Test system validation with old Python version."""
-        with patch("sys.version_info", (3, 10, 0)):
-            with pytest.raises(ConfigurationError, match="Python 3.11\\+ required"):
-                self.handler.validate_system_requirements()
+        with (
+            patch("sys.version_info", (3, 10, 0)),
+            pytest.raises(ConfigurationError, match="Python 3.11\\+ required"),
+        ):
+            self.handler.validate_system_requirements()
 
     @unit_test
     def test_validate_system_requirements_not_linux(self):
         """Test system validation on non-Linux system."""
-        with patch("platform.system", return_value="Windows"):
-            with pytest.raises(ConfigurationError, match="Tinel requires Linux"):
-                self.handler.validate_system_requirements()
+        with (
+            patch("platform.system", return_value="Windows"),
+            pytest.raises(ConfigurationError, match="Tinel requires Linux"),
+        ):
+            self.handler.validate_system_requirements()
 
     @unit_test
     def test_validate_system_requirements_missing_commands(self):
         """Test system validation with missing commands."""
-        with patch("platform.system", return_value="Linux"):
-            with patch("sys.version_info", (3, 11, 0)):
-                with patch.object(
-                    self.handler,
-                    "validate_command_availability",
-                    side_effect=CommandNotFoundError("lscpu"),
-                ):
-                    with pytest.raises(
-                        ConfigurationError, match="Required system utilities not found"
-                    ):
-                        self.handler.validate_system_requirements()
+        with (
+            patch("platform.system", return_value="Linux"),
+            patch("sys.version_info", (3, 11, 0)),
+            patch.object(
+                self.handler,
+                "validate_command_availability",
+                side_effect=CommandNotFoundError("lscpu"),
+            ),
+            pytest.raises(
+                ConfigurationError, match="Required system utilities not found"
+            ),
+        ):
+            self.handler.validate_system_requirements()
 
     @unit_test
     def test_validate_system_requirements_success(self):
         """Test successful system validation."""
-        with patch("platform.system", return_value="Linux"):
-            with patch("sys.version_info", (3, 11, 0)):
-                with patch.object(self.handler, "validate_command_availability"):
-                    # Should not raise any exception
-                    self.handler.validate_system_requirements()
+        with (
+            patch("platform.system", return_value="Linux"),
+            patch("sys.version_info", (3, 11, 0)),
+            patch.object(self.handler, "validate_command_availability"),
+        ):
+            # Should not raise any exception
+            self.handler.validate_system_requirements()
 
 
 class TestPermissionHandling:
@@ -672,17 +717,19 @@ class TestContextGathering:
         mock_pwd_struct = Mock()
         mock_pwd_struct.pw_name = "testuser"
 
-        with patch("pwd.getpwuid", return_value=mock_pwd_struct):
-            with patch("os.getuid", return_value=1000):
-                with patch("os.getcwd", return_value="/home/testuser"):
-                    with patch("platform.platform", return_value="Linux"):
-                        context = self.handler.get_error_context()
+        with (
+            patch("pwd.getpwuid", return_value=mock_pwd_struct),
+            patch("os.getuid", return_value=1000),
+            patch("os.getcwd", return_value="/home/testuser"),
+            patch("platform.platform", return_value="Linux"),
+        ):
+            context = self.handler.get_error_context()
 
-                        assert "timestamp" in context
-                        assert context["user"] == "testuser"
-                        assert context["working_directory"] == "/home/testuser"
-                        assert "environment" in context
-                        assert "system" in context
+            assert "timestamp" in context
+            assert context["user"] == "testuser"
+            assert context["working_directory"] == "/home/testuser"
+            assert "environment" in context
+            assert "system" in context
 
     @unit_test
     def test_get_error_context_exception(self):
@@ -856,7 +903,7 @@ class TestErrorHandlerAdditional:
     # --------------------- validate_cli_arguments -----------------------
     @unit_test
     def test_validate_cli_arguments_conflict_quiet_verbose(self):
-        from types import SimpleNamespace
+        # Import moved to top
 
         args = SimpleNamespace(quiet=True, verbose=1, format="text")
         with pytest.raises(InvalidArgumentError):
@@ -864,7 +911,7 @@ class TestErrorHandlerAdditional:
 
     @unit_test
     def test_validate_cli_arguments_negative_verbose(self):
-        from types import SimpleNamespace
+        # Import moved to top
 
         args = SimpleNamespace(quiet=False, verbose=-1, format="text")
         with pytest.raises(InvalidArgumentError):
@@ -872,7 +919,7 @@ class TestErrorHandlerAdditional:
 
     @unit_test
     def test_validate_cli_arguments_invalid_format(self):
-        from types import SimpleNamespace
+        # Import moved to top
 
         args = SimpleNamespace(quiet=False, verbose=0, format="xml")
         with pytest.raises(InvalidArgumentError):
@@ -880,7 +927,7 @@ class TestErrorHandlerAdditional:
 
     @unit_test
     def test_validate_cli_arguments_valid(self):
-        from types import SimpleNamespace
+        # Import moved to top
 
         args = SimpleNamespace(quiet=False, verbose=0, format="json")
         # Should not raise

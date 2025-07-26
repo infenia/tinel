@@ -31,7 +31,8 @@ class TestBaseCommand(unittest.TestCase):
         self.assertEqual(str(cm.exception), "Test CLI Error")
 
     def test_handle_tool_error_generic_exception_default_cli_error(self):
-        # Test when a generic exception is raised, and it falls through to\n        # the default CLIError
+        # Test when a generic exception is raised, and it falls through to
+        # the default CLIError
         generic_error = ValueError("Some unexpected error")
         with self.assertRaises(CLIError) as cm:
             self.base_command._handle_tool_error(generic_error, "unmapped_tool")

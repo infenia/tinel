@@ -16,6 +16,8 @@ from typing import Any, Dict, Generator, List, Optional, Union
 
 import pytest
 
+from tinel.interfaces import CommandResult, HardwareInfo
+
 
 class TestDataBuilder:
     """Builder for creating test data structures."""
@@ -29,7 +31,7 @@ class TestDataBuilder:
         error: Optional[str] = None,
     ):
         """Create a CommandResult for testing."""
-        from tinel.interfaces import CommandResult
+        # Import moved to top
 
         return CommandResult(
             success=success,
@@ -42,7 +44,7 @@ class TestDataBuilder:
     @staticmethod
     def create_hardware_info(**kwargs):
         """Create a HardwareInfo object for testing."""
-        from tinel.interfaces import HardwareInfo
+        # Import moved to top
 
         defaults = {"cpu": {"model": "Test CPU", "cores": 4}}
         defaults.update(kwargs)
@@ -167,9 +169,10 @@ class AssertionHelpers:
         elapsed_time: float, max_time: float, min_time: float = 0
     ):
         """Assert that performance is within acceptable bounds."""
-        assert (
-            min_time <= elapsed_time <= max_time
-        ), f"Performance out of bounds: {elapsed_time:.3f}s (expected {min_time:.3f}s - {max_time:.3f}s)"
+        assert min_time <= elapsed_time <= max_time, (
+            f"Performance out of bounds: {elapsed_time:.3f}s "
+            f"(expected {min_time:.3f}s - {max_time:.3f}s)"
+        )
 
     @staticmethod
     def assert_no_sensitive_data(
@@ -267,9 +270,10 @@ class PerformanceTestHelpers:
             cached_call()
 
         improvement_ratio = uncached_result["elapsed"] / cached_result["elapsed"]
-        assert (
-            improvement_ratio >= min_improvement
-        ), f"Cached call not fast enough: {improvement_ratio:.2f}x improvement (expected >= {min_improvement}x)"
+        assert improvement_ratio >= min_improvement, (
+            f"Cached call not fast enough: {improvement_ratio:.2f}x improvement "
+            f"(expected >= {min_improvement}x)"
+        )
 
 
 class IntegrationTestHelpers:
