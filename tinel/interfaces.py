@@ -31,15 +31,11 @@ class CommandResult:
     error: Optional[str] = None
 
 
-
-
 @dataclass
 class HardwareInfo:
     """Comprehensive hardware information."""
 
     cpu: Dict[str, Any]
-
-
 
 
 class SystemInterface(ABC):
@@ -59,8 +55,6 @@ class SystemInterface(ABC):
     def file_exists(self, path: str) -> bool:
         """Check if a file exists."""
         pass
-
-
 
 
 class ToolProvider(ABC):

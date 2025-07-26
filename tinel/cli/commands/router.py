@@ -19,7 +19,12 @@ import argparse
 import logging
 from typing import Callable, Dict
 
-from ..error_handler import CLIErrorHandler
+from ..error_handler import (
+    CLIError,
+    CLIErrorHandler,
+    CommandNotFoundError,
+    InvalidArgumentError,
+)
 from ..formatters import OutputFormatter
 from .hardware import HardwareCommands
 
@@ -57,7 +62,7 @@ class CommandRouter:
         Returns:
             Exit code (0 for success, non-zero for error)
         """
-        from ..error_handler import CLIError, CommandNotFoundError, InvalidArgumentError
+        # Imports moved to top
 
         command = args.command
 

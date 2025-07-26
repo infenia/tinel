@@ -21,7 +21,14 @@ from abc import ABC, abstractmethod
 from typing import Any, Dict, NoReturn
 
 from ...system import LinuxSystemInterface
-from ..error_handler import CLIErrorHandler
+from ..error_handler import (
+    CLIError,
+    CLIErrorHandler,
+    DiagnosticsError,
+    HardwareError,
+    KernelError,
+    LogAnalysisError,
+)
 from ..formatters import OutputFormatter
 
 logger = logging.getLogger(__name__)
@@ -63,13 +70,7 @@ class BaseCommand(ABC):
         Raises:
             Appropriate CLIError based on tool type
         """
-        from ..error_handler import (
-            CLIError,
-            DiagnosticsError,
-            HardwareError,
-            KernelError,
-            LogAnalysisError,
-        )
+        # Imports moved to top
 
         logger.exception(f"Tool {tool_name} failed")
 

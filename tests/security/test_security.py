@@ -9,6 +9,7 @@ Licensed under the Apache License, Version 2.0
 import os
 import subprocess
 from unittest.mock import Mock, patch
+from unittest.mock import mock_open as _mock_open
 
 import pytest
 
@@ -18,6 +19,7 @@ from tests.utils import (
     security_test,
 )
 from tinel.cli.error_handler import CLIErrorHandler
+from tinel.cli.formatters import OutputFormatter
 from tinel.cli.main import _validate_and_sanitize_argv
 from tinel.system import LinuxSystemInterface
 
@@ -192,9 +194,12 @@ class TestPathTraversalPrevention:
     @security_test
     def test_file_size_limits(self):
         """Test that file size limits are enforced."""
-        with patch.object(
-            self.system, "_validate_file_path", return_value="/proc/cpuinfo"
-        ), patch("pathlib.Path.stat") as mock_stat:
+        with (
+            patch.object(
+                self.system, "_validate_file_path", return_value="/proc/cpuinfo"
+            ),
+            patch("pathlib.Path.stat") as mock_stat,
+        ):
             # Test with oversized file
             mock_stat.return_value = Mock(st_size=20 * 1024 * 1024)  # 20MB
 
@@ -268,7 +273,8 @@ class TestInputValidation:
     @security_test
     def test_null_byte_injection_prevention(self):
         """Test prevention of null byte injection at system level."""
-        # The argv validation doesn't check for null bytes, but the system interface should
+        # The argv validation doesn't check for null bytes, but the system interface
+        # should
         null_byte_attacks = [
             "file.txt\x00.exe",
             "/proc/cpuinfo\x00/../etc/passwd",
@@ -302,7 +308,7 @@ class TestInformationDisclosure:
     @security_test
     def test_debug_information_filtering(self):
         """Test that debug information doesn't expose sensitive data."""
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         formatter = OutputFormatter(verbose=3, use_color=False)  # Max verbosity
 
@@ -397,19 +403,21 @@ class TestPrivilegeEscalation:
         system = LinuxSystemInterface()
 
         # Test with valid safe path
-        with patch.object(system, "_validate_file_path", return_value="/proc/cpuinfo"):
-            with patch("pathlib.Path.stat") as mock_stat:
-                mock_stat.return_value = Mock(st_size=100)
+        with (
+            patch.object(system, "_validate_file_path", return_value="/proc/cpuinfo"),
+            patch("pathlib.Path.stat") as mock_stat,
+        ):
+            mock_stat.return_value = Mock(st_size=100)
 
-                # Test with readable file
-                with patch("builtins.open", mock_open(read_data="content")):
-                    result = system.read_file("/proc/cpuinfo")
-                    assert result == "content"
+            # Test with readable file
+            with patch("builtins.open", mock_open(read_data="content")):
+                result = system.read_file("/proc/cpuinfo")
+                assert result == "content"
 
-                # Test with permission error
-                with patch("builtins.open", side_effect=PermissionError()):
-                    result = system.read_file("/proc/cpuinfo")
-                    assert result is None
+            # Test with permission error
+            with patch("builtins.open", side_effect=PermissionError()):
+                result = system.read_file("/proc/cpuinfo")
+                assert result is None
 
 
 class TestResourceExhaustion:
@@ -433,13 +441,15 @@ class TestResourceExhaustion:
         """Test that file size limits prevent resource exhaustion."""
         system = LinuxSystemInterface()
 
-        with patch.object(system, "_validate_file_path", return_value="/proc/cpuinfo"):
-            with patch("pathlib.Path.stat") as mock_stat:
-                # Test with file that's too large
-                mock_stat.return_value = Mock(st_size=100 * 1024 * 1024)  # 100MB
+        with (
+            patch.object(system, "_validate_file_path", return_value="/proc/cpuinfo"),
+            patch("pathlib.Path.stat") as mock_stat,
+        ):
+            # Test with file that's too large
+            mock_stat.return_value = Mock(st_size=100 * 1024 * 1024)  # 100MB
 
-                result = system.read_file("/proc/cpuinfo")
-                assert result is None  # Should reject large files
+            result = system.read_file("/proc/cpuinfo")
+            assert result is None  # Should reject large files
 
     @security_test
     def test_memory_usage_limits(self):
@@ -449,13 +459,15 @@ class TestResourceExhaustion:
         # Test with very large mock data
         huge_content = "X" * (50 * 1024 * 1024)  # 50MB string
 
-        with patch.object(system, "_validate_file_path", return_value="/proc/cpuinfo"):
-            with patch("pathlib.Path.stat") as mock_stat:
-                mock_stat.return_value = Mock(st_size=len(huge_content))
-                with patch("builtins.open", mock_open(read_data=huge_content)):
-                    # Should reject due to size limits before reading
-                    result = system.read_file("/proc/cpuinfo")
-                    assert result is None
+        with (
+            patch.object(system, "_validate_file_path", return_value="/proc/cpuinfo"),
+            patch("pathlib.Path.stat") as mock_stat,
+            patch("builtins.open", mock_open(read_data=huge_content)),
+        ):
+            mock_stat.return_value = Mock(st_size=len(huge_content))
+            # Should reject due to size limits before reading
+            result = system.read_file("/proc/cpuinfo")
+            assert result is None
 
 
 class TestSecurityConfiguration:
@@ -471,12 +483,13 @@ class TestSecurityConfiguration:
             mock_run.return_value = Mock(stdout="output", stderr="", returncode=0)
 
             # Default timeout should be reasonable (not infinite)
+            max_reasonable_timeout = 60
             system.run_command(["lscpu"])
 
             call_kwargs = mock_run.call_args.kwargs
             assert "timeout" in call_kwargs
             assert (
-                call_kwargs["timeout"] <= 60
+                call_kwargs["timeout"] <= max_reasonable_timeout
             )  # Should have reasonable default timeout
 
     @security_test
@@ -523,15 +536,17 @@ def test_attack_vector_prevention(attack_vector, expected_blocked):
             system._sanitize_command(["sudo", "lscpu"])
 
     elif attack_vector == "resource_exhaustion":
-        with patch.object(system, "_validate_file_path", return_value="/proc/cpuinfo"):
-            with patch("pathlib.Path.stat") as mock_stat:
-                mock_stat.return_value = Mock(st_size=100 * 1024 * 1024)  # 100MB
-                result = system.read_file("/proc/cpuinfo")
-                assert result is None
+        with (
+            patch.object(system, "_validate_file_path", return_value="/proc/cpuinfo"),
+            patch("pathlib.Path.stat") as mock_stat,
+        ):
+            mock_stat.return_value = Mock(st_size=100 * 1024 * 1024)  # 100MB
+            result = system.read_file("/proc/cpuinfo")
+            assert result is None
 
 
 def mock_open(read_data=""):
     """Create a mock open function for testing."""
-    from unittest.mock import mock_open as _mock_open
+    # Import moved to top
 
     return _mock_open(read_data=read_data)

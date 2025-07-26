@@ -140,7 +140,10 @@ class TestCommandRouter:
 
         result = self.router.execute_command(args)
 
-        assert result == 10  # Should return the CLI error's exit code
+        expected_cli_error_exit_code = 10
+        assert (
+            result == expected_cli_error_exit_code
+        )  # Should return the CLI error's exit code
         self.error_handler.handle_cli_error.assert_called_once_with(cli_error)
 
     @unit_test

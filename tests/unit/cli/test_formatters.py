@@ -6,12 +6,16 @@ Copyright 2025 Infenia Private Limited
 Licensed under the Apache License, Version 2.0
 """
 
+import builtins
+import importlib
 import json
+import sys
 from io import StringIO
 from unittest.mock import Mock, patch
 
 import pytest
 
+import tinel.cli.formatters as fmt
 from tests.utils import unit_test
 from tinel.cli.formatters import (
     Color,
@@ -124,14 +128,16 @@ class TestYAMLFormatter:
     @unit_test
     def test_format_simple_dict(self):
         """Test formatting simple dictionary as YAML."""
-        with patch("tinel.cli.formatters.YAML_AVAILABLE", True):
-            with patch("yaml.dump") as mock_yaml_dump:
-                formatter = YAMLFormatter()
-                data = {"key": "value", "number": 42}
-                formatter.format(data)
-                mock_yaml_dump.assert_called_once_with(
-                    data, default_flow_style=False, allow_unicode=True, sort_keys=False
-                )
+        with (
+            patch("tinel.cli.formatters.YAML_AVAILABLE", True),
+            patch("yaml.dump") as mock_yaml_dump,
+        ):
+            formatter = YAMLFormatter()
+            data = {"key": "value", "number": 42}
+            formatter.format(data)
+            mock_yaml_dump.assert_called_once_with(
+                data, default_flow_style=False, allow_unicode=True, sort_keys=False
+            )
 
     @unit_test
     def test_format_yaml_not_available(self):
@@ -231,7 +237,7 @@ class TestCSVFormatter:
 
     @unit_test
     def test_csvformatter_invalid_data(self):
-        from tinel.cli.formatters import CSVFormatter
+        # Import moved to top
 
         fmt = CSVFormatter()
         # Not a list or dict: should return a single-value CSV
@@ -349,7 +355,7 @@ class TestTextFormatter:
 
     @unit_test
     def test_textformatter_format_with_primitive(self):
-        from tinel.cli.formatters import ColorUtility, TextFormatter
+        # Import moved to top
 
         tf = TextFormatter(ColorUtility(False))
         # Should hit the else branch for both format and _format_minimal_text
@@ -358,13 +364,13 @@ class TestTextFormatter:
 
     @unit_test
     def test_textformatter_add_verbose_info_dict_and_dictlike(self):
-        from tinel.cli.formatters import ColorUtility, TextFormatter
+        # Import moved to top
 
         tf = TextFormatter(ColorUtility(False))
         # Standard dict (has keys)
         d = {"a": 1, "b": 2}
         out = tf._add_verbose_info(d)
-        assert any("Keys: a, b" in l for l in out)
+        assert any("Keys: a, b" in line for line in out)
 
         # Dict-like with __len__ but no keys
         class NoKeysDict:
@@ -373,12 +379,12 @@ class TestTextFormatter:
 
         n = NoKeysDict()
         out2 = tf._add_verbose_info(n)
-        assert any("Number of keys: 2" in l for l in out2)
-        assert not any("Keys:" in l for l in out2)
+        assert any("Number of keys: 2" in line for line in out2)
+        assert not any("Keys:" in line for line in out2)
 
     @unit_test
     def test_textformatter_format_dict_with_list(self):
-        from tinel.cli.formatters import ColorUtility, TextFormatter
+        # Import moved to top
 
         tf = TextFormatter(ColorUtility(False))
         d = {"a": [1, 2]}
@@ -389,7 +395,7 @@ class TestTextFormatter:
 
     @unit_test
     def test_textformatter_add_verbose_info_keys(self):
-        from tinel.cli.formatters import ColorUtility, TextFormatter
+        # Import moved to top
 
         tf = TextFormatter(ColorUtility(False))
 
@@ -404,11 +410,11 @@ class TestTextFormatter:
                 return 2
 
         lines = tf._add_verbose_info(Dummy())
-        assert any("Keys:" in l for l in lines)
+        assert any("Keys:" in line for line in lines)
 
     @unit_test
     def test_textformatter_format_quiet_and_none(self):
-        from tinel.cli.formatters import ColorUtility, TextFormatter
+        # Import moved to top
 
         tf = TextFormatter(ColorUtility(False), quiet=True)
         # Quiet mode path
@@ -464,8 +470,10 @@ class TestTableFormatter:
         data = [{"h1": "a", "h2": "long content"}, {"h1": "bb", "h2": "x"}]
         headers = ["h1", "h2"]
         widths = self.formatter._calculate_column_widths(data, headers)
-        assert widths[0] == 2  # max(len("h1"), len("a"), len("bb"))
-        assert widths[1] == 12  # max(len("h2"), len("long content"), len("x"))
+        expected_h1_width = 2  # max(len("h1"), len("a"), len("bb"))
+        expected_h2_width = 12  # max(len("h2"), len("long content"), len("x"))
+        assert widths[0] == expected_h1_width
+        assert widths[1] == expected_h2_width
 
     @unit_test
     def test_table_formatter_with_non_list_tuple_rows(self):
@@ -495,7 +503,7 @@ class TestTableFormatter:
 
     @unit_test
     def test_tableformatter_extra_missing_columns(self):
-        from tinel.cli.formatters import ColorUtility, TableFormatter
+        # Import moved to top
 
         tf = TableFormatter(ColorUtility(False))
         # Row with extra columns: only as many columns as headers are shown
@@ -507,14 +515,14 @@ class TestTableFormatter:
         out2 = tf.format_table([[1, 2]], [])
         assert out2 == "\n\n"
         # Non-string headers: should raise TypeError
-        import pytest
+        # Import moved to top
 
         with pytest.raises(TypeError):
             tf.format_table([[1]], [1])
 
     @unit_test
     def test_tableformatter_row_shorter_than_headers(self):
-        from tinel.cli.formatters import ColorUtility, TableFormatter
+        # Import moved to top
 
         tf = TableFormatter(ColorUtility(False))
         data = [["a"]]  # fewer columns than headers
@@ -524,7 +532,7 @@ class TestTableFormatter:
 
     @unit_test
     def test_outputformatter_explanation_included(self):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         out = OutputFormatter(verbose=1)
         s = out.format_with_explanation({"a": 1}, "this is an explanation")
@@ -532,7 +540,7 @@ class TestTableFormatter:
 
     @unit_test
     def test_outputformatter_wrap_text_line(self):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         of = OutputFormatter()
         # Long line with spaces
@@ -540,13 +548,14 @@ class TestTableFormatter:
         assert all(isinstance(part, str) for part in s)
         assert "".join(s).replace(" ", "") == "a" * 40
         # Line with no spaces
+        expected_total_length = 50
         s2 = of._wrap_text_line("x" * 50, max_width=20)
         assert all(isinstance(part, str) for part in s2)
-        assert sum(len(part) for part in s2) == 50
+        assert sum(len(part) for part in s2) == expected_total_length
 
     @unit_test
     def test_outputformatter_print_output_quiet(self, capsys):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         out = OutputFormatter(quiet=True)
         out.print_output({"a": 1})  # Should not print anything
@@ -555,7 +564,7 @@ class TestTableFormatter:
 
     @unit_test
     def test_outputformatter_format_table(self):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         out = OutputFormatter()
         data = [{"a": 1, "b": 2}, {"a": 3, "b": 4}]
@@ -687,7 +696,7 @@ class TestOutputFormatter:
 
     @unit_test
     def test_wrap_text_line(self):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         of = OutputFormatter()
         # Long line with spaces
@@ -695,20 +704,21 @@ class TestOutputFormatter:
         assert all(isinstance(part, str) for part in s)
         assert "".join(s).replace(" ", "") == "a" * 40
         # Line with no spaces (single long word)
+        expected_total_length = 50
         s2 = of._wrap_text_line("x" * 50, max_width=20)
         assert all(isinstance(part, str) for part in s2)
-        assert sum(len(part) for part in s2) == 50
+        assert sum(len(part) for part in s2) == expected_total_length
 
     @unit_test
     def test_outputformatter_should_include_explanation_none(self):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         of = OutputFormatter(verbose=1, quiet=False)
         assert not of._should_include_explanation(None)
 
     @unit_test
     def test_outputformatter_format_explanation_section_empty_and_newline(self):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         of = OutputFormatter()
         # Empty string
@@ -717,11 +727,11 @@ class TestOutputFormatter:
         # Only newline
         out2 = of._format_explanation_section("\n")
         assert isinstance(out2, list)
-        assert any(isinstance(l, str) for l in out2)
+        assert any(isinstance(line, str) for line in out2)
 
     @unit_test
     def test_outputformatter_format_with_explanation_no_explanation_branch(self):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         # verbose=0 disables explanation
         of = OutputFormatter(verbose=0)
@@ -736,7 +746,7 @@ class TestOutputFormatter:
 
     @unit_test
     def test_outputformatter_wrap_text_line_empty_final_line(self):
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         of = OutputFormatter()
         # This will result in current_line being only spaces at the end
@@ -798,8 +808,7 @@ class TestFormatterFactoryAndMisc:
 class TestEdgeCoverage:
     def test_yaml_available_importerror(self, monkeypatch):
         # Simulate ImportError for yaml and actually use YAMLFormatter
-        import builtins
-        import sys
+        # Imports moved to top
 
         orig_import = builtins.__import__
 
@@ -809,21 +818,21 @@ class TestEdgeCoverage:
             return orig_import(name, *a, **k)
 
         monkeypatch.setattr(builtins, "__import__", fake_import)
-        import importlib
+        # Import moved to top
 
         sys.modules.pop("yaml", None)
-        import tinel.cli.formatters as fmt
+        # Import is at top - using direct reference
 
         importlib.reload(fmt)
         assert fmt.YAML_AVAILABLE is False
         # Actually try to use YAMLFormatter to hit the RuntimeError path
-        import pytest
+        # Import moved to top
 
         with pytest.raises(RuntimeError):
             fmt.YAMLFormatter().format({"a": 1})
 
     def test_format_minimal_dict_nested(self):
-        from tinel.cli.formatters import ColorUtility, TextFormatter
+        # Import moved to top
 
         tf = TextFormatter(ColorUtility(False))
         # Nested dict
@@ -858,7 +867,8 @@ class TestAdditional:
         formatter = TableFormatter(self._create_plain_colorizer())
         table = formatter.format_table(data, headers)
         lines = table.splitlines()
-        assert len(lines) == 4
+        expected_line_count = 4
+        assert len(lines) == expected_line_count
         header, separator, first_row, second_row = lines
         assert "name" in header and "status" in header and "value" in header
         assert len(separator) > 0
@@ -881,7 +891,8 @@ class TestAdditional:
         long_line = "word " * 30
         out_fmt = OutputFormatter("text", use_color=False)
         wrapped = out_fmt._wrap_text_line(long_line)
-        assert all(len(l) <= 80 for l in wrapped)
+        max_line_length = 80
+        assert all(len(line) <= max_line_length for line in wrapped)
         assert " ".join(wrapped).replace("  ", " ").startswith("word")
 
     @unit_test
@@ -948,7 +959,7 @@ class TestAdditional:
     @unit_test
     def test_textformatter_format_minimal_dict_with_nested_list(self):
         """Test formatting minimal dict with nested list."""
-        from tinel.cli.formatters import ColorUtility, TextFormatter
+        # Import moved to top
 
         tf = TextFormatter(ColorUtility(False), quiet=True)
         data = {"outer": [1, {"inner": "val"}, 3]}
@@ -960,7 +971,7 @@ class TestAdditional:
     @unit_test
     def test_textformatter_format_minimal_dict_with_nested_dict(self):
         """Test formatting minimal dict with nested dict."""
-        from tinel.cli.formatters import ColorUtility, TextFormatter
+        # Import moved to top
 
         tf = TextFormatter(ColorUtility(False), quiet=True)
         data = {"first": {"second": {"third": 3}}}
@@ -970,7 +981,7 @@ class TestAdditional:
     @unit_test
     def test_outputformatter_quiet_print_success_no_output(self):
         """Test quiet output formatter print success with no output."""
-        from tinel.cli.formatters import OutputFormatter
+        # Import moved to top
 
         buffer = StringIO()
         out_fmt = OutputFormatter(

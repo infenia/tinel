@@ -15,10 +15,14 @@ from tests.utils import (
     integration_test,
 )
 from tinel.cli.commands.hardware import HardwareCommands
+from tinel.cli.error_handler import HardwareError
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.hardware.device_analyzer import DeviceAnalyzer
 from tinel.interfaces import CommandResult
 from tinel.tools.hardware_tools import AllHardwareToolProvider, CPUInfoToolProvider
+
+# Test constants
+MIN_CPU_FLAGS_COUNT = 50
 
 
 class TestCPUAnalyzerIntegration:
@@ -51,7 +55,9 @@ class TestCPUAnalyzerIntegration:
         self.mock_system.read_file.side_effect = lambda path: {
             "/proc/cpuinfo": "model name : Test CPU\nflags : sse sse2\n",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": None,
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": "Mitigation: barriers",
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": (
+                "Mitigation: barriers"
+            ),
         }.get(path)
 
         self.mock_system.run_command.return_value = CommandResult(
@@ -100,7 +106,9 @@ class TestCPUAnalyzerIntegration:
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": "400000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "4600000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "performance",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": "conservative ondemand userspace powersave performance schedutil",
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": (
+                "conservative ondemand userspace powersave performance schedutil"
+            ),
             # Topology data
             "/sys/devices/system/cpu/cpu0/topology/physical_package_id": "0",
             "/sys/devices/system/cpu/cpu1/topology/physical_package_id": "0",
@@ -114,8 +122,12 @@ class TestCPUAnalyzerIntegration:
             "/sys/devices/system/cpu/cpu0/cache/index2/type": "Unified",
             "/sys/devices/system/cpu/cpu0/cache/index2/level": "2",
             # Vulnerability data
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": "Mitigation: barriers",
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": "Mitigation: Enhanced IBRS",
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": (
+                "Mitigation: barriers"
+            ),
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": (
+                "Mitigation: Enhanced IBRS"
+            ),
             "/sys/devices/system/cpu/vulnerabilities/meltdown": "Mitigation: PTI",
         }
 
@@ -426,14 +438,17 @@ class TestHardwareCommandsIntegration:
         args.features = False
 
         # Mock tool to raise exception
-        with patch.object(
-            self.hardware_commands.cpu_tool,
-            "execute",
-            side_effect=RuntimeError("Test error"),
-        ):
+
+        with (
+            patch.object(
+                self.hardware_commands.cpu_tool,
+                "execute",
+                side_effect=RuntimeError("Test error"),
+            ),
+            pytest.raises(HardwareError),
+        ):  # Should catch the HardwareError that wraps the RuntimeError
             # Error should be raised and wrapped in HardwareError
-            with pytest.raises(Exception):  # Catches HardwareError or parent exceptions
-                self.hardware_commands.execute(args)
+            self.hardware_commands.execute(args)
 
     @integration_test
     def test_unknown_command_handling(self):
@@ -472,7 +487,7 @@ class TestEndToEndWorkflow:
         # Verify specific data integrity
         assert "Intel" in result["model_name"]
         assert result["vendor_id"] == "GenuineIntel"
-        assert len(result["cpu_flags"]) > 50  # Should have many flags
+        assert len(result["cpu_flags"]) > MIN_CPU_FLAGS_COUNT  # Should have many flags
 
         # Verify feature analysis
         assert result["security_features"]["nx_bit"] is True  # nx flag present
@@ -507,8 +522,12 @@ class TestEndToEndWorkflow:
             "/proc/cpuinfo": cpuinfo,
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2000000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "performance",
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": "Mitigation: barriers",
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": "Mitigation: Enhanced IBRS",
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": (
+                "Mitigation: barriers"
+            ),
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": (
+                "Mitigation: Enhanced IBRS"
+            ),
         }
 
         mock_system.read_file.side_effect = lambda path: file_data.get(path)

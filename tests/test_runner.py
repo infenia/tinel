@@ -226,7 +226,8 @@ class TestRunner:
             if test_file.exists():
                 cmd.append(str(test_file))
 
-        if len(cmd) == 2:  # Only base command, no test files found
+        base_command_length = 2
+        if len(cmd) == base_command_length:  # Only base command, no test files found
             print(f"No test files found for module: {module}")
             return 1
 
@@ -399,7 +400,7 @@ class TestRunner:
             return False
 
 
-def main():
+def main():  # noqa: PLR0911, PLR0912
     """Main entry point for test runner."""
     parser = argparse.ArgumentParser(
         description="Test runner for Tinel project",

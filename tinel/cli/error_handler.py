@@ -15,9 +15,17 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import json
 import logging
 import os
+import platform
+import pwd
+import shutil
+import socket
 import sys
+import tempfile
+import traceback
+from datetime import datetime
 from enum import IntEnum
 from typing import Any, Dict, Optional
 
@@ -189,7 +197,9 @@ class CLIErrorHandler:
         self.formatter = formatter
         self.error_suggestions = {
             ExitCode.COMMAND_NOT_FOUND: "Use 'tinel --help' to see available commands",
-            ExitCode.INVALID_ARGUMENT: "Check command syntax with 'tinel <command> --help'",
+            ExitCode.INVALID_ARGUMENT: (
+                "Check command syntax with 'tinel <command> --help'"
+            ),
             ExitCode.PERMISSION_DENIED: "Try running with elevated privileges (sudo)",
             ExitCode.FILE_NOT_FOUND: "Verify the file path and permissions",
             ExitCode.NETWORK_ERROR: "Check network connectivity and server status",
@@ -231,7 +241,10 @@ class CLIErrorHandler:
         if suggestion:
             print(f"Suggestion: {suggestion}", file=sys.stderr)
         elif ExitCode(exit_code) in self.error_suggestions:
-            print(f"Suggestion: {self.error_suggestions[ExitCode(exit_code)]}", file=sys.stderr)
+            print(
+                f"Suggestion: {self.error_suggestions[ExitCode(exit_code)]}",
+                file=sys.stderr,
+            )
 
         # Save error report for debugging if this is an unexpected error
         if exit_code == ExitCode.GENERAL_ERROR and details:
@@ -314,7 +327,7 @@ class CLIErrorHandler:
         Raises:
             CommandNotFoundError: If command is not found
         """
-        import shutil
+        # Import moved to top
 
         if not shutil.which(command):
             raise CommandNotFoundError(command)
@@ -332,7 +345,7 @@ class CLIErrorHandler:
         Raises:
             NetworkError: If connection fails
         """
-        import socket
+        # Import moved to top
 
         try:
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -344,11 +357,11 @@ class CLIErrorHandler:
                 raise NetworkError(f"Cannot connect to {host}:{port}", f"{host}:{port}")
 
         except socket.gaierror as e:
-            raise NetworkError(f"DNS resolution failed for {host}: {e}", host)
+            raise NetworkError(f"DNS resolution failed for {host}: {e}", host) from e
         except Exception as e:
             raise NetworkError(
                 f"Network error connecting to {host}:{port}: {e}", f"{host}:{port}"
-            )
+            ) from e
 
     def create_error_report(
         self, error: Exception, context: Optional[Dict[str, Any]] = None
@@ -362,10 +375,7 @@ class CLIErrorHandler:
         Returns:
             Dictionary containing error report
         """
-        import platform
-        import sys
-        import traceback
-        from datetime import datetime
+        # Imports moved to top
 
         report = {
             "timestamp": datetime.now().isoformat(),
@@ -396,10 +406,7 @@ class CLIErrorHandler:
         Returns:
             Path to the saved error report file
         """
-        import json
-        import os
-        import tempfile
-        from datetime import datetime
+        # Imports moved to top
 
         report = self.create_error_report(error, context)
 
@@ -427,13 +434,13 @@ class CLIErrorHandler:
         Raises:
             ConfigurationError: If system requirements are not met
         """
-        import platform
-        import sys
+        # Imports moved to top
 
         # Check Python version
         if sys.version_info < (3, 11):
             raise ConfigurationError(
-                f"Python 3.11+ required, found {sys.version_info[0]}.{sys.version_info[1]}",
+                f"Python 3.11+ required, found "
+                f"{sys.version_info[0]}.{sys.version_info[1]}",
                 "python_version",
             )
 
@@ -515,7 +522,8 @@ class CLIErrorHandler:
             and args.format not in valid_formats
         ):
             raise InvalidArgumentError(
-                f"Invalid output format '{args.format}'. Valid formats: {', '.join(valid_formats)}",
+                f"Invalid output format '{args.format}'. "
+                f"Valid formats: {', '.join(valid_formats)}",
                 "format",
             )
 
@@ -525,11 +533,7 @@ class CLIErrorHandler:
         Returns:
             Dictionary containing system context information
         """
-        import os
-        import platform
-        import pwd
-        import sys
-        from datetime import datetime
+        # Imports moved to top
 
         try:
             context = {

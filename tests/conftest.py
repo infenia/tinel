@@ -52,87 +52,126 @@ def mock_system_interface():
 @pytest.fixture
 def sample_cpuinfo():
     """Sample /proc/cpuinfo content for testing."""
-    return """processor	: 0
-vendor_id	: GenuineIntel
-cpu family	: 6
-model		: 142
-model name	: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
-stepping	: 12
-microcode	: 0xf0
-cpu MHz		: 1800.000
-cache size	: 8192 KB
-physical id	: 0
-siblings	: 8
-core id		: 0
-cpu cores	: 4
-apicid		: 0
-initial apicid	: 0
-fpu		: yes
-fpu_exception	: yes
-cpuid level	: 22
-wp		: yes
-flags		: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb invpcid_single pti ssbd ibrs ibpb stibp tpr_shadow vnmi flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp md_clear flush_l1d arch_capabilities  # noqa: E501
-vmx flags	: vnmi preemption_timer posted_intr invvpid ept_x_only ept_ad ept_1gb flexpriority apicv tsc_offset vtpr mtf vapic ept vpid unrestricted_guest vapic_reg vid ple shadow_vmcs ept_mode_based_exec tsc_scaling  # noqa: E501
-bugs		: spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa itlb_multihit srbds mmio_stale_data retbleed  # noqa: E501
-bogomips	: 3999.93
-clflush size	: 64
-cache_alignment	: 64
-address sizes	: 39 bits physical, 48 bits virtual
-power management:
-"""
+    return (
+        "processor\t: 0\n"
+        "vendor_id\t: GenuineIntel\n"
+        "cpu family\t: 6\n"
+        "model\t\t: 142\n"
+        "model name\t: Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz\n"
+        "stepping\t: 12\n"
+        "microcode\t: 0xf0\n"
+        "cpu MHz\t\t: 1800.000\n"
+        "cache size\t: 8192 KB\n"
+        "physical id\t: 0\n"
+        "siblings\t: 8\n"
+        "core id\t\t: 0\n"
+        "cpu cores\t: 4\n"
+        "apicid\t\t: 0\n"
+        "initial apicid\t: 0\n"
+        "fpu\t\t: yes\n"
+        "fpu_exception\t: yes\n"
+        "cpuid level\t: 22\n"
+        "wp\t\t: yes\n"
+        "flags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat "
+        "pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb "
+        "rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology "
+        "nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est "
+        "tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt "
+        "tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch "
+        "cpuid_fault epb invpcid_single pti ssbd ibrs ibpb stibp tpr_shadow vnmi "
+        "flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 "
+        "erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec "
+        "xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window "
+        "hwp_epp md_clear flush_l1d arch_capabilities\n"
+        "vmx flags\t: vnmi preemption_timer posted_intr invvpid ept_x_only ept_ad "
+        "ept_1gb flexpriority apicv tsc_offset vtpr mtf vapic ept vpid "
+        "unrestricted_guest vapic_reg vid ple shadow_vmcs ept_mode_based_exec "
+        "tsc_scaling\n"
+        "bugs\t\t: spectre_v1 spectre_v2 spec_store_bypass l1tf mds swapgs taa "
+        "itlb_multihit srbds mmio_stale_data retbleed\n"
+        "bogomips\t: 3999.93\n"
+        "clflush size\t: 64\n"
+        "cache_alignment\t: 64\n"
+        "address sizes\t: 39 bits physical, 48 bits virtual\n"
+        "power management:\n"
+    )
 
 
 @pytest.fixture
 def sample_lscpu():
     """Sample lscpu output for testing."""
-    return """Architecture:                    x86_64
-CPU op-mode(s):                  32-bit, 64-bit
-Byte Order:                      Little Endian
-Address sizes:                   39 bits physical, 48 bits virtual
-CPU(s):                          8
-On-line CPU(s) list:             0-7
-Thread(s) per core:              2
-Core(s) per socket:              4
-Socket(s):                       1
-NUMA node(s):                    1
-Vendor ID:                       GenuineIntel
-CPU family:                      6
-Model:                           142
-Model name:                      Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz
-Stepping:                        12
-CPU MHz:                         1800.000
-CPU max MHz:                     4600.0000
-CPU min MHz:                     400.0000
-BogoMIPS:                        3999.93
-Virtualization:                  VT-x
-L1d cache:                       128 KiB
-L1i cache:                       128 KiB
-L2 cache:                        1 MiB
-L3 cache:                        8 MiB
-NUMA node0 CPU(s):               0-7
-Vulnerability Itlb multihit:     KVM: Mitigation: VMX disabled
-Vulnerability L1tf:              Mitigation; PTE Inversion; VMX conditional cache flushes, SMT vulnerable  # noqa: E501
-Vulnerability Mds:               Mitigation; Clear CPU buffers; SMT vulnerable
-Vulnerability Meltdown:          Mitigation; PTI
-Vulnerability Mmio stale data:   Mitigation; Clear CPU buffers; SMT vulnerable
-Vulnerability Retbleed:          Mitigation; Enhanced IBRS
-Vulnerability Spec store bypass: Mitigation; Speculative Store Bypass disabled via prctl
-Vulnerability Spectre v1:        Mitigation; usercopy/swapgs barriers and __user pointer sanitization  # noqa: E501
-Vulnerability Spectre v2:        Mitigation; Enhanced IBRS, IBPB conditional, RSB filling, PBRSB-eIBRS SW sequence  # noqa: E501
-Vulnerability Srbds:             Mitigation; Microcode
-Vulnerability Tsx async abort:   Not affected
-Flags:                           fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe syscall nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor ds_cpl vmx est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch cpuid_fault epb invpcid_single pti ssbd ibrs ibpb stibp tpr_shadow vnmi flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 xsaves dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp md_clear flush_l1d arch_capabilities  # noqa: E501
-"""
+    return (
+        "Architecture:                    x86_64\n"
+        "CPU op-mode(s):                  32-bit, 64-bit\n"
+        "Byte Order:                      Little Endian\n"
+        "Address sizes:                   39 bits physical, 48 bits virtual\n"
+        "CPU(s):                          8\n"
+        "On-line CPU(s) list:             0-7\n"
+        "Thread(s) per core:              2\n"
+        "Core(s) per socket:              4\n"
+        "Socket(s):                       1\n"
+        "NUMA node(s):                    1\n"
+        "Vendor ID:                       GenuineIntel\n"
+        "CPU family:                      6\n"
+        "Model:                           142\n"
+        "Model name:                      Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz\n"
+        "Stepping:                        12\n"
+        "CPU MHz:                         1800.000\n"
+        "CPU max MHz:                     4600.0000\n"
+        "CPU min MHz:                     400.0000\n"
+        "BogoMIPS:                        3999.93\n"
+        "Virtualization:                  VT-x\n"
+        "L1d cache:                       128 KiB\n"
+        "L1i cache:                       128 KiB\n"
+        "L2 cache:                        1 MiB\n"
+        "L3 cache:                        8 MiB\n"
+        "NUMA node0 CPU(s):               0-7\n"
+        "Vulnerability Itlb multihit:     KVM: Mitigation: VMX disabled\n"
+        "Vulnerability L1tf:              Mitigation; PTE Inversion; VMX conditional "
+        "cache flushes, SMT vulnerable\n"
+        "Vulnerability Mds:               Mitigation; Clear CPU buffers; SMT "
+        "vulnerable\n"
+        "Vulnerability Meltdown:          Mitigation; PTI\n"
+        "Vulnerability Mmio stale data:   Mitigation; Clear CPU buffers; SMT "
+        "vulnerable\n"
+        "Vulnerability Retbleed:          Mitigation; Enhanced IBRS\n"
+        "Vulnerability Spec store bypass: Mitigation; Speculative Store Bypass "
+        "disabled via prctl\n"
+        "Vulnerability Spectre v1:        Mitigation; usercopy/swapgs barriers and "
+        "__user pointer sanitization\n"
+        "Vulnerability Spectre v2:        Mitigation; Enhanced IBRS, IBPB "
+        "conditional, RSB "
+        "filling, PBRSB-eIBRS SW sequence\n"
+        "Vulnerability Srbds:             Mitigation; Microcode\n"
+        "Vulnerability Tsx async abort:   Not affected\n"
+        "Flags:                           fpu vme de pse tsc msr pae mce cx8 apic "
+        "sep mtrr "
+        "pge mca cmov pat pse36 clflush dts acpi mmx fxsr sse sse2 ss ht tm pbe "
+        "syscall "
+        "nx pdpe1gb rdtscp lm constant_tsc art arch_perfmon pebs bts rep_good nopl "
+        "xtopology nonstop_tsc cpuid aperfmperf pni pclmulqdq dtes64 monitor "
+        "ds_cpl vmx "
+        "est tm2 ssse3 sdbg fma cx16 xtpr pdcm pcid sse4_1 sse4_2 x2apic movbe popcnt "
+        "tsc_deadline_timer aes xsave avx f16c rdrand lahf_lm abm 3dnowprefetch "
+        "cpuid_fault epb invpcid_single pti ssbd ibrs ibpb stibp tpr_shadow vnmi "
+        "flexpriority ept vpid ept_ad fsgsbase tsc_adjust bmi1 avx2 smep bmi2 erms "
+        "invpcid mpx rdseed adx smap clflushopt intel_pt xsaveopt xsavec xgetbv1 "
+        "xsaves "
+        "dtherm ida arat pln pts hwp hwp_notify hwp_act_window hwp_epp md_clear "
+        "flush_l1d arch_capabilities\n"
+    )
 
 
 @pytest.fixture
 def sample_vulnerabilities():
     """Sample CPU vulnerability information for testing."""
     return {
-        "spectre_v1": "Mitigation: usercopy/swapgs barriers and __user pointer sanitization",  # noqa: E501
+        "spectre_v1": (
+            "Mitigation: usercopy/swapgs barriers and __user pointer sanitization"
+        ),
         "spectre_v2": "Mitigation: Enhanced IBRS, IBPB conditional, RSB filling",
         "meltdown": "Mitigation: PTI",
-        "spec_store_bypass": "Mitigation: Speculative Store Bypass disabled via prctl",  # noqa: E501
+        "spec_store_bypass": "Mitigation: Speculative Store Bypass disabled via prctl",
         "l1tf": "Mitigation: PTE Inversion; VMX conditional cache flushes, SMT vulnerable",  # noqa: E501
         "mds": "Mitigation: Clear CPU buffers; SMT vulnerable",
         "tsx_async_abort": "Not affected",

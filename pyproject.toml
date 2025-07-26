@@ -182,3 +182,8 @@ exclude_lines = [
 [tool.pdoc]
 modules = ["tinel"]
 output_directory = "docs"
+
+[dependency-groups]
+dev = [
+    "ruff>=0.12.5",
+]

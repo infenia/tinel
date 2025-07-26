@@ -4,6 +4,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 from tinel.cli.commands.hardware import HardwareCommands
+from tinel.cli.error_handler import CLIError
 
 
 @pytest.fixture
@@ -21,14 +22,14 @@ def mock_error_handler():
 @pytest.fixture
 def hardware_cmd(mock_formatter, mock_error_handler):
     with (
-        patch("tinel.cli.commands.hardware.AllHardwareToolProvider") as MockAll,
-        patch("tinel.cli.commands.hardware.CPUInfoToolProvider") as MockCPU,
+        patch("tinel.cli.commands.hardware.AllHardwareToolProvider") as mock_all,
+        patch("tinel.cli.commands.hardware.CPUInfoToolProvider") as mock_cpu,
     ):
         mock_system = MagicMock()
         cmd = HardwareCommands(mock_formatter, mock_error_handler)
         cmd.system = mock_system
-        cmd.all_hardware_tool = MockAll(cmd.system)
-        cmd.cpu_tool = MockCPU(cmd.system)
+        cmd.all_hardware_tool = mock_all(cmd.system)
+        cmd.cpu_tool = mock_cpu(cmd.system)
         return cmd
 
 
@@ -67,8 +68,8 @@ def test_unknown_command(hardware_cmd, mock_error_handler):
 def test_show_all_hardware_exception(hardware_cmd):
     args = argparse.Namespace(hardware_command=None, detailed=False, summary=False)
     hardware_cmd._execute_tool = MagicMock(side_effect=Exception("fail"))
-    hardware_cmd._handle_tool_error = MagicMock(side_effect=Exception("handled"))
-    with pytest.raises(Exception):
+    hardware_cmd._handle_tool_error = MagicMock(side_effect=CLIError("handled"))
+    with pytest.raises(CLIError):
         hardware_cmd._show_all_hardware(args)
     hardware_cmd._handle_tool_error.assert_called()
 
@@ -76,8 +77,8 @@ def test_show_all_hardware_exception(hardware_cmd):
 def test_show_cpu_info_exception(hardware_cmd):
     args = argparse.Namespace(detailed=False, temperature=False, features=False)
     hardware_cmd._execute_tool = MagicMock(side_effect=Exception("fail"))
-    hardware_cmd._handle_tool_error = MagicMock(side_effect=Exception("handled"))
-    with pytest.raises(Exception):
+    hardware_cmd._handle_tool_error = MagicMock(side_effect=CLIError("handled"))
+    with pytest.raises(CLIError):
         hardware_cmd._show_cpu_info(args)
     hardware_cmd._handle_tool_error.assert_called()
 
@@ -87,8 +88,8 @@ def test_execute_main_exception(hardware_cmd):
         hardware_command="cpu", detailed=False, temperature=False, features=False
     )
     hardware_cmd._show_cpu_info = MagicMock(side_effect=Exception("fail"))
-    hardware_cmd._handle_tool_error = MagicMock(side_effect=Exception("handled"))
-    with pytest.raises(Exception):
+    hardware_cmd._handle_tool_error = MagicMock(side_effect=CLIError("handled"))
+    with pytest.raises(CLIError):
         hardware_cmd.execute(args)
     hardware_cmd._handle_tool_error.assert_called()
 

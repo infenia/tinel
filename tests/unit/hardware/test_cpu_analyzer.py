@@ -35,7 +35,8 @@ class TestCPUAnalyzer:
         analyzer = CPUAnalyzer(self.mock_system)
         assert analyzer.system == self.mock_system
         assert analyzer._cache == {}
-        assert analyzer._cache_ttl == 60
+        default_cache_ttl = 60
+        assert analyzer._cache_ttl == default_cache_ttl
 
         # Test with default system interface
         analyzer_default = CPUAnalyzer()
@@ -68,7 +69,8 @@ class TestCPUAnalyzer:
 
         # Verify second call was significantly faster
         assert second_call_time < first_call_time
-        assert second_call_time < 0.005  # Should be under 5ms
+        max_cached_call_time = 0.005  # Should be under 5ms
+        assert second_call_time < max_cached_call_time
 
     @unit_test
     def test_cache_expiration(self):
@@ -151,7 +153,8 @@ class TestCPUAnalyzer:
         flags = self.analyzer._extract_cpu_flags(sample_cpuinfo)
 
         assert isinstance(flags, list)
-        assert len(flags) > 50  # Should have many flags
+        min_expected_flags = 50  # Should have many flags
+        assert len(flags) > min_expected_flags
 
         # Check for common flags
         expected_flags = ["fpu", "sse", "sse2", "sse4_1", "sse4_2", "avx", "avx2"]
@@ -239,7 +242,8 @@ class TestCPUAnalyzer:
         expected_fields = ["logical_cpus", "physical_cpus", "cores_per_socket"]
         AssertionHelpers.assert_contains_keys(topology_info, expected_fields)
 
-        assert topology_info["logical_cpus"] == 8
+        expected_logical_cpus = 8
+        assert topology_info["logical_cpus"] == expected_logical_cpus
         assert isinstance(topology_info["physical_cpus"], int)
         assert isinstance(topology_info["cores_per_socket"], int)
 
@@ -267,11 +271,15 @@ class TestCPUAnalyzer:
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2000000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": "400000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "4600000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "powersave",  # Suboptimal
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": "conservative ondemand userspace powersave performance schedutil",
-            "/sys/devices/system/cpu/vulnerabilities/meltdown": "Vulnerable",  # Vulnerable
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": "Vulnerable",  # Vulnerable
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": "Mitigation: Enhanced IBRS",
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "powersave",  # noqa: E501
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": (
+                "conservative ondemand userspace powersave performance schedutil"
+            ),
+            "/sys/devices/system/cpu/vulnerabilities/meltdown": "Vulnerable",  # noqa: E501
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": "Vulnerable",  # noqa: E501
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": (
+                "Mitigation: Enhanced IBRS"
+            ),
         }
 
         self.mock_system.read_file.side_effect = lambda path: file_responses.get(path)
@@ -325,7 +333,8 @@ class TestCPUAnalyzer:
 
         # Cached call should be significantly faster
         assert cached_time < uncached_time / 2  # At least 2x faster
-        assert cached_time < 0.01  # Under 10ms
+        max_cached_time_ms = 0.01  # Under 10ms
+        assert cached_time < max_cached_time_ms
 
     @unit_test
     @pytest.mark.parametrize(
@@ -334,7 +343,7 @@ class TestCPUAnalyzer:
             ("", {}),  # Empty input
             ("random text", {}),  # No matches
             (
-                "model name : X\nvendor_id : Y\ncpu family : 6\nmodel : 123\nstepping : 4",
+                "model name : X\nvendor_id : Y\ncpu family : 6\nmodel : 123\nstepping : 4",  # noqa: E501
                 {
                     "model_name": "X",
                     "vendor_id": "Y",
@@ -358,7 +367,7 @@ class TestCPUAnalyzer:
             ("", {}),
             ("random text", {}),
             (
-                "Architecture: x86\nCPU op-mode(s): 32-bit, 64-bit\nByte Order: Little Endian",
+                "Architecture: x86\nCPU op-mode(s): 32-bit, 64-bit\nByte Order: Little Endian",  # noqa: E501
                 {
                     "architecture": "x86",
                     "cpu_op_modes": "32-bit, 64-bit",
@@ -440,7 +449,9 @@ class TestCPUAnalyzer:
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": "400000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "4600000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": governor,
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": "conservative ondemand userspace powersave performance schedutil",
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": (
+                "conservative ondemand userspace powersave performance schedutil"
+            ),
         }
 
         def mock_read_file(path):
@@ -496,8 +507,12 @@ class TestCPUAnalyzer:
     def _setup_vulnerability_mocks(self, vulnerable_count=1):
         """Set up mocks for vulnerability information."""
         vuln_files = {
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": "Mitigation: usercopy/swapgs barriers",
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": "Mitigation: Enhanced IBRS",
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": (
+                "Mitigation: usercopy/swapgs barriers"
+            ),
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": (
+                "Mitigation: Enhanced IBRS"
+            ),
             "/sys/devices/system/cpu/vulnerabilities/meltdown": "Mitigation: PTI",
             "/sys/devices/system/cpu/vulnerabilities/spec_store_bypass": (
                 "Vulnerable" if vulnerable_count > 0 else "Mitigation: SSB disabled"
@@ -555,7 +570,9 @@ class TestCPUAnalyzer:
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": "400000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "4600000",
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "performance",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": "conservative ondemand userspace powersave performance schedutil",
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": (
+                "conservative ondemand userspace powersave performance schedutil"
+            ),
             # Topology files
             "/sys/devices/system/cpu/cpu0/topology/physical_package_id": "0",
             "/sys/devices/system/cpu/cpu1/topology/physical_package_id": "0",
@@ -571,8 +588,12 @@ class TestCPUAnalyzer:
             "/sys/devices/system/cpu/cpu0/cache/index2/level": "2",
             # Vulnerability files
             "/sys/devices/system/cpu/vulnerabilities/meltdown": "Mitigation: PTI",
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": "Mitigation: barriers",
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": "Mitigation: Enhanced IBRS",
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": (
+                "Mitigation: barriers"
+            ),
+            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": (
+                "Mitigation: Enhanced IBRS"
+            ),
         }
 
         def mock_read_file(path):
