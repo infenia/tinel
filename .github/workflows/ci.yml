@@ -85,6 +85,7 @@ jobs:
 
     - name: Install dependencies
       run: |
+        uv venv
         uv pip install -e ".[dev]"
         uv pip install safety bandit
 
@@ -202,6 +203,7 @@ jobs:
         echo "::group::Package Build & Test"
         
         # Install build tools
+        uv venv
         uv pip install build twine
         
         # Build package
@@ -227,6 +229,7 @@ jobs:
     - name: Integration tests
       run: |
         echo "::group::Integration Tests"
+        uv venv
         uv pip install -e ".[dev]"
         
         # Run integration and performance tests if they exist
@@ -268,6 +271,7 @@ jobs:
     - name: Build documentation
       run: |
         echo "::group::Documentation Build"
+        uv venv
         uv pip install -e ".[docs]"
         
         # Build API documentation
@@ -428,6 +432,7 @@ jobs:
             echo "**Fix documentation:**" >> $GITHUB_STEP_SUMMARY
             echo '```bash' >> $GITHUB_STEP_SUMMARY
             echo "# Install docs dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "uv venv" >> $GITHUB_STEP_SUMMARY
             echo 'uv pip install -e ".[docs]"' >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
             echo "# Build docs locally" >> $GITHUB_STEP_SUMMARY
