@@ -18,6 +18,7 @@ limitations under the License.
 import unittest
 from unittest.mock import MagicMock, patch
 
+from tinel.interfaces import HardwareInfo
 from tinel.tools.hardware_tools import (
     AllHardwareToolProvider,
     CPUInfoToolProvider,
@@ -41,13 +42,33 @@ class TestHardwareToolProviders(unittest.TestCase):
     def test_all_hardware_tool_provider(self, mock_device_analyzer_class):
         """Test AllHardwareToolProvider."""
         mock_analyzer = mock_device_analyzer_class.return_value
-        mock_analyzer.get_all_hardware_info.return_value = MagicMock(cpu="Test CPU")
+        mock_hardware_info = HardwareInfo(
+            cpu={"cpu": "info"},
+            memory={"memory": "info"},
+            storage={"storage": "info"},
+            pci_devices={"pci": "devices"},
+            usb_devices={"usb": "devices"},
+            network={"network": "info"},
+            graphics={"graphics": "info"},
+        )
+        mock_analyzer.get_all_hardware_info.return_value = mock_hardware_info
 
         provider = AllHardwareToolProvider(self.mock_system_interface)
         result = provider.execute({})
 
         mock_analyzer.get_all_hardware_info.assert_called_once()
-        self.assertEqual(result, {"cpu": "Test CPU"})
+        self.assertEqual(
+            result,
+            {
+                "cpu": {"cpu": "info"},
+                "memory": {"memory": "info"},
+                "storage": {"storage": "info"},
+                "pci_devices": {"pci": "devices"},
+                "usb_devices": {"usb": "devices"},
+                "network": {"network": "info"},
+                "graphics": {"graphics": "info"},
+            },
+        )
         self.assertEqual(provider._name, "get_all_hardware")
 
     @patch("tinel.tools.hardware_tools.DeviceAnalyzer")

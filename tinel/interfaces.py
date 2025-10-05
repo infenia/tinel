@@ -36,6 +36,12 @@ class HardwareInfo:
     """Comprehensive hardware information."""
 
     cpu: Dict[str, Any]
+    memory: Dict[str, Any]
+    storage: Dict[str, Any]
+    pci_devices: Dict[str, Any]
+    usb_devices: Dict[str, Any]
+    network: Dict[str, Any]
+    graphics: Dict[str, Any]
 
 
 class SystemInterface(ABC):
