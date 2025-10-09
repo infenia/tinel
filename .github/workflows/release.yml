@@ -51,7 +51,7 @@ jobs:
         egress-policy: audit
 
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         fetch-depth: 0
         token: ${{ secrets.GITHUB_TOKEN }}
@@ -181,7 +181,7 @@ jobs:
         egress-policy: audit
 
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Set up Python
       uses: actions/setup-python@v6
@@ -303,7 +303,7 @@ jobs:
         egress-policy: audit
 
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Download release artifacts
       uses: actions/download-artifact@v4
@@ -472,7 +472,7 @@ jobs:
         egress-policy: audit
 
     - name: Checkout code
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Update documentation
       run: |
