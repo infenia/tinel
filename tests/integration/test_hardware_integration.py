@@ -18,7 +18,7 @@ from tinel.cli.commands.hardware import HardwareCommands
 from tinel.cli.error_handler import HardwareError
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.hardware.device_analyzer import DeviceAnalyzer
-from tinel.interfaces import CommandResult
+from tinel.interfaces import CommandResult, HardwareInfo
 from tinel.tools.hardware_tools import AllHardwareToolProvider, CPUInfoToolProvider
 
 # Test constants
@@ -330,9 +330,15 @@ class TestHardwareToolsIntegration:
         all_hw_tool = AllHardwareToolProvider(self.mock_system)
 
         # Mock hardware info
-        mock_cpu_data = {"model": "Test CPU", "cores": 4}
-        mock_hardware_info = Mock()
-        mock_hardware_info.cpu = mock_cpu_data
+        mock_hardware_info = HardwareInfo(
+            cpu={"model": "Test CPU", "cores": 4},
+            memory={"ram": "16GB"},
+            storage={"ssd": "1TB"},
+            pci={"devices": []},
+            usb={"devices": []},
+            network={"adapters": []},
+            graphics={"gpu": "Test GPU"},
+        )
 
         with patch.object(
             all_hw_tool.device_analyzer,
@@ -341,8 +347,19 @@ class TestHardwareToolsIntegration:
         ):
             result = all_hw_tool.execute({})
 
-            assert "cpu" in result
-            assert result["cpu"] == mock_cpu_data
+            expected_keys = [
+                "cpu",
+                "memory",
+                "storage",
+                "pci",
+                "usb",
+                "network",
+                "graphics",
+            ]
+            for key in expected_keys:
+                assert key in result
+            assert result["cpu"] == {"model": "Test CPU", "cores": 4}
+            assert result["memory"] == {"ram": "16GB"}
 
     @integration_test
     def test_tool_provider_metadata(self):
