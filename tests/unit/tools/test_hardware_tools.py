@@ -18,6 +18,7 @@ limitations under the License.
 import unittest
 from unittest.mock import MagicMock, patch
 
+from tinel.interfaces import HardwareInfo
 from tinel.tools.hardware_tools import (
     AllHardwareToolProvider,
     CPUInfoToolProvider,
@@ -41,13 +42,23 @@ class TestHardwareToolProviders(unittest.TestCase):
     def test_all_hardware_tool_provider(self, mock_device_analyzer_class):
         """Test AllHardwareToolProvider."""
         mock_analyzer = mock_device_analyzer_class.return_value
-        mock_analyzer.get_all_hardware_info.return_value = MagicMock(cpu="Test CPU")
+        mock_hw_info = HardwareInfo(
+            cpu={"model": "Test CPU"},
+            memory={},
+            storage={},
+            pci={},
+            usb={},
+            network={},
+            graphics={},
+        )
+        mock_analyzer.get_all_hardware_info.return_value = mock_hw_info
 
         provider = AllHardwareToolProvider(self.mock_system_interface)
         result = provider.execute({})
 
         mock_analyzer.get_all_hardware_info.assert_called_once()
-        self.assertEqual(result, {"cpu": "Test CPU"})
+        self.assertIn("cpu", result)
+        self.assertEqual(result["cpu"], {"model": "Test CPU"})
         self.assertEqual(provider._name, "get_all_hardware")
 
     @patch("tinel.tools.hardware_tools.DeviceAnalyzer")
