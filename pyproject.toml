@@ -203,8 +203,7 @@ source = ["tinel"]
 branch = true
 parallel = true
 concurrency = ["multiprocessing"]
-data_file = ".coverage"
-omit = [
+data_file = ".coverage"omit = [
     "tinel/__main__.py", "tests/*",
     "*/test_*",
     "setup.py",
@@ -220,6 +219,7 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "pass",
+    "raise ImportError",
     "except ImportError:",
     "if TYPE_CHECKING:",
     "@abstractmethod",
