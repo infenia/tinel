@@ -1,0 +1,43 @@
+# Prometheus configuration for Tinel monitoring
+global:
+  scrape_interval: 30s
+  evaluation_interval: 30s
+
+rule_files:
+  # Add alerting rules here if needed
+
+scrape_configs:
+  # Tinel main service
+  - job_name: 'tinel'
+    static_configs:
+      - targets: ['tinel:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Tinel Alpine variant
+  - job_name: 'tinel-alpine'
+    static_configs:
+      - targets: ['tinel-alpine:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+    
+  # Tinel Distroless variant
+  - job_name: 'tinel-distroless'
+    static_configs:
+      - targets: ['tinel-distroless:8080']
+    metrics_path: '/metrics'
+    scrape_interval: 30s
+    scrape_timeout: 10s
+
+  # Redis monitoring (if enabled)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+
+  # Prometheus self-monitoring
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']

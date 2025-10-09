@@ -1,0 +1,19 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Edit|MultiEdit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "nox -s format"
+          },
+          {
+            "type": "command",
+            "command": "nox -s lint_fix"
+          }
+        ]
+      }
+    ]
+  }
+}

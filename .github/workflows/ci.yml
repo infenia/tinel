@@ -1,0 +1,476 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths-ignore: 
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'packaging/**'
+  pull_request:
+    branches: [ main, develop ]
+    paths-ignore:
+      - '**.md'
+      - 'docs/**'
+      - '.gitignore'
+      - 'packaging/**'
+  workflow_dispatch:
+
+env:
+  PYTHON_DEFAULT_VERSION: "3.12"
+  UV_CACHE_DIR: /tmp/.uv-cache
+  FORCE_COLOR: "1"
+  PY_COLORS: "1"
+
+permissions:
+  contents: read
+  security-events: write
+  actions: read
+  pull-requests: write
+  checks: write
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Combined quality gates and security scanning
+  quality-security-gates:
+    name: Quality & Security Gates (Python ${{ matrix.python-version }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12", "3.13"]') }}
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+
+    - name: Install uv with caching
+      uses: astral-sh/setup-uv@v4
+      with:
+        enable-cache: true
+        cache-dependency-glob: |
+          **/uv.lock
+          **/pyproject.toml
+
+    - name: Restore comprehensive cache
+      uses: actions/cache@v4
+      with:
+        path: |
+          /tmp/.uv-cache
+          ~/.cache/pip
+          .pytest_cache
+          .mypy_cache
+          .ruff_cache
+        key: ci-${{ runner.os }}-${{ matrix.python-version }}-${{ hashFiles('**/uv.lock', '**/pyproject.toml') }}
+        restore-keys: |
+          ci-${{ runner.os }}-${{ matrix.python-version }}-
+          ci-${{ runner.os }}-
+
+    - name: Install dependencies
+      run: |
+        uv venv
+        uv pip install -e ".[dev]"
+        uv pip install safety bandit
+
+    - name: Parallel quality checks
+      run: |
+        echo "::group::Quality Checks"
+        
+        # Run linting, formatting, and type checking in parallel
+        {
+          echo "🔍 Ruff linting..."
+          uv run ruff check . --output-format=github
+        } &
+        
+        {
+          echo "📝 Format checking..."
+          uv run ruff format --check .
+        } &
+        
+        {
+          echo "🏷️ Type checking..."
+          uv run mypy tinel --junit-xml=mypy-report.xml
+        } &
+        
+        # Wait for all checks
+        wait
+        echo "::endgroup::"
+
+    - name: Security scanning
+      run: |
+        echo "::group::Security Scanning"
+        
+        # Run security scans in parallel
+        {
+          echo "🔒 Dependency vulnerability scanning..."
+          uv run safety check --json --output=safety-report.json || echo "Safety warnings detected"
+        } &
+        
+        {
+          echo "🛡️ Static security analysis..."
+          uv run bandit -r tinel -f json -o bandit-report.json -ll || echo "Bandit warnings detected"
+        } &
+        
+        wait
+        echo "::endgroup::"
+
+    - name: Run tests with coverage
+      env:
+        PYTEST_ADDOPTS: "--strict-markers --strict-config --tb=short"
+      run: |
+        echo "::group::Test Execution"
+        uv run pytest \
+          --cov=tinel \
+          --cov-report=xml \
+          --cov-report=term-missing \
+          --cov-fail-under=100 \
+          --junit-xml=junit-${{ matrix.python-version }}.xml \
+          --maxfail=5 \
+          -x
+        echo "::endgroup::"
+
+    - name: Upload test results
+      uses: actions/upload-artifact@v4
+      if: always()
+      with:
+        name: test-results-${{ matrix.python-version }}-${{ github.run_id }}
+        path: |
+          junit-*.xml
+          mypy-report.xml
+          coverage.xml
+          safety-report.json
+          bandit-report.json
+        retention-days: 30
+
+    - name: Upload coverage to Codecov
+      if: matrix.python-version == '3.12' && github.event_name != 'pull_request'
+      uses: codecov/codecov-action@v4
+      with:
+        token: ${{ secrets.CODECOV_TOKEN }}
+        file: ./coverage.xml
+        flags: unittests,python-${{ matrix.python-version }}
+        fail_ci_if_error: false
+        verbose: false
+
+    - name: Cache cleanup
+      if: always()
+      run: uv cache prune --ci
+
+  # Build and integration tests (only for main Python version)
+  build-integration:
+    name: Build & Integration Tests
+    runs-on: ubuntu-latest
+    needs: quality-security-gates
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test-integration')
+    timeout-minutes: 10
+    
+    steps:
+    - name: Harden Runner
+      uses: step-security/harden-runner@v2
+      with:
+        egress-policy: audit
+
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Build and test package
+      run: |
+        echo "::group::Package Build & Test"
+        
+        # Install build tools
+        uv venv
+        uv pip install build twine
+        
+        # Build package
+        python -m build --wheel --sdist
+        
+        # Verify package
+        python -m twine check dist/*
+        
+        # Test installation in isolated environment
+        python -m venv test-env
+        source test-env/bin/activate
+        pip install dist/*.whl
+        
+        # Basic functionality test
+        python -c "import tinel; print(f'✅ Package test passed: {tinel.__version__}')"
+        python -m tinel --version
+        python -m tinel --help > /dev/null
+        
+        deactivate
+        rm -rf test-env
+        echo "::endgroup::"
+
+    - name: Integration tests
+      run: |
+        echo "::group::Integration Tests"
+        uv venv
+        uv pip install -e ".[dev]"
+        
+        # Run integration and performance tests if they exist
+        if [ -d "tests/integration" ]; then
+          uv run pytest tests/integration/ -v --tb=short
+        fi
+        
+        if [ -d "tests/performance" ]; then
+          uv run pytest tests/performance/ -v --tb=short
+        fi
+        echo "::endgroup::"
+
+    - name: Upload build artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: build-artifacts-${{ github.run_id }}
+        path: dist/
+        retention-days: 7
+
+  # Documentation build (only on documentation changes)
+  documentation:
+    name: Documentation Build
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, 'docs') || contains(github.event.pull_request.title, 'docs') || github.event_name == 'workflow_dispatch'
+    timeout-minutes: 5
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ env.PYTHON_DEFAULT_VERSION }}
+
+    - name: Install uv
+      uses: astral-sh/setup-uv@v4
+
+    - name: Build documentation
+      run: |
+        echo "::group::Documentation Build"
+        uv venv
+        uv pip install -e ".[docs]"
+        
+        # Build API documentation
+        python -m pdoc --html --output-dir docs tinel
+        
+        # Validate documentation
+        if [ ! -d "docs" ] || [ -z "$(ls -A docs)" ]; then
+          echo "❌ Documentation build failed"
+          exit 1
+        fi
+        
+        echo "✅ Documentation built successfully"
+        echo "::endgroup::"
+
+    - name: Upload documentation
+      uses: actions/upload-artifact@v4
+      with:
+        name: documentation-${{ github.run_id }}
+        path: docs/
+        retention-days: 30
+
+  # Summary job for status checks
+  ci-summary:
+    name: CI Summary
+    runs-on: ubuntu-latest
+    needs: [quality-security-gates, build-integration, documentation]
+    if: always()
+    timeout-minutes: 5
+    
+    steps:
+    - name: Checkout code (for artifact analysis)
+      uses: actions/checkout@v4
+      if: contains(needs.*.result, 'failure')
+
+    - name: Download test artifacts
+      uses: actions/download-artifact@v4
+      if: contains(needs.*.result, 'failure')
+      continue-on-error: true
+      with:
+        pattern: "*-${{ github.run_id }}"
+        merge-multiple: true
+        path: ./artifacts
+
+    - name: Evaluate CI results and generate detailed summary
+      run: |
+        echo "## 🚀 CI Pipeline Summary" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "**Run ID:** ${{ github.run_id }} | **Commit:** ${{ github.sha }} | **Ref:** ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        echo "### 📊 Job Results" >> $GITHUB_STEP_SUMMARY
+        echo "| Component | Status | Conclusion | Details |" >> $GITHUB_STEP_SUMMARY
+        echo "|-----------|--------|------------|---------|" >> $GITHUB_STEP_SUMMARY
+        
+        # Quality & Security Gates analysis
+        QSG_STATUS="${{ needs.quality-security-gates.result }}"
+        QSG_ICON="✅"
+        QSG_DETAILS="All checks passed"
+        if [[ "$QSG_STATUS" == "failure" ]]; then
+          QSG_ICON="❌"
+          QSG_DETAILS="[View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ needs.quality-security-gates.outputs.job_id || github.run_id }})"
+        elif [[ "$QSG_STATUS" == "cancelled" ]]; then
+          QSG_ICON="🚫"
+          QSG_DETAILS="Job was cancelled"
+        fi
+        echo "| Quality & Security Gates | $QSG_ICON $QSG_STATUS | ${{ needs.quality-security-gates.outputs.conclusion || 'N/A' }} | $QSG_DETAILS |" >> $GITHUB_STEP_SUMMARY
+        
+        # Build & Integration analysis
+        BI_STATUS="${{ needs.build-integration.result }}"
+        BI_ICON="✅"
+        BI_DETAILS="Build completed successfully"
+        if [[ "$BI_STATUS" == "failure" ]]; then
+          BI_ICON="❌"
+          BI_DETAILS="[View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ needs.build-integration.outputs.job_id || github.run_id }})"
+        elif [[ "$BI_STATUS" == "cancelled" ]]; then
+          BI_ICON="🚫"
+          BI_DETAILS="Job was cancelled"
+        elif [[ "$BI_STATUS" == "skipped" ]]; then
+          BI_ICON="⏭️"
+          BI_DETAILS="Skipped (PR without integration label)"
+        fi
+        echo "| Build & Integration | $BI_ICON $BI_STATUS | ${{ needs.build-integration.outputs.conclusion || 'N/A' }} | $BI_DETAILS |" >> $GITHUB_STEP_SUMMARY
+        
+        # Documentation analysis
+        DOC_STATUS="${{ needs.documentation.result }}"
+        DOC_ICON="✅"
+        DOC_DETAILS="Documentation built successfully"
+        if [[ "$DOC_STATUS" == "failure" ]]; then
+          DOC_ICON="❌"
+          DOC_DETAILS="[View logs](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ needs.documentation.outputs.job_id || github.run_id }})"
+        elif [[ "$DOC_STATUS" == "cancelled" ]]; then
+          DOC_ICON="🚫"
+          DOC_DETAILS="Job was cancelled"
+        elif [[ "$DOC_STATUS" == "skipped" ]]; then
+          DOC_ICON="⏭️"
+          DOC_DETAILS="Skipped (no documentation changes)"
+        fi
+        echo "| Documentation | $DOC_ICON $DOC_STATUS | ${{ needs.documentation.outputs.conclusion || 'N/A' }} | $DOC_DETAILS |" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        
+        # Detailed failure analysis
+        HAS_FAILURES=false
+        if [[ "$QSG_STATUS" == "failure" || "$BI_STATUS" == "failure" || "$DOC_STATUS" == "failure" ]]; then
+          HAS_FAILURES=true
+          echo "### 🔍 Failure Analysis" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          
+          if [[ "$QSG_STATUS" == "failure" ]]; then
+            echo "#### ❌ Quality & Security Gates Failed" >> $GITHUB_STEP_SUMMARY
+            echo "**Possible causes:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Linting errors (ruff check failures)" >> $GITHUB_STEP_SUMMARY
+            echo "- Formatting issues (ruff format)" >> $GITHUB_STEP_SUMMARY
+            echo "- Type checking errors (mypy failures)" >> $GITHUB_STEP_SUMMARY
+            echo "- Test failures or insufficient coverage" >> $GITHUB_STEP_SUMMARY
+            echo "- Security vulnerabilities detected" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Quick fixes:**" >> $GITHUB_STEP_SUMMARY
+            echo '```bash' >> $GITHUB_STEP_SUMMARY
+            echo "# Fix formatting" >> $GITHUB_STEP_SUMMARY
+            echo "uv run ruff format ." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Fix linting issues" >> $GITHUB_STEP_SUMMARY
+            echo "uv run ruff check --fix ." >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Run tests" >> $GITHUB_STEP_SUMMARY
+            echo "python -m pytest --cov=tinel" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "$BI_STATUS" == "failure" ]]; then
+            echo "#### ❌ Build & Integration Failed" >> $GITHUB_STEP_SUMMARY
+            echo "**Possible causes:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Package build errors" >> $GITHUB_STEP_SUMMARY
+            echo "- Import/dependency issues" >> $GITHUB_STEP_SUMMARY
+            echo "- Integration test failures" >> $GITHUB_STEP_SUMMARY
+            echo "- Version compatibility issues" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Debug steps:**" >> $GITHUB_STEP_SUMMARY
+            echo '```bash' >> $GITHUB_STEP_SUMMARY
+            echo "# Test local build" >> $GITHUB_STEP_SUMMARY
+            echo "python -m build" >> $GITHUB_STEP_SUMMARY
+            echo "python -m twine check dist/*" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Run integration tests" >> $GITHUB_STEP_SUMMARY
+            echo "pytest tests/integration/ -v" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+          
+          if [[ "$DOC_STATUS" == "failure" ]]; then
+            echo "#### ❌ Documentation Build Failed" >> $GITHUB_STEP_SUMMARY
+            echo "**Possible causes:**" >> $GITHUB_STEP_SUMMARY
+            echo "- Missing documentation dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "- Docstring formatting errors" >> $GITHUB_STEP_SUMMARY
+            echo "- Import errors in modules" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "**Fix documentation:**" >> $GITHUB_STEP_SUMMARY
+            echo '```bash' >> $GITHUB_STEP_SUMMARY
+            echo "# Install docs dependencies" >> $GITHUB_STEP_SUMMARY
+            echo "uv venv" >> $GITHUB_STEP_SUMMARY
+            echo 'uv pip install -e ".[docs]"' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "# Build docs locally" >> $GITHUB_STEP_SUMMARY
+            echo "python -m pdoc --html --output-dir docs tinel" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+        
+        # Artifact links
+        if [[ "$HAS_FAILURES" == "true" ]]; then
+          echo "### 📁 Artifacts & Reports" >> $GITHUB_STEP_SUMMARY
+          echo "- [Test Results & Coverage Reports](${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/artifacts)" >> $GITHUB_STEP_SUMMARY
+          if ls ./artifacts/junit-*.xml 2>/dev/null; then
+            echo "- JUnit test reports available in artifacts" >> $GITHUB_STEP_SUMMARY
+          fi
+          if ls ./artifacts/coverage.xml 2>/dev/null; then
+            echo "- Coverage report available in artifacts" >> $GITHUB_STEP_SUMMARY
+          fi
+          if ls ./artifacts/safety-report.json 2>/dev/null; then
+            echo "- Security scan results available in artifacts" >> $GITHUB_STEP_SUMMARY
+          fi
+          echo "" >> $GITHUB_STEP_SUMMARY
+        fi
+        
+        # Determine overall status
+        if [[ "$QSG_STATUS" == "success" && 
+              ("$BI_STATUS" == "success" || "$BI_STATUS" == "skipped") &&
+              ("$DOC_STATUS" == "success" || "$DOC_STATUS" == "skipped") ]]; then
+          echo "## ✅ Overall Status: PASSED" >> $GITHUB_STEP_SUMMARY
+          echo "All required checks completed successfully! 🎉" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Next steps:** Your changes are ready for review/merge." >> $GITHUB_STEP_SUMMARY
+          exit 0
+        else
+          echo "## ❌ Overall Status: FAILED" >> $GITHUB_STEP_SUMMARY
+          echo "One or more required checks failed. Please review the failure analysis above and fix the issues." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Need help?** Check the [troubleshooting guide](https://github.com/${{ github.repository }}/blob/main/docs/TROUBLESHOOTING.md) or review the detailed logs linked above." >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi

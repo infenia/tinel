@@ -1,0 +1,111 @@
+app-id: com.infenia.Tinel
+runtime: org.freedesktop.Platform
+runtime-version: '22.08'
+sdk: org.freedesktop.Sdk
+command: tinel
+rename-icon: tinel
+rename-desktop-file: tinel.desktop
+
+finish-args:
+  # Network access for API server
+  - --share=network
+  
+  # System access for hardware detection
+  - --device=all
+  - --filesystem=/sys:ro
+  - --filesystem=/proc:ro
+  - --filesystem=/dev:ro
+  
+  # File system access
+  - --filesystem=home
+  - --filesystem=/tmp
+  
+  # D-Bus access
+  - --talk-name=org.freedesktop.UPower
+  - --talk-name=org.freedesktop.NetworkManager
+  
+  # Hardware detection permissions
+  - --allow=bluetooth
+  - --env=TINEL_FLATPAK=1
+
+modules:
+  # Python dependencies
+  - name: python3-psutil
+    buildsystem: simple
+    build-commands:
+      - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}" --prefix=${FLATPAK_DEST} psutil
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/90/c7/6dc0a455d111f68ee43f27793971cf03fe29b6ef972042549db29eec39a95/psutil-5.9.5.tar.gz
+        sha256: 5410638e4df39c54d957fc51ce03048acd8e6d60abc0f5107af51e5fb566eb3c
+
+  - name: python3-cryptography
+    buildsystem: simple
+    build-commands:
+      - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}" --prefix=${FLATPAK_DEST} cryptography
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/13/9a/2a2d8d851d81a8ecad2cd80c5d95c16ef3b42ea8a7e34a7e10b0c2a67f8cf/cryptography-41.0.7.tar.gz
+        sha256: 13f93ce9bea8016c253b34afc6bd6a75993e5c40672ed5405a9c832f0d4a00bc
+
+  - name: python3-pyyaml
+    buildsystem: simple
+    build-commands:
+      - pip3 install --verbose --exists-action=i --no-index --find-links="file://${PWD}" --prefix=${FLATPAK_DEST} PyYAML
+    sources:
+      - type: file
+        url: https://files.pythonhosted.org/packages/cd/e5/af35f7ea75cf72f2cd079c95ee16797de7cd71f29ea7c68ae5ce7be1eda02/PyYAML-6.0.1.tar.gz
+        sha256: bfdf460b1736c775f2ba9f6a92bca30bc2095067b8a9d77876d1fad6cc3b4a43
+
+  # System tools for hardware detection
+  - name: system-tools
+    buildsystem: simple
+    build-commands:
+      - mkdir -p ${FLATPAK_DEST}/bin
+      # These will be available from the runtime, just ensure they're accessible
+    sources: []
+
+  # Main Tinel application
+  - name: tinel
+    buildsystem: simple
+    build-commands:
+      - pip3 install . --prefix=${FLATPAK_DEST}
+      - install -Dm644 packaging/flatpak/tinel.desktop ${FLATPAK_DEST}/share/applications/tinel.desktop
+      - install -Dm644 packaging/flatpak/tinel.png ${FLATPAK_DEST}/share/icons/hicolor/256x256/apps/tinel.png
+      - install -Dm644 packaging/flatpak/com.infenia.Tinel.metainfo.xml ${FLATPAK_DEST}/share/metainfo/com.infenia.Tinel.metainfo.xml
+    sources:
+      - type: dir
+        path: .
+        
+  # Configuration and wrappers
+  - name: tinel-config
+    buildsystem: simple
+    build-commands:
+      - mkdir -p ${FLATPAK_DEST}/etc/tinel
+      - install -Dm644 packaging/flatpak/config.yaml ${FLATPAK_DEST}/etc/tinel/config.yaml
+      
+      # Create wrapper script for better Flatpak integration
+      - |
+        cat > ${FLATPAK_DEST}/bin/tinel-wrapper << 'EOF'
+        #!/bin/bash
+        # Tinel Flatpak Wrapper
+        export TINEL_FLATPAK=1
+        export TINEL_CONFIG="${XDG_CONFIG_HOME:-$HOME/.config}/tinel/config.yaml"
+        
+        # Create config directory if it doesn't exist
+        mkdir -p "$(dirname "$TINEL_CONFIG")"
+        
+        # Copy default config if user config doesn't exist
+        if [ ! -f "$TINEL_CONFIG" ]; then
+            cp /app/etc/tinel/config.yaml "$TINEL_CONFIG"
+        fi
+        
+        exec python3 -m tinel "$@"
+        EOF
+      - chmod +x ${FLATPAK_DEST}/bin/tinel-wrapper
+      
+      # Update the main command to use wrapper
+      - ln -sf tinel-wrapper ${FLATPAK_DEST}/bin/tinel
+    sources:
+      - type: dir
+        path: packaging/flatpak

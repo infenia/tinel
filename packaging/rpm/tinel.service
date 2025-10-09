@@ -1,0 +1,46 @@
+[Unit]
+Description=Tinel System Analysis MCP Server
+Documentation=man:tinel(1)
+Documentation=https://github.com/infenia/tinel
+After=network.target
+Wants=network.target
+
+[Service]
+Type=forking
+User=tinel
+Group=tinel
+ExecStart=/usr/bin/tinel server --daemon --config /etc/tinel/config.yaml
+ExecReload=/bin/kill -HUP $MAINPID
+KillMode=process
+Restart=on-failure
+RestartSec=30
+TimeoutStopSec=30
+
+# Security settings
+NoNewPrivileges=yes
+PrivateTmp=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadOnlyPaths=/
+ReadWritePaths=/var/lib/tinel /var/log/tinel /tmp
+ProtectControlGroups=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+SystemCallFilter=@system-service
+SystemCallErrorNumber=EPERM
+
+# Resource limits
+LimitNOFILE=65536
+LimitNPROC=4096
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=tinel
+
+[Install]
+WantedBy=multi-user.target

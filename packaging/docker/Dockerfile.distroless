@@ -1,0 +1,58 @@
+# Distroless Tinel container - Maximum security with minimal attack surface
+# Multi-stage build to reduce final image size
+
+# Build stage
+FROM python:3.12-slim as builder
+
+WORKDIR /app
+
+# Install build dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gcc \
+    libc6-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Copy and install Python dependencies
+COPY pyproject.toml uv.lock ./
+COPY tinel/ ./tinel/
+COPY README.md LICENSE ./
+
+RUN pip install --no-cache-dir --upgrade pip && \
+    pip install --no-cache-dir build && \
+    python -m build --wheel && \
+    pip install --no-cache-dir dist/*.whl
+
+# Final stage - Distroless
+FROM gcr.io/distroless/python3-debian12:nonroot
+
+# Metadata
+LABEL org.opencontainers.image.title="Tinel System Analyzer (Distroless)" \
+      org.opencontainers.image.description="Next-generation Linux system analysis platform - Distroless variant" \
+      org.opencontainers.image.version="0.1.0" \
+      org.opencontainers.image.authors="Infenia Private Limited <arun@infenia.com>" \
+      org.opencontainers.image.url="https://github.com/infenia/tinel" \
+      org.opencontainers.image.source="https://github.com/infenia/tinel" \
+      org.opencontainers.image.vendor="Infenia Private Limited" \
+      org.opencontainers.image.licenses="Apache-2.0"
+
+# Copy Python packages from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin/tinel /usr/local/bin/tinel
+
+# Copy application
+COPY --from=builder --chown=nonroot:nonroot /app /app
+
+WORKDIR /app
+
+# Use nonroot user (already defined in distroless)
+USER nonroot
+
+# Note: Health checks and system tools are limited in distroless
+# This image is best for API server usage where system analysis is limited
+
+# Default command
+ENTRYPOINT ["python", "-m", "tinel"]
+CMD ["server", "--host", "0.0.0.0", "--port", "8080"]
+
+# Expose port
+EXPOSE 8080

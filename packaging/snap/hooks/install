@@ -1,0 +1,67 @@
+#!/bin/bash
+# Tinel Snap Install Hook
+
+set -e
+
+# Create necessary directories
+mkdir -p "$SNAP_DATA/etc/tinel"
+mkdir -p "$SNAP_DATA/var/lib/tinel"
+mkdir -p "$SNAP_DATA/var/log/tinel"
+
+# Create default configuration if it doesn't exist
+if [ ! -f "$SNAP_DATA/etc/tinel/config.yaml" ]; then
+    cat > "$SNAP_DATA/etc/tinel/config.yaml" << 'EOF'
+# Tinel Snap Configuration
+server:
+  host: "127.0.0.1"
+  port: 8080
+  workers: 2
+  debug: false
+
+logging:
+  level: "INFO"
+  file: "$SNAP_DATA/var/log/tinel/tinel.log"
+  max_size: "10MB"
+  backup_count: 3
+
+hardware:
+  cpu: true
+  memory: true
+  storage: true
+  network: true
+  gpu: true
+
+security:
+  require_auth: false
+  allowed_commands:
+    - "lscpu"
+    - "lspci"
+    - "lsusb"
+    - "lsblk"
+    - "df"
+    - "free"
+
+cache:
+  directory: "$SNAP_DATA/var/lib/tinel/cache"
+  ttl: 300
+  max_size: "50MB"
+EOF
+fi
+
+# Set proper permissions
+chmod 644 "$SNAP_DATA/etc/tinel/config.yaml"
+chmod 755 "$SNAP_DATA/var/lib/tinel"
+chmod 755 "$SNAP_DATA/var/log/tinel"
+
+# Create symbolic links for system access (within snap constraints)
+if [ -d "/proc" ]; then
+    ln -sf /proc "$SNAP_DATA/proc" 2>/dev/null || true
+fi
+
+if [ -d "/sys" ]; then
+    ln -sf /sys "$SNAP_DATA/sys" 2>/dev/null || true
+fi
+
+echo "Tinel snap installed successfully!"
+echo "Configuration available at: $SNAP_DATA/etc/tinel/config.yaml"
+echo "Run 'tinel --help' to get started."

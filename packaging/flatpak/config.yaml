@@ -1,0 +1,64 @@
+# Tinel Flatpak Configuration
+# Optimized for sandboxed environment with limited system access
+
+server:
+  host: "127.0.0.1"
+  port: 8080
+  workers: 2
+  debug: false
+
+logging:
+  level: "INFO"
+  file: "$XDG_DATA_HOME/tinel/logs/tinel.log"
+  max_size: "10MB"
+  backup_count: 3
+  format: "text"
+
+hardware:
+  # Limited hardware detection in Flatpak sandbox
+  cpu: true
+  memory: true
+  storage: true
+  network: true
+  gpu: false  # May not be available in sandbox
+  
+  # Flatpak-specific paths
+  proc_path: "/proc"
+  sys_path: "/sys"
+  dev_path: "/dev"
+  
+  utilities:
+    lscpu: true
+    lspci: true
+    lsusb: true
+    lshw: false  # May not be available
+    dmidecode: false  # Requires root access
+
+security:
+  require_auth: false
+  
+  # Restricted command set for Flatpak environment
+  allowed_commands:
+    - "lscpu"
+    - "lspci"
+    - "lsusb"
+    - "cat /proc/cpuinfo"
+    - "cat /proc/meminfo"
+    - "cat /proc/version"
+
+cache:
+  directory: "$XDG_CACHE_HOME/tinel"
+  ttl: 300
+  max_size: "25MB"  # Reduced for Flatpak
+
+# Flatpak-specific settings
+flatpak:
+  enable_host_access: false
+  sandbox_mode: true
+  
+  # Portal integrations
+  use_portals: true
+  
+  # Permissions
+  allow_network: true
+  allow_filesystem_read: true
