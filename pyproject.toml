@@ -200,8 +200,12 @@ filterwarnings = [
 
 [tool.coverage.run]
 source = ["tinel"]
+branch = true
+parallel = true
+concurrency = ["multiprocessing"]
+data_file = ".coverage"
 omit = [
-    "tests/*",
+    "tinel/__main__.py", "tests/*",
     "*/test_*",
     "setup.py",
     "*/venv/*",
@@ -218,7 +222,23 @@ exclude_lines = [
     "pass",
     "except ImportError:",
     "if TYPE_CHECKING:",
+    "except ImportError:",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
 ]
+precision = 2
+show_missing = true
+skip_covered = false
+sort = "Cover"
+
+
+[tool.coverage.html]
+directory = "htmlcov"
+title = "Tinel Coverage Report"
+
+
+[tool.coverage.xml]
+output = "coverage.xml"
 
 [tool.pdoc]
 modules = ["tinel"]
