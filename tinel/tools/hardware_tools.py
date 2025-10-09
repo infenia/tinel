@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+from dataclasses import asdict
 from typing import Any, Dict
 
 from ..hardware.device_analyzer import DeviceAnalyzer
@@ -52,9 +53,7 @@ class AllHardwareToolProvider(HardwareToolProvider):
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get all hardware information."""
         hardware_info = self.device_analyzer.get_all_hardware_info()
-        return {
-            "cpu": hardware_info.cpu,
-        }
+        return asdict(hardware_info)
 
 
 class CPUInfoToolProvider(HardwareToolProvider):
