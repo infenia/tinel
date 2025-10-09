@@ -20,6 +20,7 @@ import dataclasses
 from typing import Any, Dict
 
 from .cpu_analyzer import CPUAnalyzer
+from .memory_analyzer import MemoryAnalyzer
 
 
 @dataclasses.dataclass
@@ -34,4 +35,4 @@ class HardwareInfo:
     motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
-__all__ = ["HardwareInfo", "CPUAnalyzer"]
+__all__ = ["HardwareInfo", "CPUAnalyzer", "MemoryAnalyzer"]
