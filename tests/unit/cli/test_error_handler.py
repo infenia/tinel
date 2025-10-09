@@ -290,8 +290,11 @@ class TestCLIErrorHandler:
         details = {"context": "test"}
         self.formatter.verbose = 0  # Set verbose to an integer, not a Mock
 
-        with patch("sys.exit"), patch.object(
-            self.handler, "save_error_report", return_value="/tmp/report.json"
+        with (
+            patch("sys.exit"),
+            patch.object(
+                self.handler, "save_error_report", return_value="/tmp/report.json"
+            ),
         ):
             self.handler.handle_error("General error", ExitCode.GENERAL_ERROR, details)
             captured = capsys.readouterr()
