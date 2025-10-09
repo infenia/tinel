@@ -19,6 +19,8 @@ import re
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
+import psutil
+
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
 
@@ -247,6 +249,13 @@ class CPUAnalyzer:
                 core_ids.add(core_id)
                 cpu_num += 1
             info["cores_per_socket"] = len(core_ids)
+
+        # Cross-verify with psutil
+        try:
+            info["logical_cpus_psutil"] = psutil.cpu_count(logical=True)
+            info["physical_cores_psutil"] = psutil.cpu_count(logical=False)
+        except Exception as e:
+            info["psutil_error"] = str(e)
 
         return info
 
