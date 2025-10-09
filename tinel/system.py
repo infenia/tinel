@@ -159,6 +159,7 @@ class LinuxSystemInterface(SystemInterface):
             "nproc",
             "uname",
             "echo",
+            "smartctl",
             "sleep",  # echo and sleep for testing
         }
 
