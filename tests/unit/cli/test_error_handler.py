@@ -269,46 +269,33 @@ class TestCLIErrorHandler:
             self.formatter.print_debug.assert_called_once()
 
     @unit_test
-    def test_handle_error_with_suggestion(self):
+    def test_handle_error_with_suggestion(self, capsys):
         """Test error handling with custom suggestion."""
-        with (
-            patch("sys.exit"),
-            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
-        ):
+        with patch("sys.exit"):
             self.handler.handle_error("Test error", suggestion="Try this fix")
-
-            stderr_output = mock_stderr.getvalue()
-            assert "Suggestion: Try this fix" in stderr_output
+            captured = capsys.readouterr()
+            assert "Suggestion: Try this fix" in captured.err
 
     @unit_test
-    def test_handle_error_default_suggestion(self):
+    def test_handle_error_default_suggestion(self, capsys):
         """Test error handling with default suggestion."""
-        with (
-            patch("sys.exit"),
-            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
-        ):
+        with patch("sys.exit"):
             self.handler.handle_error("Command not found", ExitCode.COMMAND_NOT_FOUND)
-
-            stderr_output = mock_stderr.getvalue()
-            assert "tinel --help" in stderr_output
+            captured = capsys.readouterr()
+            assert "tinel --help" in captured.err
 
     @unit_test
-    def test_handle_error_save_report(self):
+    def test_handle_error_save_report(self, capsys):
         """Test error report saving for general errors."""
         details = {"context": "test"}
         self.formatter.verbose = 0  # Set verbose to an integer, not a Mock
 
-        with (
-            patch("sys.exit"),
-            patch.object(
-                self.handler, "save_error_report", return_value="/tmp/report.json"
-            ),
-            patch("sys.stderr", new_callable=StringIO) as mock_stderr,
+        with patch("sys.exit"), patch.object(
+            self.handler, "save_error_report", return_value="/tmp/report.json"
         ):
             self.handler.handle_error("General error", ExitCode.GENERAL_ERROR, details)
-
-            stderr_output = mock_stderr.getvalue()
-            assert "Error report saved to" in stderr_output
+            captured = capsys.readouterr()
+            assert "Error report saved to" in captured.err
 
     @unit_test
     def test_handle_error_save_report_failure_in_handle_error(self):
