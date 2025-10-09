@@ -17,9 +17,12 @@ limitations under the License.
 
 from typing import Any, Dict, Optional
 
-from ..interfaces import HardwareInfo, SystemInterface
+from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
 from .cpu_analyzer import CPUAnalyzer
+from .models import HardwareInfo
+from .pci_analyzer import PCIAnalyzer
+from .usb_analyzer import USBAnalyzer
 
 
 class DeviceAnalyzer:
@@ -33,6 +36,8 @@ class DeviceAnalyzer:
         """
         self.system = system_interface or LinuxSystemInterface()
         self.cpu_analyzer = CPUAnalyzer(self.system)
+        self.pci_analyzer = PCIAnalyzer(self.system)
+        self.usb_analyzer = USBAnalyzer(self.system)
 
     def get_all_hardware_info(self) -> HardwareInfo:
         """Get comprehensive hardware information.
@@ -46,8 +51,6 @@ class DeviceAnalyzer:
             storage=self.get_storage_info(),
             pci=self.get_pci_devices(),
             usb=self.get_usb_devices(),
-            network=self.get_network_info(),
-            graphics=self.get_graphics_info(),
         )
 
     def get_cpu_info(self) -> Dict[str, Any]:
@@ -76,38 +79,18 @@ class DeviceAnalyzer:
         # TODO: Implement storage information gathering
         return {"storage": "Not implemented yet"}
 
-    def get_pci_devices(self) -> Dict[str, Any]:
+    def get_pci_devices(self) -> "PCIInfo":
         """Get PCI device information.
 
         Returns:
-            Dictionary containing PCI device information
+            A PCIInfo object containing PCI device information.
         """
-        # TODO: Implement PCI device information gathering
-        return {"pci_devices": "Not implemented yet"}
+        return self.pci_analyzer.get_pci_info()
 
-    def get_usb_devices(self) -> Dict[str, Any]:
+    def get_usb_devices(self) -> "USBInfo":
         """Get USB device information.
 
         Returns:
-            Dictionary containing USB device information
+            A USBInfo object containing USB device information.
         """
-        # TODO: Implement USB device information gathering
-        return {"usb_devices": "Not implemented yet"}
-
-    def get_network_info(self) -> Dict[str, Any]:
-        """Get network information.
-
-        Returns:
-            Dictionary containing network information
-        """
-        # TODO: Implement network information gathering
-        return {"network": "Not implemented yet"}
-
-    def get_graphics_info(self) -> Dict[str, Any]:
-        """Get graphics information.
-
-        Returns:
-            Dictionary containing graphics information
-        """
-        # TODO: Implement graphics information gathering
-        return {"graphics": "Not implemented yet"}
+        return self.usb_analyzer.get_usb_info()

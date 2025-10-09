@@ -18,7 +18,8 @@ from tinel.cli.commands.hardware import HardwareCommands
 from tinel.cli.error_handler import HardwareError
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.hardware.device_analyzer import DeviceAnalyzer
-from tinel.interfaces import CommandResult, HardwareInfo
+from tinel.hardware.models import HardwareInfo, PCIInfo, USBInfo
+from tinel.interfaces import CommandResult
 from tinel.tools.hardware_tools import AllHardwareToolProvider, CPUInfoToolProvider
 
 # Test constants
@@ -263,23 +264,35 @@ class TestDeviceAnalyzerIntegration:
         self.device_analyzer = DeviceAnalyzer(self.mock_system)
 
     @integration_test
-    def test_get_all_hardware_info(self, sample_cpuinfo, sample_lscpu):
+    def test_get_all_hardware_info(self):
         """Test getting all hardware information."""
-        # Mock CPU analyzer data
-        cpu_data = {
-            "model_name": "Test CPU",
-            "vendor_id": "TestVendor",
-            "cpu_flags": ["sse", "sse2", "avx"],
-        }
+        # Mock data for all components
+        cpu_data = {"model_name": "Test CPU"}
+        pci_data = PCIInfo(devices=[{"slot": "00:00.0"}])
+        usb_data = USBInfo(tree={"bus": "01"})
+        mem_data = {"memory": "mocked"}
+        storage_data = {"storage": "mocked"}
 
         with patch.object(
-            self.device_analyzer.cpu_analyzer, "get_cpu_info", return_value=cpu_data
+            self.device_analyzer, "get_cpu_info", return_value=cpu_data
+        ), patch.object(
+            self.device_analyzer, "get_pci_devices", return_value=pci_data
+        ), patch.object(
+            self.device_analyzer, "get_usb_devices", return_value=usb_data
+        ), patch.object(
+            self.device_analyzer, "get_memory_info", return_value=mem_data
+        ), patch.object(
+            self.device_analyzer, "get_storage_info", return_value=storage_data
         ):
             hardware_info = self.device_analyzer.get_all_hardware_info()
 
-            # Verify structure
-            assert hasattr(hardware_info, "cpu")
+            # Verify structure and content
+            assert isinstance(hardware_info, HardwareInfo)
             assert hardware_info.cpu == cpu_data
+            assert hardware_info.pci == pci_data
+            assert hardware_info.usb == usb_data
+            assert hardware_info.memory == mem_data
+            assert hardware_info.storage == storage_data
 
     @integration_test
     def test_cpu_info_delegation(self):
@@ -334,10 +347,8 @@ class TestHardwareToolsIntegration:
             cpu={"model": "Test CPU", "cores": 4},
             memory={"ram": "16GB"},
             storage={"ssd": "1TB"},
-            pci={"devices": []},
-            usb={"devices": []},
-            network={"adapters": []},
-            graphics={"gpu": "Test GPU"},
+            pci=PCIInfo(devices=[]),
+            usb=USBInfo(tree={}),
         )
 
         with patch.object(
@@ -347,19 +358,13 @@ class TestHardwareToolsIntegration:
         ):
             result = all_hw_tool.execute({})
 
-            expected_keys = [
-                "cpu",
-                "memory",
-                "storage",
-                "pci",
-                "usb",
-                "network",
-                "graphics",
-            ]
+            expected_keys = ["cpu", "memory", "storage", "pci", "usb"]
             for key in expected_keys:
                 assert key in result
             assert result["cpu"] == {"model": "Test CPU", "cores": 4}
             assert result["memory"] == {"ram": "16GB"}
+            assert result["pci"] == {"devices": []}
+            assert result["usb"] == {"tree": {}}
 
     @integration_test
     def test_tool_provider_metadata(self):

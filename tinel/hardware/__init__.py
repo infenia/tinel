@@ -16,24 +16,20 @@ limitations under the License.
 """
 # -*- coding: utf-8 -*-
 """Hardware information module for Tinel."""
-import dataclasses
-from typing import Any, Dict
-
+from .models import HardwareInfo, PCIInfo, USBInfo
 from .cpu_analyzer import CPUAnalyzer
 from .memory_analyzer import MemoryAnalyzer
+from .pci_analyzer import PCIAnalyzer
 from .storage_analyzer import StorageAnalyzer
+from .usb_analyzer import USBAnalyzer
 
-
-@dataclasses.dataclass
-class HardwareInfo:
-    """A dataclass to store hardware information."""
-
-    cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    memory: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    storage: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    gpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    network: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
-
-
-__all__ = ["HardwareInfo", "CPUAnalyzer", "MemoryAnalyzer", "StorageAnalyzer"]
+__all__ = [
+    "HardwareInfo",
+    "PCIInfo",
+    "USBInfo",
+    "CPUAnalyzer",
+    "MemoryAnalyzer",
+    "PCIAnalyzer",
+    "StorageAnalyzer",
+    "USBAnalyzer",
+]
