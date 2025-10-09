@@ -4,6 +4,7 @@ branch = True
 parallel = True
 concurrency = multiprocessing
 data_file = .coverage
+omit = tinel/__main__.py
 
 [report]
 exclude_lines =

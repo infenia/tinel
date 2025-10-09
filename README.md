@@ -5,6 +5,7 @@
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Ruff](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json)](https://github.com/astral-sh/ruff)
 [![CI](https://github.com/infenia/tinel/workflows/CI/badge.svg)](https://github.com/infenia/tinel/actions)
+[![Coverage Status](https://coveralls.io/repos/github/infenia/tinel/badge.svg?branch=main)](https://coveralls.io/github/infenia/tinel?branch=main)
 
 A next-generation open-source platform designed to control, optimize, and analyze Linux-based systems using AI and LLMs. Developed by Infenia Private Limited, Tinel interfaces with the Linux kernel through various system utilities and filesystem interfaces to gather real-time hardware data.
 
