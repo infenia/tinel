@@ -7,7 +7,7 @@ Licensed under the Apache License, Version 2.0
 """
 
 import time
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import pytest
 
@@ -426,14 +426,20 @@ class TestCPUAnalyzer:
         assert cache_info == {}
 
     @unit_test
-    def test_get_topology_info_missing_files(self):
+    @patch('tinel.hardware.cpu_analyzer.psutil')
+    def test_get_topology_info_missing_files(self, mock_psutil):
         """Test _get_topology_info when files are missing."""
         self.mock_system.run_command.return_value = Mock(
             success=False, stdout="", stderr="", returncode=1
         )
         self.mock_system.read_file.return_value = None
+        mock_psutil.cpu_count.side_effect = Exception("psutil failed")
+
         topology_info = self.analyzer._get_topology_info()
-        assert topology_info == {}
+
+        # Should only contain the psutil error
+        assert "psutil_error" in topology_info
+        assert len(topology_info) == 1
 
     @unit_test
     def test_get_cpu_vulnerabilities_all_missing(self):
