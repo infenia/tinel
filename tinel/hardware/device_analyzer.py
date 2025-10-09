@@ -42,6 +42,12 @@ class DeviceAnalyzer:
         """
         return HardwareInfo(
             cpu=self.get_cpu_info(),
+            memory=self.get_memory_info(),
+            storage=self.get_storage_info(),
+            pci=self.get_pci_devices(),
+            usb=self.get_usb_devices(),
+            network=self.get_network_info(),
+            graphics=self.get_graphics_info(),
         )
 
     def get_cpu_info(self) -> Dict[str, Any]:
