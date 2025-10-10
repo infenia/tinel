@@ -31,6 +31,7 @@ class HardwareInfo:
     cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
     memory: Dict[str, Any] = dataclasses.field(default_factory=dict)
     storage: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    disks: Dict[str, Any] = dataclasses.field(default_factory=dict)
     gpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
     network: Dict[str, Any] = dataclasses.field(default_factory=dict)
     motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
