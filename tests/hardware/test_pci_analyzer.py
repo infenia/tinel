@@ -14,37 +14,34 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
 import unittest
 from unittest.mock import Mock
 
 from tinel.hardware.pci_analyzer import PCIAnalyzer
 from tinel.interfaces import CommandResult
 
-# Sample output from 'lspci -v' for mocking
-MOCK_LSPCI_V_OUTPUT = """
-00:00.0 Host bridge: Intel Corporation 8th Gen Core Processor Host Bridge/DRAM
-Registers (rev 07)
-	Subsystem: Dell Inc. 8th Gen Core Processor Host Bridge/DRAM Registers
-	Flags: bus master, fast devsel, latency 0
-	Memory at d0000000 (64-bit, non-prefetchable) [size=16M]
-	Capabilities: [e0] Vendor Specific Information: id=0001 Rev=0 Len=014 <?>
-
-00:02.0 VGA compatible controller: Intel Corporation UHD Graphics 620 (rev 07)
-	Subsystem: Dell Inc. UHD Graphics 620
-	Flags: bus master, fast devsel, latency 0, IRQ 129
-	Memory at c0000000 (64-bit, non-prefetchable) [size=16M]
-	Memory at b0000000 (64-bit, prefetchable) [size=256M]
-	I/O ports at 3000 [size=64]
-	Capabilities: [40] Vendor Specific Information: Len=0c <?>
-"""
+# This mock data is formatted to avoid line length issues in the source code,
+# while still representing the single-line output from the actual command.
+MOCK_LSPCI_V_OUTPUT = (
+    "00:00.0 Host bridge: Intel Corporation 8th Gen Core Processor "
+    "Host Bridge/DRAM Registers (rev 07)\n"
+    "\tSubsystem: Dell Inc. 8th Gen Core Processor Host Bridge/DRAM Registers\n"
+    "\tFlags: bus master, fast devsel, latency 0\n"
+    "\tMemory at d0000000 (64-bit, non-prefetchable) [size=16M]\n"
+    "\tCapabilities: [e0] Vendor Specific Information: id=0001 Rev=0 Len=014 <?>\n\n"
+    "00:02.0 VGA compatible controller: Intel Corporation UHD Graphics 620 (rev 07)\n"
+    "\tSubsystem: Dell Inc. UHD Graphics 620\n"
+    "\tFlags: bus master, fast devsel, latency 0, IRQ 129\n"
+    "\tMemory at c0000000 (64-bit, non-prefetchable) [size=16M]\n"
+    "\tMemory at b0000000 (64-bit, prefetchable) [size=256M]\n"
+    "\tI/O ports at 3000 [size=64]\n"
+    "\tCapabilities: [40] Vendor Specific Information: Len=0c <?>\n"
+)
 
 
 class TestPCIAnalyzer(unittest.TestCase):
     def test_get_pci_info_parses_lspci_output_correctly(self):
-        """
-        Verify that the PCI analyzer correctly parses the output of 'lspci -v'.
-        """
+        """Verify that the PCI analyzer correctly parses 'lspci -v' output."""
         # Arrange
         mock_system_interface = Mock()
         mock_system_interface.run_command.return_value = CommandResult(
@@ -94,9 +91,7 @@ class TestPCIAnalyzer(unittest.TestCase):
         self.assertIn("capabilities", device2)
 
     def test_get_pci_info_handles_command_failure(self):
-        """
-        Test that get_pci_info returns an empty list when the command fails.
-        """
+        """Test that get_pci_info returns an empty list when the command fails."""
         # Arrange
         mock_system_interface = Mock()
         mock_system_interface.run_command.return_value = CommandResult(
@@ -114,19 +109,12 @@ class TestPCIAnalyzer(unittest.TestCase):
         # Assert
         self.assertEqual(pci_info.devices, [])
 
-    def test_get_pci_info_with_malformed_output(self):
-        """
-        Test that get_pci_info returns an empty list for malformed output.
-        """
+    def test_get_pci_info_with_empty_output(self):
+        """Test that get_pci_info returns an empty list for empty command output."""
         # Arrange
         mock_system_interface = Mock()
-        malformed_output = "This is not valid lspci output\nJust some random text."
         mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout=malformed_output,
-            stderr="",
-            returncode=0,
-            error=None,
+            success=True, stdout="", stderr="", returncode=0, error=None
         )
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
 
@@ -136,14 +124,17 @@ class TestPCIAnalyzer(unittest.TestCase):
         # Assert
         self.assertEqual(pci_info.devices, [])
 
-    def test_get_pci_info_with_empty_output(self):
-        """
-        Test that get_pci_info returns an empty list for empty command output.
-        """
+    def test_get_pci_info_with_malformed_output(self):
+        """Test that get_pci_info returns an empty list for malformed output."""
         # Arrange
         mock_system_interface = Mock()
+        malformed_output = "This is not valid lspci output\nJust some random text."
         mock_system_interface.run_command.return_value = CommandResult(
-            success=True, stdout="", stderr="", returncode=0, error=None
+            success=True,
+            stdout=malformed_output,
+            stderr="",
+            returncode=0,
+            error=None,
         )
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
 
