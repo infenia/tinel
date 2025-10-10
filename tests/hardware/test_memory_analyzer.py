@@ -22,6 +22,13 @@ import pytest
 from tinel.hardware.memory_analyzer import MemoryAnalyzer
 from tinel.interfaces import CommandResult
 
+# Test constants for memory sizes
+SIXTEEN_GB_IN_BYTES = 16 * 1024**3
+EIGHT_GB_IN_BYTES = 8 * 1024**3
+TWO_GB_IN_BYTES = 2 * 1024**3
+ONE_GB_IN_BYTES = 1 * 1024**3
+FIFTY_PERCENT = 50.0
+
 
 @pytest.fixture
 def mock_system_interface():
@@ -91,10 +98,16 @@ def test_get_memory_info_success(
     """Test get_memory_info with successful psutil and dmidecode calls."""
     # Mock psutil
     mock_virtual.return_value = MagicMock(
-        total=16 * 1024**3, available=8 * 1024**3, used=8 * 1024**3, percent=50.0
+        total=SIXTEEN_GB_IN_BYTES,
+        available=EIGHT_GB_IN_BYTES,
+        used=EIGHT_GB_IN_BYTES,
+        percent=FIFTY_PERCENT,
     )
     mock_swap.return_value = MagicMock(
-        total=2 * 1024**3, used=1 * 1024**3, free=1 * 1024**3, percent=50.0
+        total=TWO_GB_IN_BYTES,
+        used=ONE_GB_IN_BYTES,
+        free=ONE_GB_IN_BYTES,
+        percent=FIFTY_PERCENT,
     )
 
     # Mock dmidecode
@@ -105,8 +118,8 @@ def test_get_memory_info_success(
     info = memory_analyzer.get_memory_info()
 
     # Assert psutil data
-    assert info["total_memory_bytes"] == 17179869184
-    assert info["memory_usage_percent"] == 50.0
+    assert info["total_memory_bytes"] == SIXTEEN_GB_IN_BYTES
+    assert info["memory_usage_percent"] == FIFTY_PERCENT
 
     # Assert dmidecode data
     assert "memory_devices" in info

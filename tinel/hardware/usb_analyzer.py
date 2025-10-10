@@ -73,8 +73,8 @@ class USBAnalyzer:
             if line_content.startswith("/:"):
                 root_match = re.match(
                     (
-                        r"/:.*Bus (\d+)\.Port (\d+): Dev (\d+), Class=(.+), "
-                        r"Driver=(.+), (.+)"
+                        r"/:.*Bus (\d+)\.Port (\d+): Dev (\d+), Class=([^,]+), "
+                        r"Driver=([^,]*), (.+)"
                     ),
                     line_content,
                 )
@@ -96,7 +96,10 @@ class USBAnalyzer:
                 # Handle child device lines
                 cleaned_line = line_content.lstrip(" |-_")
                 match = re.match(
-                    r"Port (\d+): Dev (\d+), If (\d+), Class=(.+), Driver=(.+), (.+)",
+                    (
+                        r"Port (\d+): Dev (\d+), If (\d+), Class=([^,]+), "
+                        r"Driver=([^,]*), (.+)"
+                    ),
                     cleaned_line,
                 )
                 if not match:

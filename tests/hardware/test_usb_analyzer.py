@@ -96,6 +96,72 @@ class TestUSBAnalyzer(unittest.TestCase):
         # Assert
         self.assertEqual(usb_info.tree, {"root_hubs": []})
 
+    def test_get_usb_info_with_malformed_child_line(self):
+        """Test that the parser handles a malformed child device line."""
+        # Arrange
+        mock_system_interface = Mock()
+        output_with_bad_child = (
+            "/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/10p, 480M\n"
+            "    |__ Port 4: This is a malformed line\n"
+            "    |__ Port 5: Dev 3, If 0, Class=Wireless, Driver=btusb, 12M\n"
+        )
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True,
+            stdout=output_with_bad_child,
+            stderr="",
+            returncode=0,
+            error=None,
+        )
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+
+        # Act
+        usb_info = analyzer.get_usb_info()
+
+        # Assert
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 1)
+        self.assertEqual(len(root_hubs[0]["children"]), 1)
+        self.assertEqual(root_hubs[0]["children"][0]["driver"], "btusb")
+
+    def test_get_usb_info_with_deeply_nested_devices(self):
+        """Test parsing of a deeply nested USB device tree."""
+        # Arrange
+        mock_system_interface = Mock()
+        nested_output = (
+            "/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/10p, 480M\n"
+            "    |__ Port 2: Dev 2, If 0, Class=Hub, Driver=hub/4p, 480M\n"
+            "        |__ Port 1: Dev 3, If 0, Class=Vendor Specific, Driver=, 1.5M\n"
+            "    |__ Port 3: Dev 4, If 0, Class=Human Interface Device, "
+            "Driver=usbhid, 12M\n"
+        )
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True,
+            stdout=nested_output,
+            stderr="",
+            returncode=0,
+            error=None,
+        )
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+
+        # Act
+        usb_info = analyzer.get_usb_info()
+
+        # Assert
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 1)
+        hub = root_hubs[0]
+        self.assertEqual(len(hub["children"]), 2)
+        # Check the nested hub
+        nested_hub = hub["children"][0]
+        self.assertEqual(nested_hub["class"], "Hub")
+        self.assertEqual(len(nested_hub["children"]), 1)
+        # Check the device under the nested hub
+        nested_device = nested_hub["children"][0]
+        self.assertEqual(nested_device["class"], "Vendor Specific")
+        # Check the other top-level device
+        hid_device = hub["children"][1]
+        self.assertEqual(hid_device["class"], "Human Interface Device")
+
     def test_get_usb_info_with_malformed_output(self):
         """
         Test that get_usb_info handles malformed lines gracefully.

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Copyright 2025 Infenia Private Limited
 
@@ -14,8 +15,6 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-# -*- coding: utf-8 -*-
-"""Hardware information module for Tinel."""
 from .cpu_analyzer import CPUAnalyzer
 from .memory_analyzer import MemoryAnalyzer
 from .models import HardwareInfo, PCIInfo, USBInfo

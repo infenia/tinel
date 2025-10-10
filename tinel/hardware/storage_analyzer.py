@@ -25,6 +25,8 @@ from ..system import LinuxSystemInterface
 class StorageAnalyzer:
     """A class to analyze and retrieve storage information."""
 
+    MIN_DF_PARTS = 6
+
     def __init__(self, system_interface: Optional[SystemInterface] = None):
         """
         Initialize the StorageAnalyzer.
@@ -100,7 +102,7 @@ class StorageAnalyzer:
         # Skip header line
         for line in lines[1:]:
             parts = line.split()
-            if len(parts) >= 6:
+            if len(parts) >= self.MIN_DF_PARTS:
                 filesystem_info = {
                     "filesystem": parts[0],
                     "size": parts[1],
