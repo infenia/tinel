@@ -14,6 +14,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 import unittest
 from unittest.mock import Mock
 
@@ -22,7 +23,8 @@ from tinel.interfaces import CommandResult
 
 # Sample output from 'lspci -v' for mocking
 MOCK_LSPCI_V_OUTPUT = """
-00:00.0 Host bridge: Intel Corporation 8th Gen Core Processor Host Bridge/DRAM Registers (rev 07)
+00:00.0 Host bridge: Intel Corporation 8th Gen Core Processor Host Bridge/DRAM
+Registers (rev 07)
 	Subsystem: Dell Inc. 8th Gen Core Processor Host Bridge/DRAM Registers
 	Flags: bus master, fast devsel, latency 0
 	Memory at d0000000 (64-bit, non-prefetchable) [size=16M]
@@ -36,6 +38,7 @@ MOCK_LSPCI_V_OUTPUT = """
 	I/O ports at 3000 [size=64]
 	Capabilities: [40] Vendor Specific Information: Len=0c <?>
 """
+
 
 class TestPCIAnalyzer(unittest.TestCase):
     def test_get_pci_info_parses_lspci_output_correctly(self):
@@ -63,14 +66,29 @@ class TestPCIAnalyzer(unittest.TestCase):
         # Check the first device
         device1 = pci_info.devices[0]
         self.assertEqual(device1["slot"], "00:00.0")
-        self.assertEqual(device1["description"], "Host bridge: Intel Corporation 8th Gen Core Processor Host Bridge/DRAM Registers (rev 07)")
-        self.assertEqual(device1["subsystem"], "Dell Inc. 8th Gen Core Processor Host Bridge/DRAM Registers")
-        self.assertIn("Memory at d0000000 (64-bit, non-prefetchable) [size=16M]", device1["details"])
+        self.assertEqual(
+            device1["description"],
+            (
+                "Host bridge: Intel Corporation 8th Gen Core Processor "
+                "Host Bridge/DRAM Registers (rev 07)"
+            ),
+        )
+        self.assertEqual(
+            device1["subsystem"],
+            "Dell Inc. 8th Gen Core Processor Host Bridge/DRAM Registers",
+        )
+        self.assertIn(
+            "Memory at d0000000 (64-bit, non-prefetchable) [size=16M]",
+            device1["details"],
+        )
 
         # Check the second device
         device2 = pci_info.devices[1]
         self.assertEqual(device2["slot"], "00:02.0")
-        self.assertEqual(device2["description"], "VGA compatible controller: Intel Corporation UHD Graphics 620 (rev 07)")
+        self.assertEqual(
+            device2["description"],
+            "VGA compatible controller: Intel Corporation UHD Graphics 620 (rev 07)",
+        )
         self.assertEqual(device2["subsystem"], "Dell Inc. UHD Graphics 620")
         self.assertIn("I/O ports at 3000 [size=64]", device2["details"])
         self.assertIn("capabilities", device2)

@@ -14,6 +14,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 import unittest
 from unittest.mock import Mock
 
@@ -29,11 +30,10 @@ MOCK_LSUSB_T_OUTPUT = """
     |__ Port 5: Dev 3, If 0, Class=Wireless, Driver=btusb, 12M
 """
 
+
 class TestUSBAnalyzer(unittest.TestCase):
     def test_get_usb_info_parses_lsusb_t_output_correctly(self):
-        """
-        Verify that the USB analyzer correctly parses the hierarchical output of 'lsusb -t'.
-        """
+        """Verify that the USB analyzer correctly parses lsusb -t output."""
         # Arrange
         mock_system_interface = Mock()
         mock_system_interface.run_command.return_value = CommandResult(

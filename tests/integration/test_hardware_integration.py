@@ -273,16 +273,20 @@ class TestDeviceAnalyzerIntegration:
         mem_data = {"memory": "mocked"}
         storage_data = {"storage": "mocked"}
 
-        with patch.object(
-            self.device_analyzer, "get_cpu_info", return_value=cpu_data
-        ), patch.object(
-            self.device_analyzer, "get_pci_devices", return_value=pci_data
-        ), patch.object(
-            self.device_analyzer, "get_usb_devices", return_value=usb_data
-        ), patch.object(
-            self.device_analyzer, "get_memory_info", return_value=mem_data
-        ), patch.object(
-            self.device_analyzer, "get_storage_info", return_value=storage_data
+        with (
+            patch.object(self.device_analyzer, "get_cpu_info", return_value=cpu_data),
+            patch.object(
+                self.device_analyzer, "get_pci_devices", return_value=pci_data
+            ),
+            patch.object(
+                self.device_analyzer, "get_usb_devices", return_value=usb_data
+            ),
+            patch.object(
+                self.device_analyzer, "get_memory_info", return_value=mem_data
+            ),
+            patch.object(
+                self.device_analyzer, "get_storage_info", return_value=storage_data
+            ),
         ):
             hardware_info = self.device_analyzer.get_all_hardware_info()
 

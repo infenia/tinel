@@ -54,24 +54,24 @@ class MemoryAnalyzer:
         psutil_errors = []
         try:
             virtual_mem = psutil.virtual_memory()
-            info['total_memory_bytes'] = virtual_mem.total
-            info['available_memory_bytes'] = virtual_mem.available
-            info['used_memory_bytes'] = virtual_mem.used
-            info['memory_usage_percent'] = virtual_mem.percent
+            info["total_memory_bytes"] = virtual_mem.total
+            info["available_memory_bytes"] = virtual_mem.available
+            info["used_memory_bytes"] = virtual_mem.used
+            info["memory_usage_percent"] = virtual_mem.percent
         except Exception as e:
             psutil_errors.append(f"virtual_memory: {e}")
 
         try:
             swap_mem = psutil.swap_memory()
-            info['total_swap_bytes'] = swap_mem.total
-            info['used_swap_bytes'] = swap_mem.used
-            info['free_swap_bytes'] = swap_mem.free
-            info['swap_usage_percent'] = swap_mem.percent
+            info["total_swap_bytes"] = swap_mem.total
+            info["used_swap_bytes"] = swap_mem.used
+            info["free_swap_bytes"] = swap_mem.free
+            info["swap_usage_percent"] = swap_mem.percent
         except Exception as e:
             psutil_errors.append(f"swap_memory: {e}")
 
         if psutil_errors:
-            info['psutil_error'] = "; ".join(psutil_errors)
+            info["psutil_error"] = "; ".join(psutil_errors)
 
         # Get detailed memory module info from dmidecode
         dmi_info = self._get_dmidecode_info()
@@ -111,7 +111,9 @@ class MemoryAnalyzer:
         """
         devices: List[Dict[str, Any]] = []
         current_device: Optional[Dict[str, Any]] = None
-        handle_pattern = re.compile(r"Handle (0x[0-9A-Fa-f]+), DMI type 17, (\d+) bytes")
+        handle_pattern = re.compile(
+            r"Handle (0x[0-9A-Fa-f]+), DMI type 17, (\d+) bytes"
+        )
         is_installed_module = True
 
         for line in output.splitlines():
@@ -123,7 +125,9 @@ class MemoryAnalyzer:
 
                 # Reset for new device
                 current_device = {"handle": handle_match.group(1), "dmi_type": 17}
-                is_installed_module = True # Assume it's installed until proven otherwise
+                is_installed_module = (
+                    True  # Assume it's installed until proven otherwise
+                )
 
             elif current_device and line.strip() and ":" in line:
                 key, value = [v.strip() for v in line.split(":", 1)]

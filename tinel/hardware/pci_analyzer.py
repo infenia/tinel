@@ -14,12 +14,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 import re
 from typing import Any, Dict, List, Optional
 
+from tinel.hardware.models import PCIInfo
 from tinel.interfaces import SystemInterface
 from tinel.system import LinuxSystemInterface
-from tinel.hardware.models import PCIInfo
 
 
 class PCIAnalyzer:
@@ -60,15 +61,19 @@ class PCIAnalyzer:
         # Regex to identify the start of a new device entry, e.g., "00:01.0 ..."
         device_header_re = re.compile(r"^([0-9a-f]{2}:[0-9a-f]{2}\.\d)\s+(.*)")
 
-        for line in output.strip().split('\n'):
+        for line in output.strip().split("\n"):
             header_match = device_header_re.match(line)
             if header_match:
-                # If a new device header is found, save the previous one and start a new one.
+                # A new device header is found.
+                # Save the previous device and start a new one.
                 if current_device:
                     devices.append(current_device)
 
                 slot, description = header_match.groups()
-                current_device = {"slot": slot.strip(), "description": description.strip()}
+                current_device = {
+                    "slot": slot.strip(),
+                    "description": description.strip(),
+                }
             elif current_device and line.strip():
                 # This is a detail line for the current device.
                 line_content = line.strip()

@@ -18,6 +18,7 @@ limitations under the License.
 from unittest.mock import MagicMock, patch
 
 import pytest
+
 from tinel.hardware.memory_analyzer import MemoryAnalyzer
 from tinel.interfaces import CommandResult
 
@@ -82,59 +83,61 @@ Memory Device
 """
 
 
-@patch('psutil.virtual_memory')
-@patch('psutil.swap_memory')
-def test_get_memory_info_success(mock_swap, mock_virtual, memory_analyzer, mock_system_interface):
+@patch("psutil.virtual_memory")
+@patch("psutil.swap_memory")
+def test_get_memory_info_success(
+    mock_swap, mock_virtual, memory_analyzer, mock_system_interface
+):
     """Test get_memory_info with successful psutil and dmidecode calls."""
     # Mock psutil
     mock_virtual.return_value = MagicMock(
-        total=16 * 1024**3,
-        available=8 * 1024**3,
-        used=8 * 1024**3,
-        percent=50.0
+        total=16 * 1024**3, available=8 * 1024**3, used=8 * 1024**3, percent=50.0
     )
     mock_swap.return_value = MagicMock(
-        total=2 * 1024**3,
-        used=1 * 1024**3,
-        free=1 * 1024**3,
-        percent=50.0
+        total=2 * 1024**3, used=1 * 1024**3, free=1 * 1024**3, percent=50.0
     )
 
     # Mock dmidecode
     mock_system_interface.run_command.return_value = CommandResult(
-        success=True,
-        stdout=DMIDECODE_OUTPUT,
-        stderr="",
-        returncode=0
+        success=True, stdout=DMIDECODE_OUTPUT, stderr="", returncode=0
     )
 
     info = memory_analyzer.get_memory_info()
 
     # Assert psutil data
-    assert info['total_memory_bytes'] == 17179869184
-    assert info['memory_usage_percent'] == 50.0
+    assert info["total_memory_bytes"] == 17179869184
+    assert info["memory_usage_percent"] == 50.0
 
     # Assert dmidecode data
-    assert 'memory_devices' in info
-    assert len(info['memory_devices']) == 1  # "No Module Installed" should be skipped
-    device = info['memory_devices'][0]
-    assert device['manufacturer'] == 'Hynix'
-    assert device['size'] == '16384 MB'
-    assert 'size' not in info['memory_devices'][0] or info['memory_devices'][0]['size'] != "No Module Installed"
+    assert "memory_devices" in info
+    assert len(info["memory_devices"]) == 1  # "No Module Installed" should be skipped
+    device = info["memory_devices"][0]
+    assert device["manufacturer"] == "Hynix"
+    assert device["size"] == "16384 MB"
+    assert (
+        "size" not in info["memory_devices"][0]
+        or info["memory_devices"][0]["size"] != "No Module Installed"
+    )
 
-    mock_system_interface.run_command.assert_called_once_with(["dmidecode", "--type", "memory"])
+    mock_system_interface.run_command.assert_called_once_with(
+        ["dmidecode", "--type", "memory"]
+    )
 
 
-@patch('psutil.virtual_memory', side_effect=Exception("psutil failed"))
-@patch('psutil.swap_memory')
-def test_get_memory_info_psutil_fails(mock_swap, mock_virtual, memory_analyzer, mock_system_interface):
+@patch("psutil.virtual_memory", side_effect=Exception("psutil failed"))
+@patch("psutil.swap_memory")
+def test_get_memory_info_psutil_fails(
+    mock_swap, mock_virtual, memory_analyzer, mock_system_interface
+):
     """Test get_memory_info when psutil calls fail."""
-    mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="error", returncode=1)
+    mock_system_interface.run_command.return_value = CommandResult(
+        success=False, stdout="", stderr="error", returncode=1
+    )
 
     info = memory_analyzer.get_memory_info()
 
-    assert 'psutil_error' in info
-    assert 'dmidecode_error' in info
+    assert "psutil_error" in info
+    assert "dmidecode_error" in info
 
 
 def test_get_memory_info_dmidecode_fails(memory_analyzer, mock_system_interface):
@@ -145,43 +148,49 @@ def test_get_memory_info_dmidecode_fails(memory_analyzer, mock_system_interface)
         stdout="",
         stderr="command not found",
         returncode=127,
-        error="command not found"
+        error="command not found",
     )
 
-    with patch('psutil.virtual_memory'), patch('psutil.swap_memory'):
+    with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
         info = memory_analyzer.get_memory_info()
 
-    assert 'dmidecode_error' in info
-    assert info['dmidecode_error'] == 'command not found'
+    assert "dmidecode_error" in info
+    assert info["dmidecode_error"] == "command not found"
 
 
 def test_parse_dmidecode_output_empty(memory_analyzer):
     """Test _parse_dmidecode_output with empty input."""
     parsed = memory_analyzer._parse_dmidecode_output("")
-    assert parsed == {'memory_devices': []}
+    assert parsed == {"memory_devices": []}
 
 
 def test_parse_dmidecode_output_no_devices(memory_analyzer):
     """Test _parse_dmidecode_output with output containing no memory devices."""
     output = "Some other dmidecode output"
     parsed = memory_analyzer._parse_dmidecode_output(output)
-    assert parsed == {'memory_devices': []}
+    assert parsed == {"memory_devices": []}
 
 
-@patch('psutil.virtual_memory')
-@patch('psutil.swap_memory')
-def test_get_memory_info_dmidecode_parse_error(mock_swap, mock_virtual, memory_analyzer, mock_system_interface):
+@patch("psutil.virtual_memory")
+@patch("psutil.swap_memory")
+def test_get_memory_info_dmidecode_parse_error(
+    mock_swap, mock_virtual, memory_analyzer, mock_system_interface
+):
     """Test get_memory_info when dmidecode output parsing fails."""
     mock_system_interface.run_command.return_value = CommandResult(
         success=True, stdout="invalid output", stderr="", returncode=0
     )
 
     # Make the parser raise an exception
-    with patch.object(memory_analyzer, '_parse_dmidecode_output', side_effect=ValueError("Parsing failed")):
+    with patch.object(
+        memory_analyzer,
+        "_parse_dmidecode_output",
+        side_effect=ValueError("Parsing failed"),
+    ):
         info = memory_analyzer.get_memory_info()
 
-    assert 'dmidecode_parse_error' in info
-    assert info['dmidecode_parse_error'] == "Parsing failed"
+    assert "dmidecode_parse_error" in info
+    assert info["dmidecode_parse_error"] == "Parsing failed"
 
 
 def test_get_memory_info_dmidecode_empty_output(memory_analyzer, mock_system_interface):
@@ -190,42 +199,50 @@ def test_get_memory_info_dmidecode_empty_output(memory_analyzer, mock_system_int
         success=True, stdout="", stderr="", returncode=0
     )
 
-    with patch('psutil.virtual_memory'), patch('psutil.swap_memory'):
+    with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
         info = memory_analyzer.get_memory_info()
 
-    assert 'dmidecode_error' in info
-    assert info['dmidecode_error'] == "Failed to run dmidecode or no output."
+    assert "dmidecode_error" in info
+    assert info["dmidecode_error"] == "Failed to run dmidecode or no output."
 
 
-@patch('psutil.virtual_memory')
-@patch('psutil.swap_memory', side_effect=Exception("swap failed"))
-def test_get_memory_info_psutil_swap_fails(mock_swap, mock_virtual, memory_analyzer, mock_system_interface):
+@patch("psutil.virtual_memory")
+@patch("psutil.swap_memory", side_effect=Exception("swap failed"))
+def test_get_memory_info_psutil_swap_fails(
+    mock_swap, mock_virtual, memory_analyzer, mock_system_interface
+):
     """Test get_memory_info when only the swap memory call fails."""
     mock_virtual.return_value = MagicMock(total=1, available=1, used=1, percent=1)
-    mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="", stderr="", returncode=0)
+    mock_system_interface.run_command.return_value = CommandResult(
+        success=True, stdout="", stderr="", returncode=0
+    )
 
     info = memory_analyzer.get_memory_info()
 
     # psutil data for virtual_memory should exist
-    assert 'total_memory_bytes' in info
+    assert "total_memory_bytes" in info
     # but swap data should be missing, and the error should be logged
-    assert 'total_swap_bytes' not in info
-    assert 'psutil_error' in info
-    assert info['psutil_error'] == "swap_memory: swap failed"
+    assert "total_swap_bytes" not in info
+    assert "psutil_error" in info
+    assert info["psutil_error"] == "swap_memory: swap failed"
 
 
-@patch('psutil.virtual_memory', side_effect=Exception("virtual failed"))
-@patch('psutil.swap_memory', side_effect=Exception("swap failed"))
-def test_get_memory_info_psutil_both_fail(mock_swap, mock_virtual, memory_analyzer, mock_system_interface):
+@patch("psutil.virtual_memory", side_effect=Exception("virtual failed"))
+@patch("psutil.swap_memory", side_effect=Exception("swap failed"))
+def test_get_memory_info_psutil_both_fail(
+    mock_swap, mock_virtual, memory_analyzer, mock_system_interface
+):
     """Test get_memory_info when both psutil calls fail."""
-    mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="", stderr="", returncode=0)
+    mock_system_interface.run_command.return_value = CommandResult(
+        success=True, stdout="", stderr="", returncode=0
+    )
     info = memory_analyzer.get_memory_info()
 
-    assert 'total_memory_bytes' not in info
-    assert 'total_swap_bytes' not in info
-    assert 'psutil_error' in info
-    assert "virtual_memory: virtual failed" in info['psutil_error']
-    assert "swap_memory: swap failed" in info['psutil_error']
+    assert "total_memory_bytes" not in info
+    assert "total_swap_bytes" not in info
+    assert "psutil_error" in info
+    assert "virtual_memory: virtual failed" in info["psutil_error"]
+    assert "swap_memory: swap failed" in info["psutil_error"]
 
 
 DMIDECODE_SINGLE_INSTALLED_OUTPUT = """
@@ -243,21 +260,22 @@ Memory Device
 	Type: DDR4
 """
 
+
 def test_parse_dmidecode_output_last_device_installed(memory_analyzer):
     """Test _parse_dmidecode_output where the last device is installed."""
     parsed = memory_analyzer._parse_dmidecode_output(DMIDECODE_SINGLE_INSTALLED_OUTPUT)
-    assert 'memory_devices' in parsed
-    assert len(parsed['memory_devices']) == 1
-    assert parsed['memory_devices'][0]['type'] == 'DDR4'
+    assert "memory_devices" in parsed
+    assert len(parsed["memory_devices"]) == 1
+    assert parsed["memory_devices"][0]["type"] == "DDR4"
 
 
-@patch('psutil.virtual_memory')
-@patch('psutil.swap_memory')
+@patch("psutil.virtual_memory")
+@patch("psutil.swap_memory")
 def test_get_memory_info_no_dmi_info(mock_swap, mock_virtual, memory_analyzer):
     """Test get_memory_info when _get_dmidecode_info returns a falsy value."""
-    with patch.object(memory_analyzer, '_get_dmidecode_info', return_value=None):
+    with patch.object(memory_analyzer, "_get_dmidecode_info", return_value=None):
         info = memory_analyzer.get_memory_info()
 
-    assert 'dmidecode_error' not in info
-    assert 'memory_devices' not in info
-    assert 'total_memory_bytes' in info # psutil info should still be present
+    assert "dmidecode_error" not in info
+    assert "memory_devices" not in info
+    assert "total_memory_bytes" in info  # psutil info should still be present

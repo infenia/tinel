@@ -16,20 +16,20 @@ limitations under the License.
 """
 # -*- coding: utf-8 -*-
 """Hardware information module for Tinel."""
-from .models import HardwareInfo, PCIInfo, USBInfo
 from .cpu_analyzer import CPUAnalyzer
 from .memory_analyzer import MemoryAnalyzer
+from .models import HardwareInfo, PCIInfo, USBInfo
 from .pci_analyzer import PCIAnalyzer
 from .storage_analyzer import StorageAnalyzer
 from .usb_analyzer import USBAnalyzer
 
 __all__ = [
-    "HardwareInfo",
-    "PCIInfo",
-    "USBInfo",
     "CPUAnalyzer",
+    "HardwareInfo",
     "MemoryAnalyzer",
     "PCIAnalyzer",
+    "PCIInfo",
     "StorageAnalyzer",
     "USBAnalyzer",
+    "USBInfo",
 ]

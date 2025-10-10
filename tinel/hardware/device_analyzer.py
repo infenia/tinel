@@ -20,7 +20,7 @@ from typing import Any, Dict, Optional
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
 from .cpu_analyzer import CPUAnalyzer
-from .models import HardwareInfo
+from .models import HardwareInfo, PCIInfo, USBInfo
 from .pci_analyzer import PCIAnalyzer
 from .usb_analyzer import USBAnalyzer
 

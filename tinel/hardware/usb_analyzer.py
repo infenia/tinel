@@ -14,12 +14,13 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 import re
 from typing import Any, Dict, List, Optional
 
+from tinel.hardware.models import USBInfo
 from tinel.interfaces import SystemInterface
 from tinel.system import LinuxSystemInterface
-from tinel.hardware.models import USBInfo
 
 
 class USBAnalyzer:
@@ -59,18 +60,24 @@ class USBAnalyzer:
         # A stack to keep track of the current parent device at each indentation level.
         parent_stack: List[Dict[str, Any]] = []
 
-        for line in output.strip().split('\n'):
+        for line in output.strip().split("\n"):
             line_content = line.strip()
             if not line_content:
                 continue
 
             # Determine the indentation level to understand the hierarchy.
-            indentation = len(line) - len(line.lstrip(' '))
+            indentation = len(line) - len(line.lstrip(" "))
             level = indentation // 4
 
             # Handle root hub lines, which start with '/:'
-            if line_content.startswith('/:'):
-                root_match = re.match(r"/:.*Bus (\d+)\.Port (\d+): Dev (\d+), Class=(.+), Driver=(.+), (.+)", line_content)
+            if line_content.startswith("/:"):
+                root_match = re.match(
+                    (
+                        r"/:.*Bus (\d+)\.Port (\d+): Dev (\d+), Class=(.+), "
+                        r"Driver=(.+), (.+)"
+                    ),
+                    line_content,
+                )
                 if not root_match:
                     continue
                 bus, port, dev, dev_class, driver, speed = root_match.groups()
@@ -87,8 +94,11 @@ class USBAnalyzer:
                 parent_stack = [node]  # Reset stack for this hub
             else:
                 # Handle child device lines
-                cleaned_line = line_content.lstrip(' |-_')
-                match = re.match(r"Port (\d+): Dev (\d+), If (\d+), Class=(.+), Driver=(.+), (.+)", cleaned_line)
+                cleaned_line = line_content.lstrip(" |-_")
+                match = re.match(
+                    r"Port (\d+): Dev (\d+), If (\d+), Class=(.+), Driver=(.+), (.+)",
+                    cleaned_line,
+                )
                 if not match:
                     continue
 
