@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Copyright 2025 Infenia Private Limited
 
@@ -15,20 +14,24 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-from .cpu_analyzer import CPUAnalyzer
-from .memory_analyzer import MemoryAnalyzer
-from .models import HardwareInfo, PCIInfo, USBInfo
-from .pci_analyzer import PCIAnalyzer
-from .storage_analyzer import StorageAnalyzer
-from .usb_analyzer import USBAnalyzer
+# -*- coding: utf-8 -*-
+"""Hardware information module for Tinel."""
+import dataclasses
+from typing import Any, Dict
 
-__all__ = [
-    "CPUAnalyzer",
-    "HardwareInfo",
-    "MemoryAnalyzer",
-    "PCIAnalyzer",
-    "PCIInfo",
-    "StorageAnalyzer",
-    "USBAnalyzer",
-    "USBInfo",
-]
+from .cpu_analyzer import CPUAnalyzer
+
+
+@dataclasses.dataclass
+class HardwareInfo:
+    """A dataclass to store hardware information."""
+
+    cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    memory: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    disks: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    gpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    network: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
+
+
+__all__ = ["HardwareInfo", "CPUAnalyzer"]
