@@ -192,6 +192,16 @@ class TestStorageAnalyzer(unittest.TestCase):
         lsblk_info = analyzer._get_lsblk_info()
         self.assertIsNone(lsblk_info)
 
+    def test_lsblk_no_blockdevices_key(self):
+        """Test _get_lsblk_info when JSON has no 'blockdevices' key."""
+        mock_system_interface = MagicMock()
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True, stdout='{"other_key": "value"}', stderr="", returncode=0
+        )
+        analyzer = StorageAnalyzer(system_interface=mock_system_interface)
+        lsblk_info = analyzer._get_lsblk_info()
+        self.assertIsNone(lsblk_info)
+
     def test_get_info_with_non_disk_device(self):
         """Test that devices not of type 'disk' are skipped for health checks."""
         mock_lsblk_output_no_disk = {

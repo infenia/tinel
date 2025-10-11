@@ -200,3 +200,27 @@ class TestUSBAnalyzer(unittest.TestCase):
 
         # Assert
         self.assertEqual(usb_info.tree, {"root_hubs": []})
+
+    def test_get_usb_info_with_orphaned_child_device(self):
+        """
+        Test that child devices without a parent root hub are skipped gracefully.
+        This covers the branch where parent_stack is empty when processing a child.
+        """
+        # Arrange
+        mock_system_interface = Mock()
+        # Child device without a root hub parent
+        orphaned_output = "    |__ Port 4: Dev 2, If 0, Class=HID, Driver=usbhid, 12M\n"
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True,
+            stdout=orphaned_output,
+            stderr="",
+            returncode=0,
+            error=None,
+        )
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+
+        # Act
+        usb_info = analyzer.get_usb_info()
+
+        # Assert - The orphaned child should not be added to root_hubs
+        self.assertEqual(usb_info.tree, {"root_hubs": []})

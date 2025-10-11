@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import json
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Optional, cast
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
@@ -71,7 +71,10 @@ class StorageAnalyzer:
         if result.success and result.stdout:
             try:
                 lsblk_data = json.loads(result.stdout)
-                return lsblk_data.get("blockdevices")
+                blockdevices = lsblk_data.get("blockdevices")
+                if blockdevices is not None:
+                    return cast(List[Dict[str, Any]], blockdevices)
+                return None
             except json.JSONDecodeError:
                 return None
         return None

@@ -124,3 +124,31 @@ class TestDeviceAnalyzer:
         mock_usb_analyzer.get_usb_info.assert_called_once()
         mock_get_memory.assert_called_once()
         mock_get_storage.assert_called_once()
+
+    @unit_test
+    def test_get_memory_info(self):
+        """Test getting memory info returns placeholder implementation."""
+        analyzer = DeviceAnalyzer(self.mock_system)
+        result = analyzer.get_memory_info()
+        assert result == {"memory": "Not implemented yet"}
+
+    @unit_test
+    def test_get_storage_info(self):
+        """Test getting storage info returns placeholder implementation."""
+        analyzer = DeviceAnalyzer(self.mock_system)
+        result = analyzer.get_storage_info()
+        assert result == {"storage": "Not implemented yet"}
+
+    @unit_test
+    def test_get_network_info(self):
+        """Test getting network info returns placeholder implementation."""
+        analyzer = DeviceAnalyzer(self.mock_system)
+        result = analyzer.get_network_info()
+        assert result == {"network": "Not implemented yet"}
+
+    @unit_test
+    def test_get_graphics_info(self):
+        """Test getting graphics info returns placeholder implementation."""
+        analyzer = DeviceAnalyzer(self.mock_system)
+        result = analyzer.get_graphics_info()
+        assert result == {"graphics": "Not implemented yet"}

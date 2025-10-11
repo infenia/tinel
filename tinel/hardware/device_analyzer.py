@@ -94,3 +94,21 @@ class DeviceAnalyzer:
             A USBInfo object containing USB device information.
         """
         return self.usb_analyzer.get_usb_info()
+
+    def get_network_info(self) -> Dict[str, Any]:
+        """Get network hardware information.
+
+        Returns:
+            Dictionary containing network information
+        """
+        # TODO: Implement network information gathering
+        return {"network": "Not implemented yet"}
+
+    def get_graphics_info(self) -> Dict[str, Any]:
+        """Get graphics hardware information.
+
+        Returns:
+            Dictionary containing graphics information
+        """
+        # TODO: Implement graphics information gathering
+        return {"graphics": "Not implemented yet"}
