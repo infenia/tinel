@@ -14,15 +14,14 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
 # -*- coding: utf-8 -*-
 """Hardware information module for Tinel."""
 import dataclasses
 from typing import Any, Dict
 
 from .cpu_analyzer import CPUAnalyzer
-from .graphics_analyzer import GraphicsAnalyzer
-from .network_analyzer import NetworkAnalyzer
+from .memory_analyzer import MemoryAnalyzer
+from .storage_analyzer import StorageAnalyzer
 
 
 @dataclasses.dataclass
@@ -31,10 +30,11 @@ class HardwareInfo:
 
     cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
     memory: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    storage: Dict[str, Any] = dataclasses.field(default_factory=dict)
     disks: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    graphics: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    gpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
     network: Dict[str, Any] = dataclasses.field(default_factory=dict)
     motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
-__all__ = ["HardwareInfo", "CPUAnalyzer", "NetworkAnalyzer", "GraphicsAnalyzer"]
+__all__ = ["HardwareInfo", "CPUAnalyzer", "MemoryAnalyzer", "StorageAnalyzer"]
