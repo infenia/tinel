@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import json
-from typing import Any, Dict, List, Optional, cast
+from typing import Any, Dict, List, Optional
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
@@ -24,8 +24,6 @@ from ..system import LinuxSystemInterface
 
 class StorageAnalyzer:
     """A class to analyze and retrieve storage information."""
-
-    MIN_DF_PARTS = 6
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
         """
@@ -71,10 +69,7 @@ class StorageAnalyzer:
         if result.success and result.stdout:
             try:
                 lsblk_data = json.loads(result.stdout)
-                blockdevices = lsblk_data.get("blockdevices")
-                if blockdevices is not None:
-                    return cast(List[Dict[str, Any]], blockdevices)
-                return None
+                return lsblk_data.get("blockdevices")
             except json.JSONDecodeError:
                 return None
         return None
@@ -105,7 +100,7 @@ class StorageAnalyzer:
         # Skip header line
         for line in lines[1:]:
             parts = line.split()
-            if len(parts) >= self.MIN_DF_PARTS:
+            if len(parts) >= 6:
                 filesystem_info = {
                     "filesystem": parts[0],
                     "size": parts[1],

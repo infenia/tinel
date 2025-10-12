@@ -25,33 +25,17 @@ from ..system import LinuxSystemInterface
 
 
 class MemoryAnalyzer:
-    """A class to analyze and retrieve memory information."""
+    """
+    A class to analyze and retrieve memory information.
+    """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """
-        Initialize the MemoryAnalyzer.
-
-        Args:
-            system_interface: An optional system interface for command execution.
-        """
         self.system = system_interface or LinuxSystemInterface()
 
     def get_memory_info(self) -> Dict[str, Any]:
-        """
-        Retrieve comprehensive memory information.
-
-        This method gathers memory details from `psutil` and, if available,
-        supplements it with hardware information from `dmidecode`.
-
-        Returns:
-            A dictionary containing detailed memory information, including
-            total, available, used, and swap memory, as well as details
-            about physical memory modules.
-        """
         info: Dict[str, Any] = {}
+        psutil_errors: List[str] = []
 
-        # Get basic memory info from psutil
-        psutil_errors = []
         try:
             virtual_mem = psutil.virtual_memory()
             info["total_memory_bytes"] = virtual_mem.total
@@ -73,7 +57,6 @@ class MemoryAnalyzer:
         if psutil_errors:
             info["psutil_error"] = "; ".join(psutil_errors)
 
-        # Get detailed memory module info from dmidecode
         dmi_info = self._get_dmidecode_info()
         if dmi_info:
             info.update(dmi_info)
@@ -81,66 +64,42 @@ class MemoryAnalyzer:
         return info
 
     def _get_dmidecode_info(self) -> Dict[str, Any]:
-        """
-        Run dmidecode to get detailed memory hardware info.
-
-        Returns:
-            A dictionary with parsed dmidecode information or an error message.
-        """
         result = self.system.run_command(["dmidecode", "--type", "memory"])
-
-        if result.success and result.stdout:
-            try:
-                return self._parse_dmidecode_output(result.stdout)
-            except Exception as e:
-                return {"dmidecode_parse_error": str(e)}
-        elif result.error:
-            return {"dmidecode_error": result.error}
-        else:
-            return {"dmidecode_error": "Failed to run dmidecode or no output."}
+        if not result.success:
+            return {"dmidecode_error": result.error or "Failed to run dmidecode."}
+        if not result.stdout:
+            return {}
+        try:
+            return self._parse_dmidecode_output(result.stdout)
+        except Exception as e:
+            return {"dmidecode_parse_error": str(e)}
 
     def _parse_dmidecode_output(self, output: str) -> Dict[str, Any]:
-        """
-        Parse the output of 'dmidecode --type memory'.
+        devices = []
+        device_blocks = re.split(r"\nHandle 0x[0-9A-Fa-f]+, DMI type 17,", output)
 
-        Args:
-            output: The stdout from the dmidecode command.
+        for block in device_blocks:
+            if "Memory Device" not in block:
+                continue
 
-        Returns:
-            A dictionary with structured information about memory devices.
-        """
-        devices: List[Dict[str, Any]] = []
-        current_device: Optional[Dict[str, Any]] = None
-        handle_pattern = re.compile(
-            r"Handle (0x[0-9A-Fa-f]+), DMI type 17, (\d+) bytes"
-        )
-        is_installed_module = True
+            device_info = {}
+            for line in block.splitlines():
+                if ":" not in line:
+                    continue
 
-        for line in output.splitlines():
-            handle_match = handle_pattern.match(line)
-            if handle_match:
-                # Previous device is done, add it if it was valid
-                if current_device and is_installed_module:
-                    devices.append(current_device)
+                parts = line.split(":", 1)
+                key = parts[0].strip()
+                value = parts[1].strip()
 
-                # Reset for new device
-                current_device = {"handle": handle_match.group(1), "dmi_type": 17}
-                is_installed_module = (
-                    True  # Assume it's installed until proven otherwise
-                )
+                if not key or not value:
+                    continue
 
-            elif current_device and line.strip() and ":" in line:
-                key, value = [v.strip() for v in line.split(":", 1)]
+                if value in ("Unknown", "Not Specified", "Not Provided"):
+                    continue
 
-                if key == "Size" and value == "No Module Installed":
-                    is_installed_module = False
+                device_info[key.lower().replace(" ", "_")] = value
 
-                if value not in ("Unknown", "No Module Installed", "Not Specified"):
-                    s_key = key.lower().replace(" ", "_").replace("-", "_")
-                    current_device[s_key] = value
-
-        # Add the very last device if it's valid
-        if current_device and is_installed_module:
-            devices.append(current_device)
+            if device_info and device_info.get("size") != "No Module Installed":
+                devices.append(device_info)
 
         return {"memory_devices": devices}
