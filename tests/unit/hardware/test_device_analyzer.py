@@ -62,48 +62,35 @@ class TestDeviceAnalyzer:
 
     @unit_test
     @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
-    def test_get_all_hardware_info(self, mock_cpu_analyzer_class):
-        """Test getting all hardware info returns a HardwareInfo object."""
-        # Setup
-        mock_cpu_analyzer = Mock()
-        expected_cpu_info = {"model": "Test CPU", "cores": 4}
-        mock_cpu_analyzer.get_cpu_info.return_value = expected_cpu_info
-        mock_cpu_analyzer_class.return_value = mock_cpu_analyzer
+    @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
+    @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
+    @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
+    def test_get_all_hardware_info(self, mock_graphics_class, mock_network_class, mock_memory_class, mock_cpu_class):
+        """Test the aggregation of all hardware information."""
+        # Setup mocks for each analyzer's get_info method
+        mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
+        mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
+        mock_network_class.return_value.get_network_info.return_value = {"network": "data"}
+        mock_graphics_class.return_value.get_graphics_info.return_value = {"graphics": "data"}
 
-        # Create a new analyzer after the patch is applied
         analyzer = DeviceAnalyzer(self.mock_system)
 
-        # Execute
-        result = analyzer.get_all_hardware_info()
+        # Mock the other info methods that are not yet implemented
+        with patch.object(analyzer, 'get_storage_info', return_value={'disks': 'data'}), \
+             patch.object(analyzer, 'get_motherboard_info', return_value={'motherboard': 'data'}):
 
-        # Verify
-        assert isinstance(result, HardwareInfo)
-        assert result.cpu == expected_cpu_info
-        mock_cpu_analyzer.get_cpu_info.assert_called_once()
+            result = analyzer.get_all_hardware_info()
 
-    @unit_test
-    def test_unimplemented_methods(self):
-        """Test that unimplemented methods return expected placeholders."""
-        # Test memory info
-        memory_info = self.analyzer.get_memory_info()
-        assert memory_info == {"memory": "Not implemented yet"}
+            from tinel.hardware import HardwareInfo as HardwareInfoFromSource
+            assert isinstance(result, HardwareInfoFromSource)
+            assert result.cpu == {"cpu": "data"}
+            assert result.memory == {"memory": "data"}
+            assert result.network == {"network": "data"}
+            assert result.graphics == {"graphics": "data"}
+            assert result.disks == {"disks": "data"}
+            assert result.motherboard == {"motherboard": "data"}
 
-        # Test storage info
-        storage_info = self.analyzer.get_storage_info()
-        assert storage_info == {"storage": "Not implemented yet"}
-
-        # Test PCI devices
-        pci_info = self.analyzer.get_pci_devices()
-        assert pci_info == {"pci_devices": "Not implemented yet"}
-
-        # Test USB devices
-        usb_info = self.analyzer.get_usb_devices()
-        assert usb_info == {"usb_devices": "Not implemented yet"}
-
-        # Test network info
-        network_info = self.analyzer.get_network_info()
-        assert network_info == {"network": "Not implemented yet"}
-
-        # Test graphics info
-        graphics_info = self.analyzer.get_graphics_info()
-        assert graphics_info == {"graphics": "Not implemented yet"}
+            mock_cpu_class.return_value.get_cpu_info.assert_called_once()
+            mock_memory_class.return_value.get_memory_info.assert_called_once()
+            mock_network_class.return_value.get_network_info.assert_called_once()
+            mock_graphics_class.return_value.get_graphics_info.assert_called_once()

@@ -20,6 +20,8 @@ import dataclasses
 from typing import Any, Dict
 
 from .cpu_analyzer import CPUAnalyzer
+from .network_analyzer import NetworkAnalyzer
+from .graphics_analyzer import GraphicsAnalyzer
 
 
 @dataclasses.dataclass
@@ -29,9 +31,9 @@ class HardwareInfo:
     cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
     memory: Dict[str, Any] = dataclasses.field(default_factory=dict)
     disks: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    gpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    graphics: Dict[str, Any] = dataclasses.field(default_factory=dict)
     network: Dict[str, Any] = dataclasses.field(default_factory=dict)
     motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
-__all__ = ["HardwareInfo", "CPUAnalyzer"]
+__all__ = ["HardwareInfo", "CPUAnalyzer", "NetworkAnalyzer", "GraphicsAnalyzer"]
