@@ -148,3 +148,12 @@ class TestGraphicsAnalyzer:
             info = analyzer.get_graphics_info()
             assert not info.get('gpus') # Should be empty as all tools fail
             assert mock_logger.warning.called
+
+    def test_get_amd_info_placeholder(self, analyzer, mock_si):
+        """Test the placeholder implementation of _get_amd_info."""
+        with patch.object(analyzer, 'logger') as mock_logger:
+            mock_si.run_command.return_value = CommandResult(True, "some rocm output", "", 0)
+            gpus = analyzer._get_amd_info()
+            assert gpus is not None
+            assert gpus[0]['model'] == 'AMD GPU (rocm-smi placeholder)'
+            mock_logger.info.assert_called_with("rocm-smi parsing is not yet implemented.")

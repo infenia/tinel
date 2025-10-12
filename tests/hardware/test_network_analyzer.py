@@ -226,3 +226,46 @@ class TestNetworkAnalyzer:
             assert info['driver_info'][0]['driver'] == 'e1000e'
             assert 'ip_link_error' in info  # ip -s link failed
             assert mock_logger.info.called
+
+    def test_get_detailed_network_info_ls_fails(self, analyzer, mock_si):
+        """Test that a failure to list /sys/class/net is handled."""
+        with patch.object(analyzer, 'logger') as mock_logger:
+            mock_si.run_command.return_value = CommandResult(False, "", "Permission denied", 1)
+            info = analyzer._get_detailed_network_info()
+            assert 'detailed_interfaces' not in info
+            mock_logger.warning.assert_called_with("Failed to list network interfaces in /sys/class/net/")
+
+    def test_parse_ip_addr_empty_output(self, analyzer):
+        """Test parsing of empty 'ip addr' output."""
+        parsed = analyzer._parse_ip_addr_output("")
+        assert parsed == []
+
+    def test_parse_ip_link_malformed_output(self, analyzer):
+        """Test parsing of malformed 'ip -s link' output."""
+        malformed_output = "1: lo: <LOOPBACK>\n  something unexpected"
+        parsed = analyzer._parse_ip_link_output(malformed_output)
+        assert 'interface_statistics' in parsed
+        assert 'lo' in parsed['interface_statistics']
+        assert 'rx' not in parsed['interface_statistics']['lo']
+
+    def test_get_wireless_info_no_tools(self, analyzer, mock_si):
+        """Test wireless info gathering when iwconfig and iw fail."""
+        with patch.object(analyzer, 'logger') as mock_logger:
+            mock_si.run_command.return_value = CommandResult(False, "", "not found", 1)
+            info = analyzer._get_wireless_info()
+            assert info == {}
+            assert mock_logger.info.call_count == 2
+
+    def test_get_performance_metrics_no_tools(self, analyzer, mock_si):
+        """Test performance metrics gathering when netstat and ethtool fail."""
+        with patch.object(analyzer, 'logger') as mock_logger:
+            mock_si.run_command.return_value = CommandResult(False, "", "not found", 1)
+            # Need to mock ls for the ethtool loop
+            mock_si.run_command.side_effect = lambda cmd: {
+                ('ls', '/sys/class/net/'): CommandResult(True, "eth0", "", 0)
+            }.get(tuple(cmd), CommandResult(False, "", "not found", 1))
+
+            info = analyzer._get_performance_metrics()
+            assert 'ethtool_statistics' not in info
+            assert 'netstat' not in info
+            assert mock_logger.info.called

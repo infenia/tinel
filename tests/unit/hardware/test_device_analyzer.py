@@ -94,3 +94,13 @@ class TestDeviceAnalyzer:
             mock_memory_class.return_value.get_memory_info.assert_called_once()
             mock_network_class.return_value.get_network_info.assert_called_once()
             mock_graphics_class.return_value.get_graphics_info.assert_called_once()
+
+    @unit_test
+    def test_unimplemented_methods_return_placeholders(self, mock_system_interface):
+        """Test that unimplemented methods return the correct placeholder."""
+        analyzer = DeviceAnalyzer(system_interface=mock_system_interface)
+        storage_info = analyzer.get_storage_info()
+        motherboard_info = analyzer.get_motherboard_info()
+
+        assert storage_info == {"storage": "Not implemented yet"}
+        assert motherboard_info == {"motherboard": "Not implemented yet"}
