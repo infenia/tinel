@@ -199,4 +199,3 @@ class TestDeviceAnalyzer:
         # Verify
         assert result == expected_graphics_info
         mock_graphics_analyzer.get_graphics_info.assert_called_once()
-

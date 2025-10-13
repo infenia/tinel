@@ -915,7 +915,7 @@ wlan0     IEEE 802.11
         ]
         info = analyzer._get_driver_info()
         assert "driver_info" not in info
-        
+
     def test_get_interface_details_no_stats(self, analyzer, mock_si):
         """Test _get_interface_details when ls on statistics path fails."""
         def read_sys_file_mock(file):
@@ -931,7 +931,7 @@ wlan0     IEEE 802.11
         ip_addr_output = "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel group default qlen 1000"
         parsed = analyzer._parse_ip_addr_output(ip_addr_output)
         assert "state" not in parsed[0]
-        
+
     def test_get_basic_network_info_ip_link_fail_no_stderr(self, analyzer, mock_si):
         """Test _get_basic_network_info with ip link failure and no stderr."""
         mock_si.run_command.side_effect = [

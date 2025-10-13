@@ -13,6 +13,8 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+import logging
+import sys
 
 """Tinel is a powerful and extensible command-line tool for Linux systems
 that provides detailed information about hardware components. It gathers data
@@ -22,6 +24,13 @@ user-friendly format.
 
 from .interfaces import (
     HardwareInfo,
+)
+
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
+    stream=sys.stdout,
 )
 
 __version__ = "0.1.0"

@@ -7,7 +7,7 @@ across multiple Python versions.
 import nox
 
 # Python versions to test against
-PYTHON_VERSIONS = ["3.11", "3.12", "3.13"]
+PYTHON_VERSIONS = ["3.11", "3.12", "3.13", "3.14"]
 DEFAULT_PYTHON = "3.12"
 
 

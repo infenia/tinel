@@ -112,7 +112,6 @@ class GraphicsAnalyzer:
             "--format=csv,noheader,nounits",
         ]
         result = self.system.run_command(command)
-
         if not result.success:
             self.logger.info("'nvidia-smi' command failed or not found.")
             return None
@@ -159,7 +158,6 @@ class GraphicsAnalyzer:
         result = self.system.run_command(
             ["rocm-smi", "--showallinfo"]
         )  # A bit generic for a placeholder
-
         if not result.success:
             self.logger.info("'rocm-smi' command failed or not found.")
             return None
@@ -190,7 +188,6 @@ class GraphicsAnalyzer:
             found by `lspci`, or None if the command fails.
         """
         result = self.system.run_command(["lspci", "-vnn"])
-
         if not result.success:
             self.logger.warning("'lspci' command failed or not found.")
             return None
