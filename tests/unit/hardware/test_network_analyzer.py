@@ -518,7 +518,9 @@ wlan0     IEEE 802.11
 
     def test_parse_ip_addr_no_state_match(self, analyzer):
         """Test ip addr parsing where state is not in the expected format."""
-        ip_addr_no_state = "1: lo: <LOOPBACK,UP> mtu 65536\n    link/loopback 00:00:00:00:00:00"
+        ip_addr_no_state = (
+            "1: lo: <LOOPBACK,UP> mtu 65536\n    link/loopback 00:00:00:00:00:00"
+        )
         parsed = analyzer._parse_ip_addr_output(ip_addr_no_state)
         assert len(parsed) == 1
         assert parsed[0]["name"] == "lo"
@@ -631,7 +633,9 @@ wlan0     IEEE 802.11
 
     def test_parse_ip_link_incomplete_rx_values(self, analyzer):
         """Test _parse_ip_link_output with incomplete RX statistics."""
-        incomplete_rx = "1: eth0: <BROADCAST>\n    RX: bytes  packets  errors\n    12345 100"
+        incomplete_rx = (
+            "1: eth0: <BROADCAST>\n    RX: bytes  packets  errors\n    12345 100"
+        )
         parsed = analyzer._parse_ip_link_output(incomplete_rx)
         # RX stats should not be added since len(values) < 6
         assert "rx" not in parsed["interface_statistics"].get("eth0", {})
@@ -883,7 +887,7 @@ wlan0     IEEE 802.11
         mock_si.run_command.side_effect = [
             CommandResult(True, "eth0", "", 0),
             CommandResult(True, "driver: mydriver", "", 0),
-            CommandResult(True, "", "", 0), # modinfo returns empty
+            CommandResult(True, "", "", 0),  # modinfo returns empty
         ]
         with patch.object(analyzer, "_get_driver_details", return_value={}):
             info = analyzer._get_driver_info()
@@ -898,10 +902,12 @@ wlan0     IEEE 802.11
 
     def test_get_interface_details_unknown_type(self, analyzer, mock_si):
         """Test _get_interface_details with an unknown interface type."""
+
         def read_file_side_effect(path):
             if path.endswith("/type"):
                 return "999"
             return None
+
         mock_si.read_file.side_effect = read_file_side_effect
         mock_si.run_command.return_value = CommandResult(False, "", "", 1)
         details = analyzer._get_interface_details("eth0")
@@ -915,14 +921,17 @@ wlan0     IEEE 802.11
         ]
         info = analyzer._get_driver_info()
         assert "driver_info" not in info
-        
+
     def test_get_interface_details_no_stats(self, analyzer, mock_si):
         """Test _get_interface_details when ls on statistics path fails."""
+
         def read_sys_file_mock(file):
             return None
 
-        with patch.object(analyzer.system, 'read_file', side_effect=read_sys_file_mock):
-            analyzer.system.run_command.return_value = CommandResult(success=False, stdout="", stderr="error", returncode=1)
+        with patch.object(analyzer.system, "read_file", side_effect=read_sys_file_mock):
+            analyzer.system.run_command.return_value = CommandResult(
+                success=False, stdout="", stderr="error", returncode=1
+            )
             interface_info = analyzer._get_interface_details("eth0")
             assert "statistics" not in interface_info
 
@@ -931,7 +940,7 @@ wlan0     IEEE 802.11
         ip_addr_output = "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel group default qlen 1000"
         parsed = analyzer._parse_ip_addr_output(ip_addr_output)
         assert "state" not in parsed[0]
-        
+
     def test_get_basic_network_info_ip_link_fail_no_stderr(self, analyzer, mock_si):
         """Test _get_basic_network_info with ip link failure and no stderr."""
         mock_si.run_command.side_effect = [
@@ -951,13 +960,14 @@ wlan0     IEEE 802.11
 
     def test_get_driver_info_driver_found_no_details(self, analyzer, mock_si):
         """Test _get_driver_info when a driver is found but modinfo returns no details."""
+
         def command_side_effect(cmd):
             if cmd == ["ls", "/sys/class/net/"]:
                 return CommandResult(True, "eth0", "", 0)
             if cmd == ["ethtool", "-i", "eth0"]:
                 return CommandResult(True, "driver: a_driver", "", 0)
             if cmd == ["modinfo", "a_driver"]:
-                return CommandResult(True, "", "", 0) # Empty output from modinfo
+                return CommandResult(True, "", "", 0)  # Empty output from modinfo
             return CommandResult(False, "", "", 1)
 
         mock_si.run_command.side_effect = command_side_effect
