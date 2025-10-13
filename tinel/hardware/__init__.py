@@ -18,25 +18,20 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import dataclasses
-from typing import Any, Dict
-
 from .cpu_analyzer import CPUAnalyzer
+from .graphics_analyzer import GraphicsAnalyzer
 from .memory_analyzer import MemoryAnalyzer
+from .models import HardwareInfo, PCIInfo, USBInfo
+from .network_analyzer import NetworkAnalyzer
 from .storage_analyzer import StorageAnalyzer
 
-
-@dataclasses.dataclass
-class HardwareInfo:
-    """A dataclass to store hardware information."""
-
-    cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    memory: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    storage: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    disks: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    gpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    network: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
-
-
-__all__ = ["HardwareInfo", "CPUAnalyzer", "MemoryAnalyzer", "StorageAnalyzer"]
+__all__ = [
+    "HardwareInfo",
+    "CPUAnalyzer",
+    "NetworkAnalyzer",
+    "GraphicsAnalyzer",
+    "MemoryAnalyzer",
+    "StorageAnalyzer",
+    "PCIInfo",
+    "USBInfo",
+]
