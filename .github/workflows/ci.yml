@@ -44,7 +44,6 @@ jobs:
       fail-fast: false
       matrix:
         python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12", "3.13", "3.14"]') }}
-
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@v2
