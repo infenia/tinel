@@ -101,7 +101,7 @@ class NetworkAnalyzer:
                     continue
 
                 interface_info = self._get_interface_details(interface_name)
-                if interface_info:  # pragma: no branch
+                if interface_info:
                     interfaces.append(interface_info)
         else:
             self.logger.warning("Failed to list network interfaces in /sys/class/net/")
@@ -122,7 +122,7 @@ class NetworkAnalyzer:
             info["wireless_interfaces"] = self._parse_iwconfig_output(
                 iwconfig_result.stdout
             )
-        elif not iwconfig_result.success:  # pragma: no branch
+        elif not iwconfig_result.success:
             self.logger.info(
                 "'iwconfig' command not found or failed, skipping wireless info."
             )
@@ -132,7 +132,7 @@ class NetworkAnalyzer:
         if iw_result.success:
             info["iw_list"] = iw_result.stdout
             info["wireless_capabilities"] = self._parse_iw_list_output(iw_result.stdout)
-        elif not iw_result.success:  # pragma: no branch
+        elif not iw_result.success:
             self.logger.info(
                 "'iw' command not found or failed, skipping detailed wireless info."
             )
@@ -154,14 +154,14 @@ class NetworkAnalyzer:
                     continue
 
                 driver = self._get_interface_driver(interface_name)
-                if driver:  # pragma: no branch
+                if driver:
                     driver_details = self._get_driver_details(driver)
                     driver_entry = {"interface": interface_name, "driver": driver}
                     if driver_details:
                         driver_entry["driver_details"] = driver_details
                     driver_info.append(driver_entry)
 
-        if driver_info:  # pragma: no branch
+        if driver_info:
             info["driver_info"] = driver_info
 
         return info
@@ -188,14 +188,14 @@ class NetworkAnalyzer:
             interface_names = ls_result.stdout.strip().split()
             ethtool_stats = {}
 
-            for interface_name in interface_names:  # pragma: no branch
+            for interface_name in interface_names:
                 if interface_name == "lo":
                     continue
 
                 ethtool_result = self.system.run_command(
                     ["ethtool", "-S", interface_name]
                 )
-                if ethtool_result.success:  # pragma: no branch
+                if ethtool_result.success:
                     ethtool_stats[interface_name] = self._parse_ethtool_output(
                         ethtool_result.stdout
                     )
@@ -204,7 +204,7 @@ class NetworkAnalyzer:
                         "Could not get ethtool stats for %s.", interface_name
                     )
 
-            if ethtool_stats:  # pragma: no branch
+            if ethtool_stats:
                 info["ethtool_statistics"] = ethtool_stats
 
         return info
