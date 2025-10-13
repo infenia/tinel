@@ -5,8 +5,8 @@ on:
     workflows: ["Enhanced CI/CD Pipeline", "Enhanced Security Pipeline", "Code Quality"]
     types: [completed, requested]
   schedule:
-    # Health check every 6 hours
-    - cron: '0 */6 * * *'
+    # Health check every 24 hours
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 env:
@@ -35,7 +35,7 @@ jobs:
       uses: actions/checkout@v5
 
     - name: Monitor workflow health
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           console.log('🔍 Starting workflow health check...');
@@ -123,7 +123,7 @@ jobs:
 
     - name: Alert on workflow degradation
       if: steps.workflow-health-check.outputs.needs_attention == 'true'
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const successRate = '${{ steps.workflow-health-check.outputs.success_rate }}';
@@ -182,7 +182,7 @@ jobs:
         egress-policy: audit
 
     - name: Analyze failure patterns
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           const workflowRun = context.payload.workflow_run;
@@ -273,7 +273,7 @@ jobs:
 
     - name: Auto-retry transient failures
       if: contains(github.event.workflow_run.name, 'CI/CD') && github.event.workflow_run.run_attempt < 3
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           // Retry the workflow if it looks like a transient failure
@@ -312,7 +312,7 @@ jobs:
             "text": "🚨 Tinel CI/CD Alert",
             "attachments": [
               {
-                "color": "${{ job.status == 'success' && needs.workflow-health-check.outputs.needs_attention != 'true' ? 'good' : 'danger' }}",
+                "color": "${{ (job.status == 'success' && needs.workflow-health-check.outputs.needs_attention != 'true') && 'good' || 'danger' }}",
                 "fields": [
                   {
                     "title": "Repository",
@@ -326,7 +326,7 @@ jobs:
                   },
                   {
                     "title": "Action Required",
-                    "value": "${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'Yes - Check GitHub for details' || 'No' }}",
+                    "value": "${{ (needs.workflow-health-check.outputs.needs_attention == 'true') && 'Yes - Check GitHub for details' || 'No' }}",
                     "short": true
                   }
                 ],
@@ -354,7 +354,7 @@ jobs:
           **Action Required**: ${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'Yes' || 'No' }}
           
           [View Workflows](${{ github.server_url }}/${{ github.repository }}/actions)
-        theme_color: "${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'FF0000' || '00FF00' }}"
+        theme_color: "${{ (needs.workflow-health-check.outputs.needs_attention == 'true') && 'FF0000' || '00FF00' }}"
 
   metrics-collection:
     name: Metrics Collection
@@ -368,7 +368,7 @@ jobs:
         egress-policy: audit
 
     - name: Collect workflow metrics
-      uses: actions/github-script@v7
+      uses: actions/github-script@v8
       with:
         script: |
           console.log('📊 Collecting workflow metrics...');
