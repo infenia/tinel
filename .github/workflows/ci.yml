@@ -206,10 +206,8 @@ jobs:
 
         # Build package
         uv run python -m build --wheel --sdist
-
         # Verify package
         uv run python -m twine check dist/*
-
         # Test installation in isolated environment
         python -m venv test-env
         source test-env/bin/activate
