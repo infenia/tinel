@@ -23,7 +23,9 @@ from .graphics_analyzer import GraphicsAnalyzer
 from .memory_analyzer import MemoryAnalyzer
 from .models import HardwareInfo, PCIInfo, USBInfo
 from .network_analyzer import NetworkAnalyzer
+from .pci_analyzer import PCIAnalyzer
 from .storage_analyzer import StorageAnalyzer
+from .usb_analyzer import USBAnalyzer
 
 __all__ = [
     "HardwareInfo",
@@ -32,8 +34,11 @@ __all__ = [
     "GraphicsAnalyzer",
     "MemoryAnalyzer",
     "StorageAnalyzer",
+    "PCIAnalyzer",
+    "USBAnalyzer",
     "PCIInfo",
     "USBInfo",
+    "get_all_hardware_info",
 ]
 
 

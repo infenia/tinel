@@ -115,9 +115,7 @@ class NetworkAnalyzer:
             info["ip_link"] = ip_link_result.stdout
             info.update(self._parse_ip_link_output(ip_link_result.stdout))
         else:
-            self.logger.warning(
-                "Failed to run 'ip -s link': %s", ip_link_result.stderr
-            )
+            self.logger.warning("Failed to run 'ip -s link': %s", ip_link_result.stderr)
             info["ip_link_error"] = ip_link_result.stderr or "Failed to run ip -s link"
 
         return info
@@ -183,7 +181,7 @@ class NetworkAnalyzer:
         if iw_result.success:
             info["iw_list"] = iw_result.stdout
             info["wireless_capabilities"] = self._parse_iw_list_output(iw_result.stdout)
-        elif not iw_result.success:  # pragma: no branch
+        elif not iw_result.success: # pragma: no branch
             self.logger.info(
                 "'iw' command not found or failed, skipping detailed wireless info."
             )
@@ -257,6 +255,7 @@ class NetworkAnalyzer:
             for interface_name in interface_names:
                 if interface_name == "lo":
                     continue
+
                 ethtool_result = self.system.run_command(
                     ["ethtool", "-S", interface_name]
                 )

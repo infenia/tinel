@@ -23,7 +23,6 @@ The analyzer uses a combination of system files, commands, and the `psutil`
 library to provide a complete picture of the CPU's capabilities and status.
 """
 
-import logging
 import re
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
@@ -32,8 +31,6 @@ import psutil
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
-
-logger = logging.getLogger(__name__)
 
 
 class CPUAnalyzer:
@@ -57,7 +54,6 @@ class CPUAnalyzer:
                               interactions.
         """
         self.system = system_interface or LinuxSystemInterface()
-        self.logger = logging.getLogger(__name__)
         self._cache: Dict[str, Tuple[Any, float]] = {}
         self._cache_ttl = 60  # Cache for 60 seconds
 
@@ -280,10 +276,7 @@ class CPUAnalyzer:
         # Get number of CPUs
         nproc_result = self.system.run_command(["nproc"])
         if nproc_result.success:
-            try:
-                info["logical_cpus"] = int(nproc_result.stdout)
-            except (ValueError, TypeError) as e:
-                logger.warning("Failed to determine logical CPUs from nproc: %s", e)
+            info["logical_cpus"] = int(nproc_result.stdout)
 
         # Get physical CPU count
         physical_cpus = self.system.read_file(

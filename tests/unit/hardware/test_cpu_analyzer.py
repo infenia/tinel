@@ -427,24 +427,6 @@ class TestCPUAnalyzer:
 
     @unit_test
     @patch("tinel.hardware.cpu_analyzer.psutil")
-    def test_get_topology_info_malformed_nproc(self, mock_psutil):
-        """Test _get_topology_info when nproc returns non-integer output."""
-        self.mock_system.run_command.return_value = CommandResult(
-            success=True, stdout="not-a-number", stderr="", returncode=0
-        )
-        self.mock_system.read_file.return_value = None
-        mock_psutil.cpu_count.side_effect = Exception("psutil failed")
-
-        with patch.object(self.analyzer.logger, "warning") as mock_warning:
-            topology_info = self.analyzer._get_topology_info()
-            mock_warning.assert_called_once()
-            assert "Failed to determine logical CPUs" in mock_warning.call_args[0][0]
-
-        # Should not contain logical_cpus
-        assert "logical_cpus" not in topology_info
-
-    @unit_test
-    @patch("tinel.hardware.cpu_analyzer.psutil")
     def test_get_topology_info_missing_files(self, mock_psutil):
         """Test _get_topology_info when files are missing."""
         self.mock_system.run_command.return_value = Mock(

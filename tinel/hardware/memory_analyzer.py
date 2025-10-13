@@ -23,7 +23,6 @@ for high-level memory statistics and `dmidecode` for detailed information
 about physical memory devices.
 """
 
-import logging
 import re
 from typing import Any, Dict, List, Optional
 
@@ -31,8 +30,6 @@ import psutil
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
-
-logger = logging.getLogger(__name__)
 
 
 class MemoryAnalyzer:
@@ -116,7 +113,6 @@ class MemoryAnalyzer:
         try:
             return self._parse_dmidecode_output(result.stdout)
         except Exception as e:
-            logger.warning("Failed to parse dmidecode output: %s", e)
             return {"dmidecode_parse_error": str(e)}
 
     def _parse_dmidecode_output(self, output: str) -> Dict[str, Any]:
