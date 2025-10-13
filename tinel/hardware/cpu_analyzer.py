@@ -38,6 +38,7 @@ class CPUAnalyzer:
             system_interface: System interface for command execution
         """
         self.system = system_interface or LinuxSystemInterface()
+        self.logger = logging.getLogger(__name__)
         self._cache: Dict[str, Tuple[Any, float]] = {}
         self._cache_ttl = 60  # Cache for 60 seconds
 
