@@ -14,14 +14,15 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 # -*- coding: utf-8 -*-
 """Hardware information module for Tinel."""
 import dataclasses
 from typing import Any, Dict
 
 from .cpu_analyzer import CPUAnalyzer
-from .network_analyzer import NetworkAnalyzer
 from .graphics_analyzer import GraphicsAnalyzer
+from .network_analyzer import NetworkAnalyzer
 
 
 @dataclasses.dataclass

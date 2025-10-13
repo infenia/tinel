@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 from tests.utils import unit_test
 from tinel.hardware.device_analyzer import DeviceAnalyzer
-from tinel.interfaces import HardwareInfo, SystemInterface
+from tinel.interfaces import SystemInterface
 
 
 class TestDeviceAnalyzer:
@@ -65,23 +65,33 @@ class TestDeviceAnalyzer:
     @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
     @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
     @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
-    def test_get_all_hardware_info(self, mock_graphics_class, mock_network_class, mock_memory_class, mock_cpu_class):
+    def test_get_all_hardware_info(
+        self, mock_graphics_class, mock_network_class, mock_memory_class, mock_cpu_class
+    ):
         """Test the aggregation of all hardware information."""
         # Setup mocks for each analyzer's get_info method
         mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
         mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
-        mock_network_class.return_value.get_network_info.return_value = {"network": "data"}
-        mock_graphics_class.return_value.get_graphics_info.return_value = {"graphics": "data"}
+        mock_network_class.return_value.get_network_info.return_value = {
+            "network": "data"
+        }
+        mock_graphics_class.return_value.get_graphics_info.return_value = {
+            "graphics": "data"
+        }
 
         analyzer = DeviceAnalyzer(self.mock_system)
 
         # Mock the other info methods that are not yet implemented
-        with patch.object(analyzer, 'get_storage_info', return_value={'disks': 'data'}), \
-             patch.object(analyzer, 'get_motherboard_info', return_value={'motherboard': 'data'}):
-
+        with (
+            patch.object(analyzer, "get_storage_info", return_value={"disks": "data"}),
+            patch.object(
+                analyzer, "get_motherboard_info", return_value={"motherboard": "data"}
+            ),
+        ):
             result = analyzer.get_all_hardware_info()
 
             from tinel.hardware import HardwareInfo as HardwareInfoFromSource
+
             assert isinstance(result, HardwareInfoFromSource)
             assert result.cpu == {"cpu": "data"}
             assert result.memory == {"memory": "data"}

@@ -15,8 +15,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import pytest
 from unittest.mock import MagicMock, patch
+
+import pytest
+
 from tinel.hardware.graphics_analyzer import GraphicsAnalyzer
 from tinel.interfaces import CommandResult
 
@@ -65,95 +67,126 @@ def analyzer(mock_si):
 
 
 class TestGraphicsAnalyzer:
-
     def test_get_graphics_info_caching(self, analyzer, mock_si):
         """Test that the main get_graphics_info method caches results."""
         # Provide valid nvidia-smi output so it succeeds on the first try
-        mock_si.run_command.return_value = CommandResult(True, MOCK_NVIDIA_SMI_OUTPUT, "", 0)
+        mock_si.run_command.return_value = CommandResult(
+            True, MOCK_NVIDIA_SMI_OUTPUT, "", 0
+        )
         analyzer.get_graphics_info()
         analyzer.get_graphics_info()
         # The underlying command should only be called once due to caching
-        mock_si.run_command.assert_called_once_with([
-            'nvidia-smi',
-            '--query-gpu=index,name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu',
-            '--format=csv,noheader,nounits'
-        ])
+        mock_si.run_command.assert_called_once_with(
+            [
+                "nvidia-smi",
+                "--query-gpu=index,name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu",
+                "--format=csv,noheader,nounits",
+            ]
+        )
 
     def test_nvidia_smi_success(self, analyzer, mock_si):
         """Test successful parsing of nvidia-smi output."""
-        mock_si.run_command.return_value = CommandResult(True, MOCK_NVIDIA_SMI_OUTPUT, "", 0)
+        mock_si.run_command.return_value = CommandResult(
+            True, MOCK_NVIDIA_SMI_OUTPUT, "", 0
+        )
         info = analyzer.get_graphics_info()
 
-        assert info['source'] == 'nvidia-smi'
-        assert len(info['gpus']) == 2
-        assert info['gpus'][0]['model'] == 'NVIDIA GeForce RTX 3080'
-        assert info['gpus'][0]['memory_total_mb'] == 10240
-        assert info['gpus'][0]['utilization_percent'] == 50
-        assert info['gpus'][1]['temperature_celsius'] == 75
+        assert info["source"] == "nvidia-smi"
+        assert len(info["gpus"]) == 2
+        assert info["gpus"][0]["model"] == "NVIDIA GeForce RTX 3080"
+        assert info["gpus"][0]["memory_total_mb"] == 10240
+        assert info["gpus"][0]["utilization_percent"] == 50
+        assert info["gpus"][1]["temperature_celsius"] == 75
 
     def test_rocm_smi_fallback(self, analyzer, mock_si):
         """Test fallback to rocm-smi when nvidia-smi fails."""
         # This test currently only checks the placeholder implementation
         mock_si.run_command.side_effect = [
             CommandResult(False, "", "not found", 1),  # nvidia-smi fails
-            CommandResult(True, "some rocm output", "", 0)   # rocm-smi succeeds
+            CommandResult(True, "some rocm output", "", 0),  # rocm-smi succeeds
         ]
         info = analyzer.get_graphics_info()
-        assert info['source'] == 'rocm-smi'
-        assert info['gpus'][0]['model'] == 'AMD GPU (rocm-smi placeholder)'
+        assert info["source"] == "rocm-smi"
+        assert info["gpus"][0]["model"] == "AMD GPU (rocm-smi placeholder)"
 
     def test_lspci_fallback(self, analyzer, mock_si):
         """Test fallback to lspci when both nvidia-smi and rocm-smi fail."""
         mock_si.run_command.side_effect = [
             CommandResult(False, "", "not found", 1),  # nvidia-smi fails
             CommandResult(False, "", "not found", 1),  # rocm-smi fails
-            CommandResult(True, MOCK_LSPCI_OUTPUT, "", 0)      # lspci succeeds
+            CommandResult(True, MOCK_LSPCI_OUTPUT, "", 0),  # lspci succeeds
         ]
         info = analyzer.get_graphics_info()
-        assert info['source'] == 'lspci'
-        assert len(info['gpus']) == 2
-        assert 'Intel Corporation HD Graphics 530' in info['gpus'][0]['model']
-        assert info['gpus'][0]['vendor_id'] == '8086'
-        assert 'NVIDIA Corporation GP107' in info['gpus'][1]['model']
-        assert info['gpus'][1]['device_id'] == '1c82'
-        assert 'kernel_driver_in_use' in info['gpus'][1]['details']
+        assert info["source"] == "lspci"
+        assert len(info["gpus"]) == 2
+        assert "Intel Corporation HD Graphics 530" in info["gpus"][0]["model"]
+        assert info["gpus"][0]["vendor_id"] == "8086"
+        assert "NVIDIA Corporation GP107" in info["gpus"][1]["model"]
+        assert info["gpus"][1]["device_id"] == "1c82"
+        assert "kernel_driver_in_use" in info["gpus"][1]["details"]
 
     def test_all_tools_fail(self, analyzer, mock_si):
         """Test the case where all underlying commands fail."""
-        with patch.object(analyzer, 'logger') as mock_logger:
+        with patch.object(analyzer, "logger") as mock_logger:
             mock_si.run_command.return_value = CommandResult(False, "", "error", 1)
             info = analyzer.get_graphics_info()
-            assert 'gpus' not in info
-            assert 'source' not in info
+            assert "gpus" not in info
+            assert "source" not in info
             assert mock_logger.warning.called
 
     def test_parse_lspci_output_no_vga(self, analyzer):
         """Test lspci output that contains no VGA devices."""
         output = "00:00.0 Host bridge: Intel Corporation Sky Lake Host Bridge/DRAM Registers (rev 07)"
         # This is an integration-style test of a private method.
-        with patch.object(analyzer, 'system') as mock_system:
+        with patch.object(analyzer, "system") as mock_system:
             mock_system.run_command.return_value = CommandResult(True, output, "", 0)
             gpus = analyzer._get_lspci_info()
             assert gpus is None
 
     def test_parse_nvidia_smi_malformed_line(self, analyzer, mock_si):
         """Test that malformed lines in nvidia-smi output are skipped and fallback fails."""
-        with patch.object(analyzer, 'logger') as mock_logger:
-            malformed_output = "0, GPU, 510, 10240, 2048, 8192, 50\n" # Missing one field
+        with patch.object(analyzer, "logger") as mock_logger:
+            malformed_output = (
+                "0, GPU, 510, 10240, 2048, 8192, 50\n"  # Missing one field
+            )
             mock_si.run_command.side_effect = [
-                CommandResult(True, malformed_output, "", 0),  # nvidia-smi with bad data
-                CommandResult(False, "", "not found", 1),      # rocm-smi fails
-                CommandResult(False, "", "not found", 1)       # lspci fails
+                CommandResult(
+                    True, malformed_output, "", 0
+                ),  # nvidia-smi with bad data
+                CommandResult(False, "", "not found", 1),  # rocm-smi fails
+                CommandResult(False, "", "not found", 1),  # lspci fails
             ]
             info = analyzer.get_graphics_info()
-            assert not info.get('gpus') # Should be empty as all tools fail
+            assert not info.get("gpus")  # Should be empty as all tools fail
             assert mock_logger.warning.called
+
+    def test_nvidia_smi_with_non_numeric_values(self, analyzer, mock_si):
+        """Test nvidia-smi parsing with non-numeric values that trigger ValueError."""
+        with patch.object(analyzer, "logger") as mock_logger:
+            # Mix of good and bad lines - one with non-numeric memory value
+            mixed_output = "0, NVIDIA GeForce RTX 3080, 510.47.03, abc, 2048, 8192, 50, 65\n1, NVIDIA RTX 3090, 510.47.03, 24576, 4096, 20480, 30, 60"
+            mock_si.run_command.return_value = CommandResult(True, mixed_output, "", 0)
+            info = analyzer.get_graphics_info()
+            # Should successfully parse the second GPU and log warning for the first
+            assert info["source"] == "nvidia-smi"
+            assert len(info["gpus"]) == 1  # Only the valid line
+            assert info["gpus"][0]["model"] == "NVIDIA RTX 3090"
+            # Verify that the warning was logged for the malformed line
+            mock_logger.warning.assert_called_once()
+            assert (
+                "Failed to parse nvidia-smi output line"
+                in mock_logger.warning.call_args[0][0]
+            )
 
     def test_get_amd_info_placeholder(self, analyzer, mock_si):
         """Test the placeholder implementation of _get_amd_info."""
-        with patch.object(analyzer, 'logger') as mock_logger:
-            mock_si.run_command.return_value = CommandResult(True, "some rocm output", "", 0)
+        with patch.object(analyzer, "logger") as mock_logger:
+            mock_si.run_command.return_value = CommandResult(
+                True, "some rocm output", "", 0
+            )
             gpus = analyzer._get_amd_info()
             assert gpus is not None
-            assert gpus[0]['model'] == 'AMD GPU (rocm-smi placeholder)'
-            mock_logger.info.assert_called_with("rocm-smi parsing is not yet implemented.")
+            assert gpus[0]["model"] == "AMD GPU (rocm-smi placeholder)"
+            mock_logger.info.assert_called_with(
+                "rocm-smi parsing is not yet implemented."
+            )

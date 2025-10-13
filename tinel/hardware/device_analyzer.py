@@ -18,12 +18,12 @@ limitations under the License.
 from typing import Any, Dict, Optional
 
 from ..interfaces import SystemInterface
-from . import HardwareInfo
 from ..system import LinuxSystemInterface
+from . import HardwareInfo
 from .cpu_analyzer import CPUAnalyzer
+from .graphics_analyzer import GraphicsAnalyzer
 from .memory_analyzer import MemoryAnalyzer
 from .network_analyzer import NetworkAnalyzer
-from .graphics_analyzer import GraphicsAnalyzer
 
 
 class DeviceAnalyzer:

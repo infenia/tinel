@@ -267,22 +267,42 @@ class TestDeviceAnalyzerIntegration:
     @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
     @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
     @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
-    def test_get_all_hardware_info(self, mock_graphics_class, mock_network_class, mock_memory_class, mock_cpu_class, sample_cpuinfo, sample_lscpu):
+    def test_get_all_hardware_info(
+        self,
+        mock_graphics_class,
+        mock_network_class,
+        mock_memory_class,
+        mock_cpu_class,
+        sample_cpuinfo,
+        sample_lscpu,
+    ):
         """Test getting all hardware information."""
         from tinel.hardware import HardwareInfo as RealHardwareInfo
+
         # Mock data from each analyzer
         mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
         mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
-        mock_network_class.return_value.get_network_info.return_value = {"network": "data"}
-        mock_graphics_class.return_value.get_graphics_info.return_value = {"graphics": "data"}
+        mock_network_class.return_value.get_network_info.return_value = {
+            "network": "data"
+        }
+        mock_graphics_class.return_value.get_graphics_info.return_value = {
+            "graphics": "data"
+        }
 
         # Instantiate DeviceAnalyzer *after* patches are applied
         device_analyzer = DeviceAnalyzer(self.mock_system)
 
         # Mock the other info methods that are not yet implemented
-        with patch.object(device_analyzer, 'get_storage_info', return_value={'disks': 'data'}), \
-             patch.object(device_analyzer, 'get_motherboard_info', return_value={'motherboard': 'data'}):
-
+        with (
+            patch.object(
+                device_analyzer, "get_storage_info", return_value={"disks": "data"}
+            ),
+            patch.object(
+                device_analyzer,
+                "get_motherboard_info",
+                return_value={"motherboard": "data"},
+            ),
+        ):
             hardware_info = device_analyzer.get_all_hardware_info()
 
             # Verify structure and data
