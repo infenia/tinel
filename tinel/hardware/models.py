@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Hardware information module for Tinel.
-
 Copyright 2025 Infenia Private Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -21,9 +18,19 @@ limitations under the License.
 import dataclasses
 from typing import Any, Dict
 
-from .cpu_analyzer import CPUAnalyzer
-from .memory_analyzer import MemoryAnalyzer
-from .storage_analyzer import StorageAnalyzer
+
+@dataclasses.dataclass
+class PCIInfo:
+    """A dataclass to store PCI device information."""
+
+    devices: list = dataclasses.field(default_factory=list)
+
+
+@dataclasses.dataclass
+class USBInfo:
+    """A dataclass to store USB device information."""
+
+    tree: dict = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
@@ -33,10 +40,5 @@ class HardwareInfo:
     cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
     memory: Dict[str, Any] = dataclasses.field(default_factory=dict)
     storage: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    disks: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    gpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    network: Dict[str, Any] = dataclasses.field(default_factory=dict)
-    motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
-
-
-__all__ = ["HardwareInfo", "CPUAnalyzer", "MemoryAnalyzer", "StorageAnalyzer"]
+    pci: "PCIInfo" = dataclasses.field(default_factory=PCIInfo)
+    usb: "USBInfo" = dataclasses.field(default_factory=USBInfo)

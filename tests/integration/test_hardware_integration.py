@@ -18,7 +18,8 @@ from tinel.cli.commands.hardware import HardwareCommands
 from tinel.cli.error_handler import HardwareError
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.hardware.device_analyzer import DeviceAnalyzer
-from tinel.interfaces import CommandResult, HardwareInfo
+from tinel.hardware.models import HardwareInfo, PCIInfo, USBInfo
+from tinel.interfaces import CommandResult
 from tinel.tools.hardware_tools import AllHardwareToolProvider, CPUInfoToolProvider
 
 # Test constants
@@ -263,62 +264,39 @@ class TestDeviceAnalyzerIntegration:
         self.device_analyzer = DeviceAnalyzer(self.mock_system)
 
     @integration_test
-    @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
-    @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
-    @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
-    @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
-    def test_get_all_hardware_info(
-        self,
-        mock_graphics_class,
-        mock_network_class,
-        mock_memory_class,
-        mock_cpu_class,
-        sample_cpuinfo,
-        sample_lscpu,
-    ):
+    def test_get_all_hardware_info(self):
         """Test getting all hardware information."""
-        from tinel.hardware import HardwareInfo as RealHardwareInfo
+        # Mock data for all components
+        cpu_data = {"model_name": "Test CPU"}
+        pci_data = PCIInfo(devices=[{"slot": "00:00.0"}])
+        usb_data = USBInfo(tree={"bus": "01"})
+        mem_data = {"memory": "mocked"}
+        storage_data = {"storage": "mocked"}
 
-        # Mock data from each analyzer
-        mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
-        mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
-        mock_network_class.return_value.get_network_info.return_value = {
-            "network": "data"
-        }
-        mock_graphics_class.return_value.get_graphics_info.return_value = {
-            "graphics": "data"
-        }
-
-        # Instantiate DeviceAnalyzer *after* patches are applied
-        device_analyzer = DeviceAnalyzer(self.mock_system)
-
-        # Mock the other info methods that are not yet implemented
         with (
+            patch.object(self.device_analyzer, "get_cpu_info", return_value=cpu_data),
             patch.object(
-                device_analyzer, "get_storage_info", return_value={"disks": "data"}
+                self.device_analyzer, "get_pci_devices", return_value=pci_data
             ),
             patch.object(
-                device_analyzer,
-                "get_motherboard_info",
-                return_value={"motherboard": "data"},
+                self.device_analyzer, "get_usb_devices", return_value=usb_data
+            ),
+            patch.object(
+                self.device_analyzer, "get_memory_info", return_value=mem_data
+            ),
+            patch.object(
+                self.device_analyzer, "get_storage_info", return_value=storage_data
             ),
         ):
-            hardware_info = device_analyzer.get_all_hardware_info()
+            hardware_info = self.device_analyzer.get_all_hardware_info()
 
-            # Verify structure and data
-            assert isinstance(hardware_info, RealHardwareInfo)
-            assert hardware_info.cpu == {"cpu": "data"}
-            assert hardware_info.memory == {"memory": "data"}
-            assert hardware_info.network == {"network": "data"}
-            assert hardware_info.graphics == {"graphics": "data"}
-            assert hardware_info.disks == {"disks": "data"}
-            assert hardware_info.motherboard == {"motherboard": "data"}
-
-            # Verify that the mocked methods were called
-            mock_cpu_class.return_value.get_cpu_info.assert_called_once()
-            mock_memory_class.return_value.get_memory_info.assert_called_once()
-            mock_network_class.return_value.get_network_info.assert_called_once()
-            mock_graphics_class.return_value.get_graphics_info.assert_called_once()
+            # Verify structure and content
+            assert isinstance(hardware_info, HardwareInfo)
+            assert hardware_info.cpu == cpu_data
+            assert hardware_info.pci == pci_data
+            assert hardware_info.usb == usb_data
+            assert hardware_info.memory == mem_data
+            assert hardware_info.storage == storage_data
 
     @integration_test
     def test_cpu_info_delegation(self):
@@ -373,10 +351,8 @@ class TestHardwareToolsIntegration:
             cpu={"model": "Test CPU", "cores": 4},
             memory={"ram": "16GB"},
             storage={"ssd": "1TB"},
-            pci={"devices": []},
-            usb={"devices": []},
-            network={"adapters": []},
-            graphics={"gpu": "Test GPU"},
+            pci=PCIInfo(devices=[]),
+            usb=USBInfo(tree={}),
         )
 
         with patch.object(
@@ -386,19 +362,13 @@ class TestHardwareToolsIntegration:
         ):
             result = all_hw_tool.execute({})
 
-            expected_keys = [
-                "cpu",
-                "memory",
-                "storage",
-                "pci",
-                "usb",
-                "network",
-                "graphics",
-            ]
+            expected_keys = ["cpu", "memory", "storage", "pci", "usb"]
             for key in expected_keys:
                 assert key in result
             assert result["cpu"] == {"model": "Test CPU", "cores": 4}
             assert result["memory"] == {"ram": "16GB"}
+            assert result["pci"] == {"devices": []}
+            assert result["usb"] == {"tree": {}}
 
     @integration_test
     def test_tool_provider_metadata(self):
