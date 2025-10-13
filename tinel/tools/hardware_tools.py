@@ -22,6 +22,18 @@ from ..hardware.device_analyzer import DeviceAnalyzer
 from ..interfaces import SystemInterface
 from .base import BaseToolProvider
 
+
+def _to_dict(data: Any) -> Any:
+    """Recursively convert dataclasses to dictionaries."""
+    if is_dataclass(data):
+        return asdict(data)
+    if isinstance(data, list):
+        return [_to_dict(item) for item in data]
+    if isinstance(data, dict):
+        return {key: _to_dict(value) for key, value in data.items()}
+    return data
+
+
 """Hardware information tool providers."""
 
 
@@ -53,7 +65,7 @@ class AllHardwareToolProvider(HardwareToolProvider):
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get all hardware information."""
         hardware_info = self.device_analyzer.get_all_hardware_info()
-        return asdict(hardware_info)
+        return _to_dict(hardware_info)
 
 
 class CPUInfoToolProvider(HardwareToolProvider):
@@ -69,7 +81,8 @@ class CPUInfoToolProvider(HardwareToolProvider):
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get CPU information."""
-        return self.device_analyzer.get_cpu_info()
+        cpu_info = self.device_analyzer.get_cpu_info()
+        return _to_dict(cpu_info)
 
 
 class MemoryInfoToolProvider(HardwareToolProvider):
@@ -85,7 +98,8 @@ class MemoryInfoToolProvider(HardwareToolProvider):
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get memory information."""
-        return self.device_analyzer.get_memory_info()
+        memory_info = self.device_analyzer.get_memory_info()
+        return _to_dict(memory_info)
 
 
 class StorageInfoToolProvider(HardwareToolProvider):
@@ -100,7 +114,8 @@ class StorageInfoToolProvider(HardwareToolProvider):
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get storage information."""
-        return self.device_analyzer.get_storage_info()
+        storage_info = self.device_analyzer.get_storage_info()
+        return _to_dict(storage_info)
 
 
 class PCIDevicesToolProvider(HardwareToolProvider):
@@ -116,7 +131,7 @@ class PCIDevicesToolProvider(HardwareToolProvider):
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get PCI device information."""
         pci_info = self.device_analyzer.get_pci_devices()
-        return asdict(pci_info) if is_dataclass(pci_info) else pci_info
+        return _to_dict(pci_info)
 
 
 class USBDevicesToolProvider(HardwareToolProvider):
@@ -132,7 +147,7 @@ class USBDevicesToolProvider(HardwareToolProvider):
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get USB device information."""
         usb_info = self.device_analyzer.get_usb_devices()
-        return asdict(usb_info) if is_dataclass(usb_info) else usb_info
+        return _to_dict(usb_info)
 
 
 class NetworkInfoToolProvider(HardwareToolProvider):
@@ -147,7 +162,8 @@ class NetworkInfoToolProvider(HardwareToolProvider):
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get network information."""
-        return self.device_analyzer.get_network_info()
+        network_info = self.device_analyzer.get_network_info()
+        return _to_dict(network_info)
 
 
 class GraphicsInfoToolProvider(HardwareToolProvider):
@@ -162,4 +178,5 @@ class GraphicsInfoToolProvider(HardwareToolProvider):
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get graphics information."""
-        return self.device_analyzer.get_graphics_info()
+        graphics_info = self.device_analyzer.get_graphics_info()
+        return _to_dict(graphics_info)
