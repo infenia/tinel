@@ -132,7 +132,7 @@ class NetworkAnalyzer:
         if iw_result.success:
             info["iw_list"] = iw_result.stdout
             info["wireless_capabilities"] = self._parse_iw_list_output(iw_result.stdout)
-        elif not iw_result.success:
+        elif not iw_result.success: # pragma: no branch
             self.logger.info(
                 "'iw' command not found or failed, skipping detailed wireless info."
             )
