@@ -264,39 +264,70 @@ class TestDeviceAnalyzerIntegration:
         self.device_analyzer = DeviceAnalyzer(self.mock_system)
 
     @integration_test
-    def test_get_all_hardware_info(self):
+    @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
+    @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
+    @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
+    @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
+    @patch("tinel.hardware.device_analyzer.PCIAnalyzer")
+    @patch("tinel.hardware.device_analyzer.USBAnalyzer")
+    def test_get_all_hardware_info(
+        self,
+        mock_usb_class,
+        mock_pci_class,
+        mock_graphics_class,
+        mock_network_class,
+        mock_memory_class,
+        mock_cpu_class,
+    ):
         """Test getting all hardware information."""
-        # Mock data for all components
-        cpu_data = {"model_name": "Test CPU"}
-        pci_data = PCIInfo(devices=[{"slot": "00:00.0"}])
-        usb_data = USBInfo(tree={"bus": "01"})
-        mem_data = {"memory": "mocked"}
-        storage_data = {"storage": "mocked"}
+        from tinel.hardware import HardwareInfo as RealHardwareInfo
 
+        # Mock data from each analyzer
+        mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
+        mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
+        mock_network_class.return_value.get_network_info.return_value = {
+            "network": "data"
+        }
+        mock_graphics_class.return_value.get_graphics_info.return_value = {
+            "graphics": "data"
+        }
+        mock_pci_class.return_value.get_pci_info.return_value = {"pci": "data"}
+        mock_usb_class.return_value.get_usb_info.return_value = {"usb": "data"}
+
+        # Instantiate DeviceAnalyzer *after* patches are applied
+        device_analyzer = DeviceAnalyzer(self.mock_system)
+
+        # Mock the other info methods that are not yet implemented
         with (
-            patch.object(self.device_analyzer, "get_cpu_info", return_value=cpu_data),
             patch.object(
-                self.device_analyzer, "get_pci_devices", return_value=pci_data
+                device_analyzer, "get_storage_info", return_value={"disks": "data"}
             ),
             patch.object(
-                self.device_analyzer, "get_usb_devices", return_value=usb_data
-            ),
-            patch.object(
-                self.device_analyzer, "get_memory_info", return_value=mem_data
-            ),
-            patch.object(
-                self.device_analyzer, "get_storage_info", return_value=storage_data
+                device_analyzer,
+                "get_motherboard_info",
+                return_value={"motherboard": "data"},
             ),
         ):
-            hardware_info = self.device_analyzer.get_all_hardware_info()
+            hardware_info = device_analyzer.get_all_hardware_info()
 
-            # Verify structure and content
-            assert isinstance(hardware_info, HardwareInfo)
-            assert hardware_info.cpu == cpu_data
-            assert hardware_info.pci == pci_data
-            assert hardware_info.usb == usb_data
-            assert hardware_info.memory == mem_data
-            assert hardware_info.storage == storage_data
+            # Verify structure and data
+            assert isinstance(hardware_info, RealHardwareInfo)
+            assert hardware_info.cpu == {"cpu": "data"}
+            assert hardware_info.memory == {"memory": "data"}
+            assert hardware_info.network == {"network": "data"}
+            assert hardware_info.graphics == {"graphics": "data"}
+            assert hardware_info.storage == {"disks": "data"}
+            assert hardware_info.motherboard == {"motherboard": "data"}
+            assert hardware_info.pci == {"pci": "data"}
+            assert hardware_info.usb == {"usb": "data"}
+
+            # Verify that the mocked methods were called
+            mock_cpu_class.return_value.get_cpu_info.assert_called_once()
+            mock_memory_class.return_value.get_memory_info.assert_called_once()
+            mock_network_class.return_value.get_network_info.assert_called_once()
+            mock_graphics_class.return_value.get_graphics_info.assert_called_once()
+            mock_pci_class.return_value.get_pci_info.assert_called_once()
+            mock_usb_class.return_value.get_usb_info.assert_called_once()
 
     @integration_test
     def test_cpu_info_delegation(self):

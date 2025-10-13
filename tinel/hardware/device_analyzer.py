@@ -19,8 +19,11 @@ from typing import Any, Dict, Optional
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
+from . import HardwareInfo
 from .cpu_analyzer import CPUAnalyzer
-from .models import HardwareInfo, PCIInfo, USBInfo
+from .graphics_analyzer import GraphicsAnalyzer
+from .memory_analyzer import MemoryAnalyzer
+from .network_analyzer import NetworkAnalyzer
 from .pci_analyzer import PCIAnalyzer
 from .usb_analyzer import USBAnalyzer
 
@@ -36,6 +39,9 @@ class DeviceAnalyzer:
         """
         self.system = system_interface or LinuxSystemInterface()
         self.cpu_analyzer = CPUAnalyzer(self.system)
+        self.memory_analyzer = MemoryAnalyzer(self.system)
+        self.network_analyzer = NetworkAnalyzer(self.system)
+        self.graphics_analyzer = GraphicsAnalyzer(self.system)
         self.pci_analyzer = PCIAnalyzer(self.system)
         self.usb_analyzer = USBAnalyzer(self.system)
 
@@ -49,35 +55,33 @@ class DeviceAnalyzer:
             cpu=self.get_cpu_info(),
             memory=self.get_memory_info(),
             storage=self.get_storage_info(),
+            network=self.get_network_info(),
+            graphics=self.get_graphics_info(),
+            motherboard=self.get_motherboard_info(),
             pci=self.get_pci_devices(),
             usb=self.get_usb_devices(),
         )
 
     def get_cpu_info(self) -> Dict[str, Any]:
-        """Get detailed CPU information.
-
-        Returns:
-            Dictionary containing CPU information
-        """
+        """Get detailed CPU information."""
         return self.cpu_analyzer.get_cpu_info()
 
     def get_memory_info(self) -> Dict[str, Any]:
-        """Get detailed memory information.
-
-        Returns:
-            Dictionary containing memory information
-        """
-        # TODO: Implement memory information gathering
-        return {"memory": "Not implemented yet"}
+        """Get detailed memory information."""
+        return self.memory_analyzer.get_memory_info()
 
     def get_storage_info(self) -> Dict[str, Any]:
-        """Get detailed storage information.
-
-        Returns:
-            Dictionary containing storage information
-        """
+        """Get detailed storage information."""
         # TODO: Implement storage information gathering
         return {"storage": "Not implemented yet"}
+
+    def get_network_info(self) -> Dict[str, Any]:
+        """Get network information."""
+        return self.network_analyzer.get_network_info()
+
+    def get_graphics_info(self) -> Dict[str, Any]:
+        """Get graphics information."""
+        return self.graphics_analyzer.get_graphics_info()
 
     def get_pci_devices(self) -> "PCIInfo":
         """Get PCI device information.
@@ -95,20 +99,7 @@ class DeviceAnalyzer:
         """
         return self.usb_analyzer.get_usb_info()
 
-    def get_network_info(self) -> Dict[str, Any]:
-        """Get network hardware information.
-
-        Returns:
-            Dictionary containing network information
-        """
-        # TODO: Implement network information gathering
-        return {"network": "Not implemented yet"}
-
-    def get_graphics_info(self) -> Dict[str, Any]:
-        """Get graphics hardware information.
-
-        Returns:
-            Dictionary containing graphics information
-        """
-        # TODO: Implement graphics information gathering
-        return {"graphics": "Not implemented yet"}
+    def get_motherboard_info(self) -> Dict[str, Any]:
+        """Get motherboard information."""
+        # TODO: Implement motherboard information gathering
+        return {"motherboard": "Not implemented yet"}
