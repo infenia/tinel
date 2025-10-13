@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides a collection of tool providers for hardware information.
+
+It includes a base class, `HardwareToolProvider`, and several concrete
+implementations for gathering information about specific hardware components,
+such as the CPU, memory, and storage. These tool providers are designed to be
+used by the command handlers in the `cli` package.
+"""
+
 from dataclasses import asdict, is_dataclass
 from typing import Any, Dict
 
@@ -24,7 +32,17 @@ from .base import BaseToolProvider
 
 
 def _to_dict(data: Any) -> Any:
-    """Recursively convert dataclasses to dictionaries."""
+    """Recursively converts dataclasses to dictionaries.
+
+    This helper function is used to ensure that the data returned by tool
+    providers is JSON-serializable.
+
+    Args:
+        data: The data to be converted, which may contain nested dataclasses.
+
+    Returns:
+        The converted data with all dataclasses replaced by dictionaries.
+    """
     if is_dataclass(data):
         return asdict(data)
     if isinstance(data, list):
@@ -34,28 +52,40 @@ def _to_dict(data: Any) -> Any:
     return data
 
 
-"""Hardware information tool providers."""
-
-
 class HardwareToolProvider(BaseToolProvider):
-    """Base class for hardware information tools."""
+    """A base class for all hardware information tool providers.
+
+    This class provides a common foundation for hardware-related tools,
+    including an instance of the `DeviceAnalyzer`.
+
+    Args:
+        name: The name of the tool.
+        description: A brief description of what the tool does.
+        system_interface: A `SystemInterface` instance for system
+                          interactions.
+    """
 
     def __init__(self, name: str, description: str, system_interface: SystemInterface):
-        """Initialize hardware tool provider.
+        """Initializes the HardwareToolProvider.
 
         Args:
-            name: Tool name
-            description: Tool description
-            system_interface: System interface for command execution
+            name: The name of the tool.
+            description: The description of the tool.
+            system_interface: A `SystemInterface` instance.
         """
         super().__init__(name, description)
         self.device_analyzer = DeviceAnalyzer(system_interface)
 
 
 class AllHardwareToolProvider(HardwareToolProvider):
-    """Tool provider for comprehensive hardware information."""
+    """A tool provider for gathering comprehensive hardware information."""
 
     def __init__(self, system_interface: SystemInterface):
+        """Initializes the AllHardwareToolProvider.
+
+        Args:
+            system_interface: A `SystemInterface` instance.
+        """
         super().__init__(
             "get_all_hardware",
             "Get comprehensive hardware information for the entire system",
@@ -63,15 +93,27 @@ class AllHardwareToolProvider(HardwareToolProvider):
         )
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool to get all hardware information."""
+        """Executes the tool to get all hardware information.
+
+        Args:
+            parameters: A dictionary of parameters (not used by this tool).
+
+        Returns:
+            A dictionary containing all hardware information.
+        """
         hardware_info = self.device_analyzer.get_all_hardware_info()
         return _to_dict(hardware_info)
 
 
 class CPUInfoToolProvider(HardwareToolProvider):
-    """Tool provider for CPU information."""
+    """A tool provider for gathering detailed CPU information."""
 
     def __init__(self, system_interface: SystemInterface):
+        """Initializes the CPUInfoToolProvider.
+
+        Args:
+            system_interface: A `SystemInterface` instance.
+        """
         super().__init__(
             "get_cpu_info",
             "Get detailed CPU information including model, cores, frequency, "
@@ -80,15 +122,27 @@ class CPUInfoToolProvider(HardwareToolProvider):
         )
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool to get CPU information."""
+        """Executes the tool to get CPU information.
+
+        Args:
+            parameters: A dictionary of parameters (not used by this tool).
+
+        Returns:
+            A dictionary containing the CPU information.
+        """
         cpu_info = self.device_analyzer.get_cpu_info()
         return _to_dict(cpu_info)
 
 
 class MemoryInfoToolProvider(HardwareToolProvider):
-    """Tool provider for memory information."""
+    """A tool provider for gathering detailed memory information."""
 
     def __init__(self, system_interface: SystemInterface):
+        """Initializes the MemoryInfoToolProvider.
+
+        Args:
+            system_interface: A `SystemInterface` instance.
+        """
         super().__init__(
             "get_memory_info",
             "Get detailed memory information including RAM size, type, "
@@ -97,15 +151,27 @@ class MemoryInfoToolProvider(HardwareToolProvider):
         )
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool to get memory information."""
+        """Executes the tool to get memory information.
+
+        Args:
+            parameters: A dictionary of parameters (not used by this tool).
+
+        Returns:
+            A dictionary containing the memory information.
+        """
         memory_info = self.device_analyzer.get_memory_info()
         return _to_dict(memory_info)
 
 
 class StorageInfoToolProvider(HardwareToolProvider):
-    """Tool provider for storage information."""
+    """A tool provider for gathering detailed storage information."""
 
     def __init__(self, system_interface: SystemInterface):
+        """Initializes the StorageInfoToolProvider.
+
+        Args:
+            system_interface: A `SystemInterface` instance.
+        """
         super().__init__(
             "get_storage_info",
             "Get detailed storage information including disks, partitions, and usage",
@@ -113,15 +179,27 @@ class StorageInfoToolProvider(HardwareToolProvider):
         )
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool to get storage information."""
+        """Executes the tool to get storage information.
+
+        Args:
+            parameters: A dictionary of parameters (not used by this tool).
+
+        Returns:
+            A dictionary containing the storage information.
+        """
         storage_info = self.device_analyzer.get_storage_info()
         return _to_dict(storage_info)
 
 
 class PCIDevicesToolProvider(HardwareToolProvider):
-    """Tool provider for PCI device information."""
+    """A tool provider for gathering information about PCI devices."""
 
     def __init__(self, system_interface: SystemInterface):
+        """Initializes the PCIDevicesToolProvider.
+
+        Args:
+            system_interface: A `SystemInterface` instance.
+        """
         super().__init__(
             "get_pci_devices",
             "Get information about all PCI devices in the system",
@@ -129,15 +207,27 @@ class PCIDevicesToolProvider(HardwareToolProvider):
         )
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool to get PCI device information."""
+        """Executes the tool to get PCI device information.
+
+        Args:
+            parameters: A dictionary of parameters (not used by this tool).
+
+        Returns:
+            A dictionary containing the PCI device information.
+        """
         pci_info = self.device_analyzer.get_pci_devices()
         return _to_dict(pci_info)
 
 
 class USBDevicesToolProvider(HardwareToolProvider):
-    """Tool provider for USB device information."""
+    """A tool provider for gathering information about USB devices."""
 
     def __init__(self, system_interface: SystemInterface):
+        """Initializes the USBDevicesToolProvider.
+
+        Args:
+            system_interface: A `SystemInterface` instance.
+        """
         super().__init__(
             "get_usb_devices",
             "Get information about all USB devices connected to the system",
@@ -145,15 +235,27 @@ class USBDevicesToolProvider(HardwareToolProvider):
         )
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool to get USB device information."""
+        """Executes the tool to get USB device information.
+
+        Args:
+            parameters: A dictionary of parameters (not used by this tool).
+
+        Returns:
+            A dictionary containing the USB device information.
+        """
         usb_info = self.device_analyzer.get_usb_devices()
         return _to_dict(usb_info)
 
 
 class NetworkInfoToolProvider(HardwareToolProvider):
-    """Tool provider for network information."""
+    """A tool provider for gathering information about network hardware."""
 
     def __init__(self, system_interface: SystemInterface):
+        """Initializes the NetworkInfoToolProvider.
+
+        Args:
+            system_interface: A `SystemInterface` instance.
+        """
         super().__init__(
             "get_network_info",
             "Get network hardware and interface information",
@@ -161,15 +263,27 @@ class NetworkInfoToolProvider(HardwareToolProvider):
         )
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool to get network information."""
+        """Executes the tool to get network information.
+
+        Args:
+            parameters: A dictionary of parameters (not used by this tool).
+
+        Returns:
+            A dictionary containing the network information.
+        """
         network_info = self.device_analyzer.get_network_info()
         return _to_dict(network_info)
 
 
 class GraphicsInfoToolProvider(HardwareToolProvider):
-    """Tool provider for graphics information."""
+    """A tool provider for gathering information about graphics hardware."""
 
     def __init__(self, system_interface: SystemInterface):
+        """Initializes the GraphicsInfoToolProvider.
+
+        Args:
+            system_interface: A `SystemInterface` instance.
+        """
         super().__init__(
             "get_graphics_info",
             "Get graphics hardware information including GPU details",
@@ -177,6 +291,13 @@ class GraphicsInfoToolProvider(HardwareToolProvider):
         )
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool to get graphics information."""
+        """Executes the tool to get graphics information.
+
+        Args:
+            parameters: A dictionary of parameters (not used by this tool).
+
+        Returns:
+            A dictionary containing the graphics information.
+        """
         graphics_info = self.device_analyzer.get_graphics_info()
         return _to_dict(graphics_info)

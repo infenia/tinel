@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides an analyzer for USB devices.
+
+It includes the `USBAnalyzer` class, which is responsible for gathering and
+parsing information about the system's USB devices. The analyzer uses the
+`lsusb` command to obtain the raw data and then processes it to build a
+hierarchical representation of the USB device tree.
+"""
+
 import re
 from typing import Any, Dict, List, Optional
 
@@ -24,21 +32,36 @@ from tinel.system import LinuxSystemInterface
 
 
 class USBAnalyzer:
-    """A USB device analyzer that parses output from lsusb."""
+    """Analyzes and retrieves information about USB devices.
+
+    This class uses the `lsusb` command to gather data about the devices
+    connected to the USB bus and parses the output to provide a structured,
+    hierarchical representation of the device tree.
+
+    Args:
+        system_interface: An optional `SystemInterface` for system interactions.
+                          If not provided, a `LinuxSystemInterface` is used.
+    """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """Initialize USB analyzer.
+        """Initializes the USBAnalyzer.
 
         Args:
-            system_interface: System interface for command execution.
+            system_interface: An optional `SystemInterface` for system
+                              interactions.
         """
         self.system = system_interface or LinuxSystemInterface()
 
     def get_usb_info(self) -> USBInfo:
-        """Get USB device information by running and parsing 'lsusb -t'.
+        """Retrieves and parses information about all USB devices.
+
+        This method executes the `lsusb -t` command to get a tree-like view of
+        USB devices and then parses this output to construct a `USBInfo` object
+        containing a hierarchical representation of the devices.
 
         Returns:
-            A USBInfo object containing the device tree.
+            A `USBInfo` object containing the USB device tree. If the `lsusb`
+            command fails, an empty tree is returned.
         """
         lsusb_output = self.system.run_command(["lsusb", "-t"])
         if not lsusb_output.success:
@@ -48,13 +71,19 @@ class USBAnalyzer:
         return USBInfo(tree={"root_hubs": tree})
 
     def _parse_lsusb_t_output(self, output: str) -> List[Dict[str, Any]]:
-        """Parse the tree-like output of the 'lsusb -t' command.
+        """Parses the tree-like output of the `lsusb -t` command.
+
+        This method processes the raw text output from `lsusb -t` to build a
+        hierarchical data structure representing the USB device tree. It handles
+        the indentation and structure of the output to correctly nest child
+        devices under their parent hubs.
 
         Args:
-            output: The stdout from the 'lsusb -t' command.
+            output: The raw string output from the `lsusb -t` command.
 
         Returns:
-            A list of dictionaries representing the root hubs and their children.
+            A list of dictionaries, where each dictionary represents a root hub
+            and contains its children in a nested structure.
         """
         hubs = []
         # A stack to keep track of the current parent device at each indentation level.

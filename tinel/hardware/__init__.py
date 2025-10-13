@@ -43,11 +43,17 @@ __all__ = [
 
 
 def get_all_hardware_info() -> HardwareInfo:
-    """
-    Gathers all hardware information from the various analyzers.
+    """Gathers and aggregates hardware information from all available analyzers.
+
+    This function instantiates each of the hardware analyzer classes, calls
+    their respective data-gathering methods, and compiles the results into a
+    single `HardwareInfo` object. It serves as the main entry point for
+t
+    collecting a comprehensive overview of the system's hardware.
 
     Returns:
-        A HardwareInfo dataclass instance containing all hardware info.
+        A `HardwareInfo` dataclass instance containing detailed information
+        about all major hardware components.
     """
     cpu_analyzer = CPUAnalyzer()
     memory_analyzer = MemoryAnalyzer()

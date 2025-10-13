@@ -11,7 +11,7 @@ A next-generation open-source platform designed to control, optimize, and analyz
 
 ## 🚀 Features
 
-This MCP server provides detailed hardware information including:
+This tool provides detailed hardware information including:
 
 - **🖥️ CPU Information**: Model, cores, frequency, features, and architecture details
 - **💾 Memory Information**: RAM size, type, configuration, and usage statistics
@@ -54,63 +54,35 @@ uv pip install -e ".[dev]"
 
 ## 🔧 Usage
 
-### As an MCP Server
+Tinel is a command-line tool. To use it, simply run `tinel` with a command and subcommand.
 
-Add to your MCP client configuration:
+### Examples
 
-```json
-{
-  "mcpServers": {
-    "tinel": {
-      "command": "tinel",
-      "args": [],
-      "env": {}
-    }
-  }
-}
+Get all hardware information:
+```bash
+tinel hardware all
 ```
 
-Alternative configurations:
-
-```json
-{
-  "mcpServers": {
-    "tinel": {
-      "command": "python",
-      "args": ["-m", "tinel.server"],
-      "env": {}
-    }
-  }
-}
+Get CPU information:
+```bash
+tinel hardware cpu
 ```
 
-### Available Tools
-
-| Tool                | Description                                                          |
-| ------------------- | -------------------------------------------------------------------- |
-| `get_all_hardware`  | Get comprehensive hardware information for the entire system         |
-| `get_cpu_info`      | Get detailed CPU information including model, cores, and features    |
-| `get_memory_info`   | Get detailed memory information including RAM size and configuration |
-| `get_storage_info`  | Get storage information including disks, partitions, and usage       |
-| `get_pci_devices`   | Get information about all PCI devices in the system                  |
-| `get_usb_devices`   | Get information about all connected USB devices                      |
-| `get_network_info`  | Get network hardware and interface information                       |
-| `get_graphics_info` | Get graphics hardware information including GPU details              |
-
-### Example Output
-
-```json
-{
-  "cpu": {
-    "lscpu": "Architecture: x86_64\nCPU(s): 8\n...",
-    "proc_cpuinfo": "processor: 0\nvendor_id: GenuineIntel\n..."
-  },
-  "memory": {
-    "proc_meminfo": "MemTotal: 16384000 kB\nMemFree: 8192000 kB\n...",
-    "dmidecode_memory": "Handle 0x0001, DMI type 17, 40 bytes\n..."
-  }
-}
+Get help for a specific command:
+```bash
+tinel hardware --help
 ```
+
+### Available Commands
+
+| Command           | Description                                                          |
+| ----------------- | -------------------------------------------------------------------- |
+| `hardware all`    | Get comprehensive hardware information for the entire system         |
+| `hardware cpu`    | Get detailed CPU information including model, cores, and features    |
+
+## 📖 Documentation
+
+This repository is thoroughly documented with docstrings in every file, class, method, and function. This ensures that developers can easily understand the codebase and contribute effectively.
 
 ## 🛠️ Development
 
@@ -127,39 +99,26 @@ uv pip install -e ".[dev]"
 
 ```bash
 # Run all tests
-python -m pytest
+nox -s tests
 
 # Run with coverage
-python -m pytest --cov=tinel --cov-report=html
-
-# Run tests on multiple Python versions
-nox -s tests
+nox -s coverage
 ```
 
 ### Code Quality
 
 ```bash
 # Format code
-python -m black .
-python -m ruff format .
-
-# Lint code
-python -m ruff check .
-
-# Type checking
-python -m mypy tinel
+nox -s format
 
 # Run all quality checks
-nox -s lint
+nox -s check
 ```
 
 ### Building
 
 ```bash
 # Build package
-python -m build
-
-# Or using nox
 nox -s build
 ```
 
@@ -180,7 +139,7 @@ nox -s build
 
 ### Permissions
 
-Some hardware information requires elevated privileges. The server will attempt to run commands with `sudo` when necessary. Ensure the user has appropriate sudo permissions for:
+Some hardware information requires elevated privileges. Ensure the user has appropriate sudo permissions for:
 
 - `dmidecode` (memory details)
 - `fdisk` (disk partitioning info)
@@ -188,7 +147,7 @@ Some hardware information requires elevated privileges. The server will attempt 
 
 ## 📊 Data Sources
 
-The server gathers information from multiple Linux kernel interfaces:
+The tool gathers information from multiple Linux kernel interfaces:
 
 - **`/proc/cpuinfo`** - CPU information and features
 - **`/proc/meminfo`** - Memory usage and configuration
@@ -198,7 +157,7 @@ The server gathers information from multiple Linux kernel interfaces:
 
 ## 🔄 Error Handling
 
-The server gracefully handles various error conditions:
+The tool gracefully handles various error conditions:
 
 - **Missing utilities**: Continues with available tools
 - **Permission errors**: Reports specific errors while providing available data
@@ -214,29 +173,9 @@ We welcome contributions! Please see our [Contributing Guide](CONTRIBUTING.md) f
 1. Fork the repository
 2. Create a feature branch: `git checkout -b feature-name`
 3. Make your changes and add tests
-4. Run the test suite: `python -m pytest`
+4. Run the test suite: `nox -s tests`
 5. Submit a pull request
 
 ## 📄 License
 
 This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENSE) file for details.
-
-## 🐛 Issues and Support
-
-- **Bug Reports**: [GitHub Issues](https://github.com/infenia/tinel/issues)
-- **Feature Requests**: [GitHub Issues](https://github.com/infenia/tinel/issues)
-- **Documentation**: [README](README.md) and [Contributing Guide](CONTRIBUTING.md)
-
-## 🏷️ Changelog
-
-See [CHANGELOG.md](CHANGELOG.md) for a detailed history of changes.
-
-## 🙏 Acknowledgments
-
-- The [Model Context Protocol](https://modelcontextprotocol.io/) team for the excellent protocol specification
-- The Linux kernel developers for providing comprehensive hardware interfaces
-- All contributors who help improve this project
-
----
-
-**Made with ❤️ by Infenia Private Limited for the Linux and AI communities**

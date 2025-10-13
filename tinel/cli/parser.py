@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module is responsible for parsing and validating command-line arguments.
+
+It defines the structure of the Tinel CLI, including all available commands,
+subcommands, and options. The module uses the `argparse` library to create a
+robust and user-friendly command-line interface, and it includes functions for
+validating the provided arguments to ensure consistency and correctness.
+"""
+
 import argparse
 import sys
 from typing import List, Optional, Sequence
@@ -24,10 +32,13 @@ MAX_VERBOSITY_LEVEL = 3
 
 
 def _add_global_options(parser: argparse.ArgumentParser) -> None:
-    """Add global options to a parser.
+    """Adds the global options to a specified argument parser.
+
+    These are the options that are available for all commands and subcommands.
 
     Args:
-        parser: ArgumentParser to add options to
+        parser: The `ArgumentParser` instance to which the options will be
+                added.
     """
     parser.add_argument(
         "-v",
@@ -58,10 +69,13 @@ def _add_global_options(parser: argparse.ArgumentParser) -> None:
 
 
 def create_argument_parser() -> argparse.ArgumentParser:
-    """Create and configure the main argument parser.
+    """Creates and configures the main argument parser for the Tinel CLI.
+
+    This function sets up the top-level parser, defines all global options,
+    and creates the subparsers for the various commands.
 
     Returns:
-        Configured ArgumentParser instance
+        The configured `ArgumentParser` instance.
     """
     parser = argparse.ArgumentParser(
         prog="tinel",
@@ -119,7 +133,14 @@ def create_argument_parser() -> argparse.ArgumentParser:
 
 
 def _add_hardware_commands(subparsers: argparse._SubParsersAction) -> None:
-    """Add hardware-related commands to the parser."""
+    """Adds the hardware-related commands and subcommands to the parser.
+
+    This function defines the `hardware` command and its subcommands, such as
+    `cpu` and `all`.
+
+    Args:
+        subparsers: The subparser action object from the main parser.
+    """
     # Hardware parent parser for common options
     hardware_parent = argparse.ArgumentParser(add_help=False)
     hardware_parent.add_argument(
@@ -168,7 +189,14 @@ def _add_hardware_commands(subparsers: argparse._SubParsersAction) -> None:
 
 
 def _validate_verbosity_options(args: argparse.Namespace) -> bool:
-    """Validate verbosity-related arguments."""
+    """Validates the verbosity-related arguments.
+
+    Args:
+        args: The parsed arguments namespace.
+
+    Returns:
+        True if the arguments are valid, False otherwise.
+    """
     # Check for conflicting verbosity options
     if args.verbose > 0 and args.quiet:
         print("Error: Cannot use --verbose and --quiet together", file=sys.stderr)
@@ -186,7 +214,14 @@ def _validate_verbosity_options(args: argparse.Namespace) -> bool:
 
 
 def _validate_basic_options(args: argparse.Namespace) -> bool:
-    """Validate basic command arguments."""
+    """Validates the basic command arguments.
+
+    Args:
+        args: The parsed arguments namespace.
+
+    Returns:
+        True if the arguments are valid, False otherwise.
+    """
     # Check if command is provided
     if not args.command:
         print(
@@ -204,7 +239,17 @@ def _validate_subcommand(
     attr_name: str,
     help_cmd: str,
 ) -> bool:
-    """Validate that a subcommand is provided when required."""
+    """Validates that a required subcommand has been provided.
+
+    Args:
+        args: The parsed arguments namespace.
+        command: The name of the parent command.
+        attr_name: The attribute name for the subcommand in the namespace.
+        help_cmd: The help command to suggest to the user.
+
+    Returns:
+        True if the subcommand is present or not required, False otherwise.
+    """
     if (
         (
             args.command == command
@@ -224,13 +269,16 @@ def _validate_subcommand(
 
 
 def validate_arguments(args: argparse.Namespace) -> bool:
-    """Validate parsed arguments for consistency.
+    """Validates the parsed arguments for consistency and correctness.
+
+    This function orchestrates the validation of all arguments by calling the
+    appropriate validation helper functions.
 
     Args:
-        args: Parsed arguments from ArgumentParser
+        args: The namespace object returned by `ArgumentParser.parse_args()`.
 
     Returns:
-        True if arguments are valid, False otherwise
+        True if all arguments are valid, False otherwise.
     """
     # Validate verbosity options
     if not _validate_verbosity_options(args):
@@ -257,16 +305,20 @@ def validate_arguments(args: argparse.Namespace) -> bool:
 
 
 def parse_arguments(argv: Optional[List[str]] = None) -> argparse.Namespace:
-    """Parse command line arguments.
+    """Parses and validates the command-line arguments.
+
+    This is the main function for parsing arguments. It creates the argument
+    parser, parses the arguments, and then validates them.
 
     Args:
-        argv: Command line arguments (defaults to sys.argv)
+        argv: A list of command-line arguments. If not provided, `sys.argv`
+              is used.
 
     Returns:
-        Parsed arguments namespace
+        A namespace object containing the parsed and validated arguments.
 
     Raises:
-        SystemExit: If arguments are invalid or help is requested
+        SystemExit: If the arguments are invalid or if help is requested.
     """
     parser = create_argument_parser()
     args = parser.parse_args(argv)

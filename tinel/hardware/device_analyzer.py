@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides a unified analyzer for all hardware components.
+
+It includes the `DeviceAnalyzer` class, which acts as a facade for all other
+hardware analyzers. This class simplifies the process of gathering
+comprehensive hardware information by providing a single point of entry.
+"""
+
 from typing import Any, Dict, Optional
 
 from ..interfaces import SystemInterface
@@ -29,13 +36,23 @@ from .usb_analyzer import USBAnalyzer
 
 
 class DeviceAnalyzer:
-    """Unified device analyzer for all hardware components."""
+    """A unified analyzer for collecting information about all hardware components.
+
+    This class acts as a high-level facade, aggregating data from various
+    specialized analyzers (e.g., `CPUAnalyzer`, `MemoryAnalyzer`) to provide a
+    complete picture of the system's hardware.
+
+    Args:
+        system_interface: An optional `SystemInterface` for system interactions.
+                          If not provided, a `LinuxSystemInterface` is used.
+    """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """Initialize device analyzer.
+        """Initializes the DeviceAnalyzer and all its sub-analyzers.
 
         Args:
-            system_interface: System interface for command execution
+            system_interface: An optional `SystemInterface` for system
+                              interactions.
         """
         self.system = system_interface or LinuxSystemInterface()
         self.cpu_analyzer = CPUAnalyzer(self.system)
@@ -46,10 +63,14 @@ class DeviceAnalyzer:
         self.usb_analyzer = USBAnalyzer(self.system)
 
     def get_all_hardware_info(self) -> HardwareInfo:
-        """Get comprehensive hardware information.
+        """Gathers and returns comprehensive information about all hardware components.
+
+        This method orchestrates the collection of data from all sub-analyzers
+        and aggregates it into a single `HardwareInfo` object.
 
         Returns:
-            HardwareInfo object containing all hardware information
+            A `HardwareInfo` object containing a complete overview of the
+            system's hardware.
         """
         return HardwareInfo(
             cpu=self.get_cpu_info(),
@@ -63,43 +84,67 @@ class DeviceAnalyzer:
         )
 
     def get_cpu_info(self) -> Dict[str, Any]:
-        """Get detailed CPU information."""
+        """Retrieves detailed CPU information.
+
+        Returns:
+            A dictionary containing comprehensive CPU details.
+        """
         return self.cpu_analyzer.get_cpu_info()
 
     def get_memory_info(self) -> Dict[str, Any]:
-        """Get detailed memory information."""
+        """Retrieves detailed memory information.
+
+        Returns:
+            A dictionary containing comprehensive memory details.
+        """
         return self.memory_analyzer.get_memory_info()
 
     def get_storage_info(self) -> Dict[str, Any]:
-        """Get detailed storage information."""
+        """Retrieves detailed storage information.
+
+        Returns:
+            A dictionary containing comprehensive storage details.
+        """
         # TODO: Implement storage information gathering
         return {"storage": "Not implemented yet"}
 
     def get_network_info(self) -> Dict[str, Any]:
-        """Get network information."""
+        """Retrieves detailed network information.
+
+        Returns:
+            A dictionary containing comprehensive network details.
+        """
         return self.network_analyzer.get_network_info()
 
     def get_graphics_info(self) -> Dict[str, Any]:
-        """Get graphics information."""
+        """Retrieves detailed graphics information.
+
+        Returns:
+            A dictionary containing comprehensive graphics details.
+        """
         return self.graphics_analyzer.get_graphics_info()
 
     def get_pci_devices(self) -> "PCIInfo":
-        """Get PCI device information.
+        """Retrieves information about PCI devices.
 
         Returns:
-            A PCIInfo object containing PCI device information.
+            A `PCIInfo` object containing details about all PCI devices.
         """
         return self.pci_analyzer.get_pci_info()
 
     def get_usb_devices(self) -> "USBInfo":
-        """Get USB device information.
+        """Retrieves information about USB devices.
 
         Returns:
-            A USBInfo object containing USB device information.
+            A `USBInfo` object containing details about all USB devices.
         """
         return self.usb_analyzer.get_usb_info()
 
     def get_motherboard_info(self) -> Dict[str, Any]:
-        """Get motherboard information."""
+        """Retrieves detailed motherboard information.
+
+        Returns:
+            A dictionary containing comprehensive motherboard details.
+        """
         # TODO: Implement motherboard information gathering
         return {"motherboard": "Not implemented yet"}

@@ -14,6 +14,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""Tinel is a powerful and extensible command-line tool for Linux systems
+that provides detailed information about hardware components. It gathers data
+from various system commands and files, presenting it in a clear and
+user-friendly format.
+"""
+
 from .interfaces import (
     HardwareInfo,
 )

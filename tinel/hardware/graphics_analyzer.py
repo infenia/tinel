@@ -15,6 +15,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides an analyzer for graphics hardware (GPUs).
+
+It includes the `GraphicsAnalyzer` class, which is responsible for detecting
+and gathering information about the system's graphics cards. The analyzer
+employs a fallback mechanism, first attempting to use vendor-specific tools
+like `nvidia-smi` and `rocm-smi`, and then resorting to the generic `lspci`
+command if necessary.
+"""
+
 import functools
 import logging
 import re
@@ -25,26 +34,40 @@ from ..system import LinuxSystemInterface
 
 
 class GraphicsAnalyzer:
-    """Analyzer for graphics hardware (GPUs)."""
+    """Analyzes and retrieves information about graphics hardware (GPUs).
+
+    This class is designed to detect and report on the system's graphics
+    cards. It uses a multi-tiered approach, prioritizing vendor-specific tools
+    for detailed information and falling back to more generic utilities.
+
+    Args:
+        system_interface: An optional `SystemInterface` for system interactions.
+                          If not provided, a `LinuxSystemInterface` is used.
+    """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """Initialize graphics analyzer.
+        """Initializes the GraphicsAnalyzer.
 
         Args:
-            system_interface: System interface for command execution.
+            system_interface: An optional `SystemInterface` for system
+                              interactions.
         """
         self.system = system_interface or LinuxSystemInterface()
         self.logger = logging.getLogger(__name__)
 
     @functools.lru_cache(maxsize=None)
     def get_graphics_info(self) -> Dict[str, Any]:
-        """Get comprehensive graphics hardware information.
+        """Retrieves comprehensive information about the graphics hardware.
 
-        This method attempts to use vendor-specific tools first (`nvidia-smi`, `rocm-smi`)
-        and falls back to a generic tool (`lspci`) if they are not available.
+        This method serves as the primary entry point for gathering graphics
+        card data. It employs a fallback strategy, attempting to use
+        vendor-specific tools like `nvidia-smi` and `rocm-smi` before
+        resorting to the more generic `lspci` command. The result is cached
+        to improve performance on subsequent calls.
 
         Returns:
-            A dictionary containing detailed graphics hardware information.
+            A dictionary containing detailed graphics hardware information,
+            including the source of the data (e.g., 'nvidia-smi', 'lspci').
         """
         info: Dict[str, Any] = {}
 
@@ -73,7 +96,16 @@ class GraphicsAnalyzer:
         return info
 
     def _get_nvidia_info(self) -> Optional[List[Dict[str, Any]]]:
-        """Get GPU info using nvidia-smi."""
+        """Retrieves GPU information using the `nvidia-smi` command.
+
+        This method queries the `nvidia-smi` utility for detailed information
+        about NVIDIA GPUs, including model, driver version, memory usage,
+        utilization, and temperature.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents an NVIDIA
+            GPU, or None if `nvidia-smi` is not available or fails.
+        """
         command = [
             "nvidia-smi",
             "--query-gpu=index,name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu",
@@ -111,7 +143,16 @@ class GraphicsAnalyzer:
         return gpus if gpus else None
 
     def _get_amd_info(self) -> Optional[List[Dict[str, Any]]]:
-        """Get GPU info using rocm-smi."""
+        """Retrieves GPU information using the `rocm-smi` command.
+
+        This method is intended to query the `rocm-smi` utility for detailed
+        information about AMD GPUs. Currently, it serves as a placeholder
+        as `rocm-smi` is not available in the test environment.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents an AMD
+            GPU, or None if `rocm-smi` is not available or fails.
+        """
         # rocm-smi is not installed in the test environment, so this is a placeholder.
         # In a real environment, this would parse the output of `rocm-smi`.
         # For example, `rocm-smi --showproductname --showmeminfo vram --showdriverversion --showtemp --showuse`
@@ -137,7 +178,17 @@ class GraphicsAnalyzer:
         return gpus
 
     def _get_lspci_info(self) -> Optional[List[Dict[str, Any]]]:
-        """Get basic GPU info using lspci as a fallback."""
+        """Retrieves basic GPU information using the `lspci` command.
+
+        This method serves as a fallback for when vendor-specific tools are not
+        available. It parses the output of `lspci` to identify VGA-compatible
+        controllers and extracts basic information such as the model, vendor ID,
+        and device ID.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a GPU
+            found by `lspci`, or None if the command fails.
+        """
         result = self.system.run_command(["lspci", "-vnn"])
 
         if not result.success:

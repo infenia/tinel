@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module defines the command router for the Tinel CLI.
+
+It includes the `CommandRouter` class, which is responsible for mapping
+command-line arguments to the appropriate command handler and executing it.
+This provides a centralized and extensible way to manage all the commands
+supported by the CLI.
+"""
+
 import argparse
 import logging
 from typing import Callable, Dict
@@ -32,14 +40,25 @@ logger = logging.getLogger(__name__)
 
 
 class CommandRouter:
-    """Routes CLI commands to appropriate handlers."""
+    """A class for routing CLI commands to their appropriate handlers.
+
+    This class maintains a mapping of command names to handler functions and is
+    responsible for executing the correct handler based on the parsed
+    command-line arguments.
+
+    Args:
+        formatter: An `OutputFormatter` instance to be passed to the command
+                   handlers.
+        error_handler: A `CLIErrorHandler` instance to be passed to the command
+                       handlers.
+    """
 
     def __init__(self, formatter: OutputFormatter, error_handler: CLIErrorHandler):
-        """Initialize the command router.
+        """Initializes the CommandRouter.
 
         Args:
-            formatter: Output formatter instance
-            error_handler: Error handler instance
+            formatter: An `OutputFormatter` instance.
+            error_handler: A `CLIErrorHandler` instance.
         """
         self.formatter = formatter
         self.error_handler = error_handler
@@ -54,13 +73,17 @@ class CommandRouter:
         }
 
     def execute_command(self, args: argparse.Namespace) -> int:
-        """Execute the specified command.
+        """Executes the command specified in the parsed arguments.
+
+        This method looks up the appropriate handler for the given command and
+        executes it, passing along the parsed arguments. It also includes
+        comprehensive error handling for both known and unexpected exceptions.
 
         Args:
-            args: Parsed command line arguments
+            args: The namespace object returned by `ArgumentParser.parse_args()`.
 
         Returns:
-            Exit code (0 for success, non-zero for error)
+            An integer exit code (0 for success, non-zero for errors).
         """
         # Imports moved to top
 

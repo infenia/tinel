@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module defines the base class for all CLI commands.
+
+It includes the `BaseCommand` abstract base class, which provides a common
+framework and shared functionality for all command handlers. This ensures a
+consistent structure and simplifies the implementation of new commands.
+"""
+
 import argparse
 import logging
 from abc import ABC, abstractmethod
@@ -35,14 +42,23 @@ logger = logging.getLogger(__name__)
 
 
 class BaseCommand(ABC):
-    """Base class for all CLI commands."""
+    """An abstract base class for all CLI commands.
+
+    This class provides a common interface and shared functionality for all
+    command handlers, such as access to the output formatter and error
+    handler.
+
+    Args:
+        formatter: An `OutputFormatter` instance for displaying output.
+        error_handler: A `CLIErrorHandler` instance for managing errors.
+    """
 
     def __init__(self, formatter: OutputFormatter, error_handler: CLIErrorHandler):
-        """Initialize the base command.
+        """Initializes the BaseCommand.
 
         Args:
-            formatter: Output formatter instance
-            error_handler: Error handler instance
+            formatter: An `OutputFormatter` instance.
+            error_handler: A `CLIErrorHandler` instance.
         """
         self.formatter = formatter
         self.error_handler = error_handler
@@ -50,25 +66,32 @@ class BaseCommand(ABC):
 
     @abstractmethod
     def execute(self, args: argparse.Namespace) -> int:
-        """Execute the command.
+        """Executes the command.
+
+        This is an abstract method that must be implemented by all subclasses.
+        It contains the core logic for the command.
 
         Args:
-            args: Parsed command line arguments
+            args: The parsed command-line arguments.
 
         Returns:
-            Exit code (0 for success, non-zero for error)
+            An integer exit code (0 for success, non-zero for errors).
         """
         pass
 
     def _handle_tool_error(self, error: Exception, tool_name: str) -> NoReturn:
-        """Handle tool execution errors.
+        """Handles errors that occur during the execution of a tool.
+
+        This method maps the tool name to an appropriate `CLIError` type and
+        raises it, ensuring that tool-related errors are handled consistently.
 
         Args:
-            error: Exception that occurred
-            tool_name: Name of the tool that failed
+            error: The exception that occurred.
+            tool_name: The name of the tool that failed.
 
         Raises:
-            Appropriate CLIError based on tool type
+            CLIError: An appropriate subclass of `CLIError` based on the
+                      tool's category.
         """
         # Imports moved to top
 
@@ -115,17 +138,20 @@ class BaseCommand(ABC):
     def _execute_tool(
         self, tool_provider: Any, parameters: Dict[str, Any]
     ) -> Dict[str, Any]:
-        """Execute a tool provider with error handling.
+        """Executes a tool provider with standardized error handling.
+
+        This method provides a consistent way to execute tool providers,
+        catching any exceptions and delegating them to `_handle_tool_error`.
 
         Args:
-            tool_provider: Tool provider instance
-            parameters: Parameters to pass to the tool
+            tool_provider: The tool provider instance to be executed.
+            parameters: The parameters to be passed to the tool.
 
         Returns:
-            Tool execution result
+            A dictionary containing the result of the tool's execution.
 
         Raises:
-            CLIError: If tool execution fails
+            CLIError: If the tool execution fails.
         """
         try:
             self.formatter.print_debug(

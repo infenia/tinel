@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module defines the core interfaces and data structures for Tinel.
+
+It includes abstract base classes (ABCs) for system interactions and tool
+providers, as well as dataclasses for representing command results and
+hardware information. These interfaces ensure a consistent and extensible
+architecture for the entire application.
+"""
+
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
@@ -22,7 +30,20 @@ from typing import Any, Dict, List, Optional
 
 @dataclass
 class CommandResult:
-    """Result of a system command execution."""
+    """Represents the result of a system command execution.
+
+    This dataclass encapsulates the standard output, standard error, return code,
+    and success status of a command, providing a structured way to handle
+    command results throughout the application.
+
+    Attributes:
+        success: A boolean indicating whether the command executed successfully.
+        stdout: The standard output of the command as a string.
+        stderr: The standard error of the command as a string.
+        returncode: The integer return code of the command.
+        error: An optional string containing any error message if the command
+               failed to execute.
+    """
 
     success: bool
     stdout: str
@@ -33,7 +54,21 @@ class CommandResult:
 
 @dataclass
 class HardwareInfo:
-    """Comprehensive hardware information."""
+    """Represents a comprehensive collection of hardware information.
+
+    This dataclass aggregates information from all hardware analyzers, providing
+    a single, structured object that contains details about the CPU, memory,
+    storage, and other hardware components of the system.
+
+    Attributes:
+        cpu: A dictionary containing CPU information.
+        memory: A dictionary containing memory information.
+        storage: A dictionary containing storage information.
+        pci: A dictionary containing PCI device information.
+        usb: A dictionary containing USB device information.
+        network: A dictionary containing network interface information.
+        graphics: A dictionary containing graphics card information.
+    """
 
     cpu: Dict[str, Any]
     memory: Dict[str, Any]
@@ -45,43 +80,98 @@ class HardwareInfo:
 
 
 class SystemInterface(ABC):
-    """Abstract interface for system interactions."""
+    """Defines an abstract interface for system interactions.
+
+    This abstract base class (ABC) specifies a contract for classes that
+    provide system-level functionalities, such as running commands and
+    accessing the filesystem. By depending on this interface, the application
+    can be easily tested and adapted to different environments.
+    """
 
     @abstractmethod
     def run_command(self, cmd: List[str]) -> CommandResult:
-        """Execute a system command and return the result."""
+        """Executes a system command and returns the result.
+
+        Args:
+            cmd: A list of strings representing the command and its arguments.
+
+        Returns:
+            A CommandResult object containing the outcome of the command execution.
+        """
         pass
 
     @abstractmethod
     def read_file(self, path: str) -> Optional[str]:
-        """Read a file from the filesystem."""
+        """Reads a file from the filesystem.
+
+        Args:
+            path: The absolute or relative path to the file.
+
+        Returns:
+            The content of the file as a string, or None if the file cannot be read.
+        """
         pass
 
     @abstractmethod
     def file_exists(self, path: str) -> bool:
-        """Check if a file exists."""
+        """Checks if a file exists at the given path.
+
+        Args:
+            path: The path to the file.
+
+        Returns:
+            True if the file exists, False otherwise.
+        """
         pass
 
 
 class ToolProvider(ABC):
-    """Abstract interface for MCP tool providers."""
+    """Defines an abstract interface for tool providers.
+
+    This abstract base class (ABC) outlines the contract for creating tool
+    providers that can be integrated into the Tinel framework. Each tool
+_provider
+    is responsible for defining its name, description, input schema, and
+    execution logic.
+    """
 
     @abstractmethod
     def get_tool_name(self) -> str:
-        """Get the name of the tool."""
+        """Gets the name of the tool.
+
+        Returns:
+            A string representing the unique name of the tool.
+        """
         pass
 
     @abstractmethod
     def get_tool_description(self) -> str:
-        """Get the description of the tool."""
+        """Gets the description of the tool.
+
+        Returns:
+            A string providing a brief description of what the tool does.
+        """
         pass
 
     @abstractmethod
     def get_input_schema(self) -> Dict[str, Any]:
-        """Get the input schema for the tool."""
+        """Gets the input schema for the tool.
+
+        Returns:
+            A dictionary representing the JSON schema for the tool's input
+            parameters.
+        """
         pass
 
     @abstractmethod
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool with given parameters."""
+        """Executes the tool with the given parameters.
+
+        Args:
+            parameters: A dictionary of parameters that conform to the tool's
+                        input schema.
+
+        Returns:
+            A dictionary containing the result of the tool's execution.
+        """
         pass
