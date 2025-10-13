@@ -233,11 +233,11 @@ jobs:
         
         # Run integration and performance tests if they exist
         if [ -d "tests/integration" ]; then
-          uv run pytest tests/integration/ -v --tb=short --no-cov --no-cov-fail-under
+          uv run pytest tests/integration/ -v --tb=short --no-cov
         fi
         
         if [ -d "tests/performance" ]; then
-          uv run pytest tests/performance/ -v --tb=short --no-cov --no-cov-fail-under
+          uv run pytest tests/performance/ -v --tb=short --no-cov
         fi
         echo "::endgroup::"
 
