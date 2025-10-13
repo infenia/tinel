@@ -23,9 +23,7 @@ from .graphics_analyzer import GraphicsAnalyzer
 from .memory_analyzer import MemoryAnalyzer
 from .models import HardwareInfo, PCIInfo, USBInfo
 from .network_analyzer import NetworkAnalyzer
-from .pci_analyzer import PCIAnalyzer
 from .storage_analyzer import StorageAnalyzer
-from .usb_analyzer import USBAnalyzer
 
 __all__ = [
     "HardwareInfo",
@@ -34,35 +32,6 @@ __all__ = [
     "GraphicsAnalyzer",
     "MemoryAnalyzer",
     "StorageAnalyzer",
-    "PCIAnalyzer",
-    "USBAnalyzer",
     "PCIInfo",
     "USBInfo",
-    "get_all_hardware_info",
 ]
-
-
-def get_all_hardware_info() -> HardwareInfo:
-    """
-    Gathers all hardware information from the various analyzers.
-
-    Returns:
-        A HardwareInfo dataclass instance containing all hardware info.
-    """
-    cpu_analyzer = CPUAnalyzer()
-    memory_analyzer = MemoryAnalyzer()
-    storage_analyzer = StorageAnalyzer()
-    graphics_analyzer = GraphicsAnalyzer()
-    network_analyzer = NetworkAnalyzer()
-    pci_analyzer = PCIAnalyzer()
-    usb_analyzer = USBAnalyzer()
-
-    return HardwareInfo(
-        cpu=cpu_analyzer.get_cpu_info(),
-        memory=memory_analyzer.get_memory_info(),
-        storage=storage_analyzer.get_storage_info(),
-        graphics=graphics_analyzer.get_graphics_info(),
-        network=network_analyzer.get_network_info(),
-        pci=pci_analyzer.get_pci_info(),
-        usb=usb_analyzer.get_usb_info(),
-    )

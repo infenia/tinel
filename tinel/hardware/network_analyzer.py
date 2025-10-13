@@ -81,7 +81,9 @@ class NetworkAnalyzer:
             info["ip_link"] = ip_link_result.stdout
             info.update(self._parse_ip_link_output(ip_link_result.stdout))
         else:
-            self.logger.warning("Failed to run 'ip -s link': %s", ip_link_result.stderr)
+            self.logger.warning(
+                "Failed to run 'ip -s link': %s", ip_link_result.stderr
+            )
             info["ip_link_error"] = ip_link_result.stderr or "Failed to run ip -s link"
 
         return info
@@ -191,7 +193,6 @@ class NetworkAnalyzer:
             for interface_name in interface_names:
                 if interface_name == "lo":
                     continue
-
                 ethtool_result = self.system.run_command(
                     ["ethtool", "-S", interface_name]
                 )

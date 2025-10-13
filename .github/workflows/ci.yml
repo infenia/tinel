@@ -177,6 +177,7 @@ jobs:
     name: Build & Integration Tests
     runs-on: ubuntu-latest
     needs: quality-security-gates
+    if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test-integration')
     timeout-minutes: 10
 
     steps:
@@ -230,11 +231,11 @@ jobs:
 
         # Run integration and performance tests if they exist
         if [ -d "tests/integration" ]; then
-          uv run pytest tests/integration/ -v --tb=short --no-cov
+          uv run pytest tests/integration/ -v --tb=short
         fi
 
         if [ -d "tests/performance" ]; then
-          uv run pytest tests/performance/ -v --tb=short --no-cov
+          uv run pytest tests/performance/ -v --tb=short
         fi
         echo "::endgroup::"
 

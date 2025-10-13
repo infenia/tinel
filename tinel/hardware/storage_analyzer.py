@@ -16,10 +16,13 @@ limitations under the License.
 """
 
 import json
+import logging
 from typing import Any, Dict, List, Optional
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
+
+logger = logging.getLogger(__name__)
 
 
 class StorageAnalyzer:
@@ -65,14 +68,14 @@ class StorageAnalyzer:
         """
         cmd = ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL"]
         result = self.system.run_command(cmd)
-
-        if result.success and result.stdout:
-            try:
-                lsblk_data = json.loads(result.stdout)
-                return lsblk_data.get("blockdevices")
-            except json.JSONDecodeError:
-                return None
-        return None
+        if not result.success or not result.stdout:
+            return None
+        try:
+            lsblk_data = json.loads(result.stdout)
+            return lsblk_data.get("blockdevices")
+        except json.JSONDecodeError as e:
+            logger.warning("Failed to parse lsblk JSON output: %s", e)
+            return None
 
     def _get_df_info(self) -> Optional[List[Dict[str, str]]]:
         """
@@ -82,7 +85,6 @@ class StorageAnalyzer:
         """
         cmd = ["df", "-h"]
         result = self.system.run_command(cmd)
-
         if result.success and result.stdout:
             return self._parse_df_output(result.stdout)
         return None
@@ -122,7 +124,6 @@ class StorageAnalyzer:
         """
         cmd = ["smartctl", "-H", device]
         result = self.system.run_command(cmd)
-
         if result.success and result.stdout:
             return self._parse_smartctl_output(result.stdout)
         return None

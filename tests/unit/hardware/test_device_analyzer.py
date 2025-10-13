@@ -9,8 +9,8 @@ Licensed under the Apache License, Version 2.0
 from unittest.mock import Mock, patch
 
 from tests.utils import unit_test
-from tinel.hardware import HardwareInfo as HardwareInfoFromSource
 from tinel.hardware.device_analyzer import DeviceAnalyzer
+from tinel.hardware.models import HardwareInfo, PCIInfo, USBInfo
 from tinel.interfaces import SystemInterface
 
 
@@ -71,65 +71,63 @@ class TestDeviceAnalyzer:
         mock_cpu_analyzer.get_cpu_info.assert_called_once()
 
     @unit_test
-    def test_get_all_hardware_info(self):
+    @patch("tinel.hardware.device_analyzer.USBAnalyzer")
+    @patch("tinel.hardware.device_analyzer.PCIAnalyzer")
+    @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
+    @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
+    @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
+    @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
+    def test_get_all_hardware_info(
+        self,
+        mock_graphics_class,
+        mock_network_class,
+        mock_memory_class,
+        mock_cpu_class,
+        mock_pci_class,
+        mock_usb_class,
+    ):
         """Test the aggregation of all hardware information."""
         # Setup mocks for each analyzer's get_info method
+        mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
+        mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
+        mock_network_class.return_value.get_network_info.return_value = {
+            "network": "data"
+        }
+        mock_graphics_class.return_value.get_graphics_info.return_value = {
+            "graphics": "data"
+        }
+        mock_pci_class.return_value.get_pci_info.return_value = {"pci": "data"}
+        mock_usb_class.return_value.get_usb_info.return_value = {"usb": "data"}
+
+        analyzer = DeviceAnalyzer(self.mock_system)
+
+        # Mock the other info methods that are not yet implemented
         with (
-            patch("tinel.hardware.device_analyzer.CPUAnalyzer") as mock_cpu_class,
-            patch("tinel.hardware.device_analyzer.MemoryAnalyzer") as mock_memory_class,
-            patch(
-                "tinel.hardware.device_analyzer.NetworkAnalyzer"
-            ) as mock_network_class,
-            patch(
-                "tinel.hardware.device_analyzer.GraphicsAnalyzer"
-            ) as mock_graphics_class,
-            patch("tinel.hardware.device_analyzer.PCIAnalyzer") as mock_pci_class,
-            patch("tinel.hardware.device_analyzer.USBAnalyzer") as mock_usb_class,
+            patch.object(analyzer, "get_storage_info", return_value={"disks": "data"}),
+            patch.object(
+                analyzer, "get_motherboard_info", return_value={"motherboard": "data"}
+            ),
         ):
-            mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
-            mock_memory_class.return_value.get_memory_info.return_value = {
-                "memory": "data"
-            }
-            mock_network_class.return_value.get_network_info.return_value = {
-                "network": "data"
-            }
-            mock_graphics_class.return_value.get_graphics_info.return_value = {
-                "graphics": "data"
-            }
-            mock_pci_class.return_value.get_pci_info.return_value = {"pci": "data"}
-            mock_usb_class.return_value.get_usb_info.return_value = {"usb": "data"}
+            result = analyzer.get_all_hardware_info()
 
-            analyzer = DeviceAnalyzer(self.mock_system)
+            from tinel.hardware import HardwareInfo as HardwareInfoFromSource
 
-            # Mock the other info methods that are not yet implemented
-            with (
-                patch.object(
-                    analyzer, "get_storage_info", return_value={"disks": "data"}
-                ),
-                patch.object(
-                    analyzer,
-                    "get_motherboard_info",
-                    return_value={"motherboard": "data"},
-                ),
-            ):
-                result = analyzer.get_all_hardware_info()
+            assert isinstance(result, HardwareInfoFromSource)
+            assert result.cpu == {"cpu": "data"}
+            assert result.memory == {"memory": "data"}
+            assert result.network == {"network": "data"}
+            assert result.graphics == {"graphics": "data"}
+            assert result.storage == {"disks": "data"}
+            assert result.motherboard == {"motherboard": "data"}
+            assert result.pci == {"pci": "data"}
+            assert result.usb == {"usb": "data"}
 
-                assert isinstance(result, HardwareInfoFromSource)
-                assert result.cpu == {"cpu": "data"}
-                assert result.memory == {"memory": "data"}
-                assert result.network == {"network": "data"}
-                assert result.graphics == {"graphics": "data"}
-                assert result.storage == {"disks": "data"}
-                assert result.motherboard == {"motherboard": "data"}
-                assert result.pci == {"pci": "data"}
-                assert result.usb == {"usb": "data"}
-
-                mock_cpu_class.return_value.get_cpu_info.assert_called_once()
-                mock_memory_class.return_value.get_memory_info.assert_called_once()
-                mock_network_class.return_value.get_network_info.assert_called_once()
-                mock_graphics_class.return_value.get_graphics_info.assert_called_once()
-                mock_pci_class.return_value.get_pci_info.assert_called_once()
-                mock_usb_class.return_value.get_usb_info.assert_called_once()
+            mock_cpu_class.return_value.get_cpu_info.assert_called_once()
+            mock_memory_class.return_value.get_memory_info.assert_called_once()
+            mock_network_class.return_value.get_network_info.assert_called_once()
+            mock_graphics_class.return_value.get_graphics_info.assert_called_once()
+            mock_pci_class.return_value.get_pci_info.assert_called_once()
+            mock_usb_class.return_value.get_usb_info.assert_called_once()
 
     @unit_test
     def test_unimplemented_methods_return_placeholders(self):
