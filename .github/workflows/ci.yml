@@ -206,10 +206,10 @@ jobs:
         uv pip install build twine
         
         # Build package
-        python -m build --wheel --sdist
+        uv run python -m build --wheel --sdist
         
         # Verify package
-        python -m twine check dist/*
+        uv run python -m twine check dist/*
         
         # Test installation in isolated environment
         python -m venv test-env
