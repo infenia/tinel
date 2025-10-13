@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides a flexible and extensible output formatting system.
+
+It includes a variety of formatters (Text, JSON, YAML, CSV) and a color
+utility for creating user-friendly and machine-readable output. The module is
+designed to be easily extensible with new formatters and provides a
+centralized `OutputFormatter` class to manage the formatting process.
+"""
+
 import csv
 import json
 import os
@@ -38,7 +46,11 @@ DEBUG_VERBOSITY_LEVEL = 2
 
 # Constants for commonly used strings
 class StatusValues:
-    """Common status values for color coding."""
+    """A collection of common status values for consistent color-coding.
+
+    This class defines lists of positive, negative, and warning strings that
+    can be used to apply consistent coloring to status-related output.
+    """
 
     POSITIVE = ["ok", "good", "healthy", "normal", "active", "enabled"]
     NEGATIVE = ["error", "failed", "critical", "bad", "unhealthy", "disabled"]
@@ -46,7 +58,11 @@ class StatusValues:
 
 
 class LogSources:
-    """Common log source names."""
+    """A collection of common log source names.
+
+    This class provides a centralized place to define the names of common log
+    sources, ensuring consistency throughout the application.
+    """
 
     JOURNALD = "journald"
     SYSLOG = "syslog"
@@ -56,7 +72,12 @@ class LogSources:
 
 
 class Color:
-    """ANSI color codes for terminal output."""
+    """A collection of ANSI color codes for terminal output.
+
+    This class provides a set of constants for standard, bold, and background
+    colors, making it easy to apply consistent and readable color-coding to
+    terminal output.
+    """
 
     # Reset
     RESET = "\033[0m"
@@ -93,7 +114,11 @@ class Color:
 
 
 class FormatType(Enum):
-    """Output format types."""
+    """An enumeration of the supported output format types.
+
+    This enum provides a typesafe way to specify the desired output format
+    for the CLI.
+    """
 
     TEXT = "text"
     JSON = "json"
@@ -102,35 +127,59 @@ class FormatType(Enum):
 
 
 class BaseFormatter(ABC):
-    """Abstract base class for data formatters."""
+    """An abstract base class for all data formatters.
+
+    This class defines the common interface that all formatters must implement,
+    ensuring that they can be used interchangeably by the `FormatterFactory` and
+    `OutputFormatter`.
+    """
 
     @abstractmethod
     def format(self, data: Any, title: Optional[str] = None) -> str:
-        """Format data according to the specific format type.
+        """Formats the given data into a string representation.
 
         Args:
-            data: Data to format
-            title: Optional title for the output
+            data: The data to be formatted.
+            title: An optional title for the output.
 
         Returns:
-            Formatted string
+            A string containing the formatted data.
         """
         pass
 
 
 class JSONFormatter(BaseFormatter):
-    """JSON formatter implementation."""
+    """A formatter for converting data into JSON format."""
 
     def format(self, data: Any, title: Optional[str] = None) -> str:
-        """Format data as JSON."""
+        """Formats the given data as a JSON string.
+
+        Args:
+            data: The data to be formatted.
+            title: An optional title (ignored by this formatter).
+
+        Returns:
+            A string containing the data in JSON format.
+        """
         return json.dumps(data, indent=2, default=str, ensure_ascii=False)
 
 
 class YAMLFormatter(BaseFormatter):
-    """YAML formatter implementation."""
+    """A formatter for converting data into YAML format."""
 
     def format(self, data: Any, title: Optional[str] = None) -> str:
-        """Format data as YAML."""
+        """Formats the given data as a YAML string.
+
+        Args:
+            data: The data to be formatted.
+            title: An optional title (ignored by this formatter).
+
+        Returns:
+            A string containing the data in YAML format.
+
+        Raises:
+            RuntimeError: If the `PyYAML` library is not installed.
+        """
         if not YAML_AVAILABLE:
             raise RuntimeError(
                 "YAML formatting requires PyYAML. Install with: pip install PyYAML"
@@ -143,10 +192,21 @@ class YAMLFormatter(BaseFormatter):
 
 
 class CSVFormatter(BaseFormatter):
-    """CSV formatter implementation."""
+    """A formatter for converting data into CSV format."""
 
     def format(self, data: Any, title: Optional[str] = None) -> str:
-        """Format data as CSV."""
+        """Formats the given data as a CSV string.
+
+        This method can handle dictionaries, lists of dictionaries, and other
+        data types, converting them into an appropriate CSV representation.
+
+        Args:
+            data: The data to be formatted.
+            title: An optional title (ignored by this formatter).
+
+        Returns:
+            A string containing the data in CSV format.
+        """
         if isinstance(data, dict):
             return self._format_dict_as_csv(data)
         elif isinstance(data, list):
@@ -160,7 +220,14 @@ class CSVFormatter(BaseFormatter):
             return output.getvalue().strip()
 
     def _format_dict_as_csv(self, data: Dict[str, Any]) -> str:
-        """Format dictionary as CSV with key-value pairs."""
+        """Formats a dictionary as a key-value CSV.
+
+        Args:
+            data: The dictionary to be formatted.
+
+        Returns:
+            A string containing the dictionary in key-value CSV format.
+        """
         output = StringIO()
         writer = csv.writer(output)
 
@@ -175,7 +242,18 @@ class CSVFormatter(BaseFormatter):
         return output.getvalue().strip()
 
     def _format_list_as_csv(self, data: List[Any]) -> str:
-        """Format list as CSV."""
+        """Formats a list as a CSV.
+
+        This method intelligently handles lists of dictionaries by using the
+        dictionary keys as headers. For other list types, it creates an
+        indexed CSV.
+
+        Args:
+            data: The list to be formatted.
+
+        Returns:
+            A string containing the list in CSV format.
+        """
         if not data:
             return ""
 
@@ -209,7 +287,20 @@ class CSVFormatter(BaseFormatter):
         return output.getvalue().strip()
 
     def _flatten_dict(self, data: Dict[str, Any], prefix: str = "") -> Dict[str, Any]:
-        """Flatten nested dictionary for CSV output."""
+        """Recursively flattens a nested dictionary.
+
+        This helper method is used to convert a nested dictionary into a
+        single-level dictionary with dot-separated keys, which is suitable for
+        CSV output.
+
+        Args:
+            data: The dictionary to be flattened.
+            prefix: The prefix to be used for the keys in the flattened
+                    dictionary.
+
+        Returns:
+            A new, flattened dictionary.
+        """
         flattened = {}
 
         for key, value in data.items():
@@ -230,22 +321,42 @@ class CSVFormatter(BaseFormatter):
 
 
 class TextFormatter(BaseFormatter):
-    """Text formatter implementation."""
+    """A formatter for converting data into human-readable text.
+
+    This class provides a rich, colorized text representation of data, with
+    support for nested structures, titles, and different verbosity levels.
+
+    Args:
+        colorizer: A `ColorUtility` instance for applying color to the text.
+        quiet: A boolean indicating whether to suppress non-essential output.
+        verbose: An integer representing the verbosity level.
+    """
 
     def __init__(self, colorizer: Any, quiet: bool = False, verbose: int = 0):
-        """Initialize text formatter.
+        """Initializes the TextFormatter.
 
         Args:
-            colorizer: Color utility instance
-            quiet: Whether to suppress non-essential output
-            verbose: Verbosity level
+            colorizer: A `ColorUtility` instance.
+            quiet: A boolean indicating whether to operate in quiet mode.
+            verbose: An integer representing the verbosity level.
         """
         self.colorizer = colorizer
         self.quiet = quiet
         self.verbose = verbose
 
     def format(self, data: Any, title: Optional[str] = None) -> str:
-        """Format data as human-readable text."""
+        """Formats the given data as a human-readable text string.
+
+        This method produces either a rich, colorized output or a minimal,
+        script-friendly output, depending on the `quiet` setting.
+
+        Args:
+            data: The data to be formatted.
+            title: An optional title for the output.
+
+        Returns:
+            A string containing the formatted data.
+        """
         if self.quiet:
             return self._format_minimal_text(data)
 
@@ -270,7 +381,14 @@ class TextFormatter(BaseFormatter):
         return "\n".join(lines)
 
     def _format_minimal_text(self, data: Any) -> str:
-        """Format data as minimal text suitable for scripting."""
+        """Formats data as minimal text suitable for scripting.
+
+        Args:
+            data: The data to be formatted.
+
+        Returns:
+            A string containing the data in a minimal, script-friendly format.
+        """
         if isinstance(data, dict):
             return self._format_minimal_dict(data)
         elif isinstance(data, list):
@@ -279,7 +397,15 @@ class TextFormatter(BaseFormatter):
             return str(data)
 
     def _format_minimal_dict(self, data: Dict[str, Any], prefix: str = "") -> str:
-        """Format dictionary as minimal text lines."""
+        """Formats a dictionary as minimal, dot-separated key-value pairs.
+
+        Args:
+            data: The dictionary to be formatted.
+            prefix: The prefix for the keys.
+
+        Returns:
+            A string containing the formatted dictionary.
+        """
         lines = []
 
         for key, value in data.items():
@@ -305,7 +431,14 @@ class TextFormatter(BaseFormatter):
         return "\n".join(lines)
 
     def _format_minimal_list(self, data: list) -> str:
-        """Format list as minimal text lines."""
+        """Formats a list as minimal, indexed key-value pairs.
+
+        Args:
+            data: The list to be formatted.
+
+        Returns:
+            A string containing the formatted list.
+        """
         lines = []
 
         for i, item in enumerate(data):
@@ -319,7 +452,15 @@ class TextFormatter(BaseFormatter):
         return "\n".join(lines)
 
     def _format_dict(self, data: Dict[str, Any], indent: int = 0) -> List[str]:
-        """Format dictionary as text lines."""
+        """Formats a dictionary as a rich, colorized text block.
+
+        Args:
+            data: The dictionary to be formatted.
+            indent: The indentation level.
+
+        Returns:
+            A list of strings representing the formatted dictionary.
+        """
         lines = []
         indent_str = "  " * indent
 
@@ -340,7 +481,15 @@ class TextFormatter(BaseFormatter):
         return lines
 
     def _format_list(self, data: list, indent: int = 0) -> List[str]:
-        """Format list as text lines."""
+        """Formats a list as a rich, colorized text block.
+
+        Args:
+            data: The list to be formatted.
+            indent: The indentation level.
+
+        Returns:
+            A list of strings representing the formatted list.
+        """
         lines = []
         indent_str = "  " * indent
 
@@ -363,7 +512,14 @@ class TextFormatter(BaseFormatter):
         return lines
 
     def _format_value(self, value: Any) -> str:  # noqa: PLR0911
-        """Format individual values with appropriate colors."""
+        """Formats and colorizes an individual value based on its type and content.
+
+        Args:
+            value: The value to be formatted.
+
+        Returns:
+            A string containing the formatted and colorized value.
+        """
         if isinstance(value, bool):
             color = Color.GREEN if value else Color.RED
             return self.colorizer.colorize(str(value), color)  # type: ignore[no-any-return]
@@ -383,7 +539,14 @@ class TextFormatter(BaseFormatter):
             return str(value)
 
     def _add_verbose_info(self, data: Dict[str, Any]) -> List[str]:
-        """Add verbose information about the data."""
+        """Adds verbose information about the data to the output.
+
+        Args:
+            data: The data for which to add verbose information.
+
+        Returns:
+            A list of strings containing the verbose information.
+        """
         lines = [""]
         lines.append(
             self.colorizer.colorize("Verbose Information:", Color.BOLD_MAGENTA)
@@ -397,7 +560,11 @@ class TextFormatter(BaseFormatter):
 
 
 class FormatterFactory:
-    """Factory for creating formatter instances."""
+    """A factory class for creating formatter instances.
+
+    This class provides a centralized way to create instances of the different
+    formatter classes based on a `FormatType` enum.
+    """
 
     @staticmethod
     def create_formatter(
@@ -406,19 +573,21 @@ class FormatterFactory:
         quiet: bool = False,
         verbose: int = 0,
     ) -> BaseFormatter:
-        """Create a formatter instance based on format type.
+        """Creates a formatter instance based on the specified format type.
 
         Args:
-            format_type: Type of formatter to create
-            colorizer: Color utility instance (for text formatter)
-            quiet: Whether to suppress non-essential output
-            verbose: Verbosity level
+            format_type: The type of formatter to create.
+            colorizer: A `ColorUtility` instance (required for the text
+                       formatter).
+            quiet: A boolean indicating whether to operate in quiet mode.
+            verbose: An integer representing the verbosity level.
 
         Returns:
-            Formatter instance
+            An instance of a `BaseFormatter` subclass.
 
         Raises:
-            ValueError: If format type is not supported
+            ValueError: If the specified format type is not supported or if a
+                        required dependency is missing.
         """
         if format_type == FormatType.JSON:
             return JSONFormatter()
@@ -435,32 +604,46 @@ class FormatterFactory:
 
 
 class ColorUtility:
-    """Utility class for color operations."""
+    """A utility class for applying ANSI color codes to text.
+
+    This class provides a simple way to colorize text for terminal output,
+    with built-in support for disabling color when not supported or desired.
+
+    Args:
+        use_color: A boolean indicating whether to enable colorized output.
+    """
 
     def __init__(self, use_color: bool = True):
-        """Initialize color utility.
+        """Initializes the ColorUtility.
 
         Args:
-            use_color: Whether to use colored output
+            use_color: A boolean indicating whether to enable color.
         """
         self.use_color = use_color and self._supports_color()
 
     def colorize(self, text: str, color: str) -> str:
-        """Apply color to text if color is enabled.
+        """Applies a color to the given text if color is enabled.
 
         Args:
-            text: Text to colorize
-            color: Color code from Color class
+            text: The text to be colorized.
+            color: The ANSI color code to be applied.
 
         Returns:
-            Colorized text or original text if color is disabled
+            The colorized text, or the original text if color is disabled.
         """
         if not self.use_color:
             return text
         return f"{color}{text}{Color.RESET}"
 
     def _supports_color(self) -> bool:
-        """Check if the terminal supports color output."""
+        """Checks if the terminal supports color output.
+
+        This method considers environment variables like `NO_COLOR` and
+        `FORCE_COLOR`, and also checks if `stdout` is a TTY.
+
+        Returns:
+            True if color is supported, False otherwise.
+        """
         # Import moved to top
 
         # Check for NO_COLOR environment variable (https://no-color.org/)
@@ -484,25 +667,32 @@ class ColorUtility:
 
 
 class TableFormatter:
-    """Specialized formatter for table data."""
+    """A specialized formatter for creating text-based tables.
+
+    This class provides methods for creating well-formatted, colorized tables
+    from lists of dictionaries or lists of lists.
+
+    Args:
+        colorizer: A `ColorUtility` instance for applying color to the table.
+    """
 
     def __init__(self, colorizer: ColorUtility):
-        """Initialize table formatter.
+        """Initializes the TableFormatter.
 
         Args:
-            colorizer: Color utility instance
+            colorizer: A `ColorUtility` instance.
         """
         self.colorizer = colorizer
 
     def format_table(self, data: list, headers: list) -> str:
-        """Format data as a table.
+        """Formats the given data as a text-based table.
 
         Args:
-            data: List of dictionaries or lists representing table rows
-            headers: List of column headers
+            data: A list of dictionaries or lists representing the table rows.
+            headers: A list of strings for the table headers.
 
         Returns:
-            Formatted table string
+            A string containing the formatted table.
         """
         if not data:
             return "No data to display"
@@ -518,7 +708,16 @@ class TableFormatter:
         return "\n".join([header_line, separator_line] + data_lines)
 
     def _calculate_column_widths(self, data: list, headers: list) -> List[int]:
-        """Calculate optimal column widths."""
+        """Calculates the optimal width for each column in a table.
+
+        Args:
+            data: The table data.
+            headers: The table headers.
+
+        Returns:
+            A list of integers representing the calculated width for each
+            column.
+        """
         col_widths = [len(header) for header in headers]
 
         for row in data:
@@ -534,21 +733,45 @@ class TableFormatter:
         return col_widths
 
     def _format_header_line(self, headers: list, col_widths: List[int]) -> str:
-        """Format table header line."""
+        """Formats the header line of a table.
+
+        Args:
+            headers: The table headers.
+            col_widths: The calculated column widths.
+
+        Returns:
+            A string representing the formatted header line.
+        """
         return " | ".join(
             self.colorizer.colorize(header.ljust(width), Color.BOLD_WHITE)
             for header, width in zip(headers, col_widths, strict=False)
         )
 
     def _format_separator_line(self, col_widths: List[int]) -> str:
-        """Format table separator line."""
+        """Formats the separator line of a table.
+
+        Args:
+            col_widths: The calculated column widths.
+
+        Returns:
+            A string representing the formatted separator line.
+        """
         separator = "-+-".join("-" * width for width in col_widths)
         return self.colorizer.colorize(separator, Color.CYAN)
 
     def _format_data_lines(
         self, data: list, headers: list, col_widths: List[int]
     ) -> List[str]:
-        """Format table data lines."""
+        """Formats the data lines of a table.
+
+        Args:
+            data: The table data.
+            headers: The table headers.
+            col_widths: The calculated column widths.
+
+        Returns:
+            A list of strings, where each string is a formatted data line.
+        """
         lines = []
 
         for row in data:
@@ -572,7 +795,14 @@ class TableFormatter:
         return lines
 
     def _format_cell_value(self, value: str) -> str:
-        """Format individual cell values with appropriate colors."""
+        """Formats and colorizes an individual cell value.
+
+        Args:
+            value: The cell value to be formatted.
+
+        Returns:
+            A string containing the formatted and colorized cell value.
+        """
         if value.lower() in StatusValues.POSITIVE:
             return self.colorizer.colorize(value, Color.GREEN)
         elif value.lower() in StatusValues.NEGATIVE:
@@ -584,7 +814,21 @@ class TableFormatter:
 
 
 class OutputFormatter:
-    """Handles output formatting for different formats and styles."""
+    """A high-level class for managing output formatting.
+
+    This class acts as a facade for the various formatter classes, providing a
+    simple and consistent interface for formatting and printing data in
+    different styles and formats. It also includes methods for printing
+    standardized messages, such as errors, warnings, and success notifications.
+
+    Args:
+        format_type: The desired output format ('text', 'json', 'yaml', 'csv').
+        use_color: A boolean indicating whether to use color in the output.
+        verbose: The verbosity level (0-3).
+        quiet: A boolean indicating whether to suppress non-error output.
+        output_file: The file to which output should be written (defaults to
+                     `sys.stdout`).
+    """
 
     def __init__(
         self,
@@ -594,14 +838,14 @@ class OutputFormatter:
         quiet: bool = False,
         output_file: Optional[TextIO] = None,
     ):
-        """Initialize the output formatter.
+        """Initializes the OutputFormatter.
 
         Args:
-            format_type: Output format ('text', 'json', 'yaml', 'csv')
-            use_color: Whether to use colored output
-            verbose: Verbosity level (0-3)
-            quiet: Whether to suppress non-error output
-            output_file: Output file (defaults to stdout)
+            format_type: The output format.
+            use_color: Whether to use color.
+            verbose: The verbosity level.
+            quiet: Whether to suppress non-error output.
+            output_file: The output file.
         """
         self.format_type = FormatType(format_type)
         self.verbose = verbose
@@ -618,41 +862,42 @@ class OutputFormatter:
         )
 
     def colorize(self, text: str, color: str) -> str:
-        """Apply color to text if color is enabled.
+        """Applies color to the given text.
 
         Args:
-            text: Text to colorize
-            color: Color code from Color class
+            text: The text to be colorized.
+            color: The ANSI color code to be applied.
 
         Returns:
-            Colorized text or original text if color is disabled
+            The colorized text, or the original text if color is disabled.
         """
         return self.colorizer.colorize(text, color)
 
     def format_output(self, data: Any, title: Optional[str] = None) -> str:
-        """Format data according to the specified format type.
+        """Formats the given data using the configured formatter.
 
         Args:
-            data: Data to format
-            title: Optional title for the output
+            data: The data to be formatted.
+            title: An optional title for the output.
 
         Returns:
-            Formatted string
+            A string containing the formatted data.
         """
         return self.formatter.format(data, title)
 
     def format_with_explanation(
         self, data: Any, explanation: str, title: Optional[str] = None
     ) -> str:
-        """Format data with explanation for verbose mode.
+        """Formats data and includes an explanation in verbose mode.
 
         Args:
-            data: Data to format
-            explanation: Explanation text
-            title: Optional title for the output
+            data: The data to be formatted.
+            explanation: The explanation text to be included.
+            title: An optional title for the output.
 
         Returns:
-            Formatted string with explanation
+            A string containing the formatted data and, if applicable, the
+            explanation.
         """
         lines = [self.format_output(data, title)]
 
@@ -662,11 +907,25 @@ class OutputFormatter:
         return "\n".join(lines)
 
     def _should_include_explanation(self, explanation: str) -> bool:
-        """Check if explanation should be included in output."""
+        """Determines if the explanation should be included in the output.
+
+        Args:
+            explanation: The explanation text.
+
+        Returns:
+            True if the explanation should be included, False otherwise.
+        """
         return bool(self.verbose >= 1 and explanation and not self.quiet)
 
     def _format_explanation_section(self, explanation: str) -> List[str]:
-        """Format the explanation section with proper wrapping."""
+        """Formats the explanation section with proper wrapping and color.
+
+        Args:
+            explanation: The explanation text.
+
+        Returns:
+            A list of strings representing the formatted explanation section.
+        """
         lines = [""]
         lines.append(self.colorize("Explanation:", Color.BOLD_YELLOW))
         lines.append(self.colorize("-" * 12, Color.YELLOW))
@@ -677,7 +936,15 @@ class OutputFormatter:
         return lines
 
     def _wrap_text_line(self, line: str, max_width: int = 80) -> List[str]:
-        """Wrap a single line of text to specified width."""
+        """Wraps a single line of text to a specified width.
+
+        Args:
+            line: The line of text to be wrapped.
+            max_width: The maximum width of a line.
+
+        Returns:
+            A list of strings representing the wrapped lines.
+        """
         if len(line) <= max_width:
             return [line]
 
@@ -699,11 +966,11 @@ class OutputFormatter:
         return wrapped_lines
 
     def print_output(self, data: Any, title: Optional[str] = None) -> None:
-        """Print formatted output to the output file.
+        """Prints formatted output to the configured output file.
 
         Args:
-            data: Data to print
-            title: Optional title for the output
+            data: The data to be printed.
+            title: An optional title for the output.
         """
         if self.quiet:
             return
@@ -714,12 +981,12 @@ class OutputFormatter:
     def print_output_with_explanation(
         self, data: Any, explanation: str, title: Optional[str] = None
     ) -> None:
-        """Print formatted output with explanation to the output file.
+        """Prints formatted output with an explanation.
 
         Args:
-            data: Data to print
-            explanation: Explanation text
-            title: Optional title for the output
+            data: The data to be printed.
+            explanation: The explanation text to be included.
+            title: An optional title for the output.
         """
         if self.quiet:
             return
@@ -728,19 +995,19 @@ class OutputFormatter:
         print(formatted, file=self.output_file)
 
     def print_error(self, message: str) -> None:
-        """Print error message to stderr.
+        """Prints an error message to stderr.
 
         Args:
-            message: Error message to print
+            message: The error message to be printed.
         """
         colored_message = self.colorize(f"Error: {message}", Color.BOLD_RED)
         print(colored_message, file=sys.stderr)
 
     def print_warning(self, message: str) -> None:
-        """Print warning message.
+        """Prints a warning message.
 
         Args:
-            message: Warning message to print
+            message: The warning message to be printed.
         """
         if self.quiet:
             return
@@ -749,10 +1016,10 @@ class OutputFormatter:
         print(colored_message, file=self.output_file)
 
     def print_info(self, message: str) -> None:
-        """Print info message (only if verbose).
+        """Prints an informational message (only in verbose mode).
 
         Args:
-            message: Info message to print
+            message: The informational message to be printed.
         """
         if self.quiet or self.verbose < 1:
             return
@@ -761,10 +1028,10 @@ class OutputFormatter:
         print(colored_message, file=self.output_file)
 
     def print_debug(self, message: str) -> None:
-        """Print debug message (only if very verbose).
+        """Prints a debug message (only in high verbosity mode).
 
         Args:
-            message: Debug message to print
+            message: The debug message to be printed.
         """
         if self.quiet or self.verbose < DEBUG_VERBOSITY_LEVEL:
             return
@@ -773,10 +1040,10 @@ class OutputFormatter:
         print(colored_message, file=self.output_file)
 
     def print_success(self, message: str) -> None:
-        """Print success message.
+        """Prints a success message.
 
         Args:
-            message: Success message to print
+            message: The success message to be printed.
         """
         if self.quiet:
             return
@@ -785,13 +1052,13 @@ class OutputFormatter:
         print(colored_message, file=self.output_file)
 
     def format_table(self, data: list, headers: list) -> str:
-        """Format data as a table.
+        """Formats the given data as a text-based table.
 
         Args:
-            data: List of dictionaries or lists representing table rows
-            headers: List of column headers
+            data: A list of dictionaries or lists representing the table rows.
+            headers: A list of strings for the table headers.
 
         Returns:
-            Formatted table string
+            A string containing the formatted table.
         """
         return self.table_formatter.format_table(data, headers)

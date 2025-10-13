@@ -15,27 +15,60 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module defines the data models for the hardware components.
+
+It includes dataclasses for representing structured information about PCI and
+USB devices, as well as a comprehensive `HardwareInfo` dataclass that
+aggregates all hardware data into a single object. These models ensure a
+consistent and predictable data structure throughout the application.
+"""
+
 import dataclasses
 from typing import Any, Dict
 
 
 @dataclasses.dataclass
 class PCIInfo:
-    """A dataclass to store PCI device information."""
+    """Represents information about PCI devices.
+
+    Attributes:
+        devices: A list of dictionaries, where each dictionary contains
+                 details about a single PCI device.
+    """
 
     devices: list = dataclasses.field(default_factory=list)
 
 
 @dataclasses.dataclass
 class USBInfo:
-    """A dataclass to store USB device information."""
+    """Represents information about USB devices.
+
+    Attributes:
+        tree: A dictionary representing the hierarchical structure of USB
+              devices connected to the system.
+    """
 
     tree: dict = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
 class HardwareInfo:
-    """A dataclass to store hardware information."""
+    """A comprehensive data model for all hardware information.
+
+    This dataclass serves as the central container for all hardware data
+    collected by the various analyzers. It provides a structured and
+    consistent way to access information about different hardware components.
+
+    Attributes:
+        cpu: A dictionary containing detailed CPU information.
+        memory: A dictionary containing detailed memory information.
+        storage: A dictionary containing detailed storage information.
+        motherboard: A dictionary containing detailed motherboard information.
+        graphics: A dictionary containing detailed graphics information.
+        network: A dictionary containing detailed network information.
+        pci: A `PCIInfo` object containing information about PCI devices.
+        usb: A `USBInfo` object containing information about USB devices.
+    """
 
     cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
     memory: Dict[str, Any] = dataclasses.field(default_factory=dict)

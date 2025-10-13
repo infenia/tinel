@@ -15,6 +15,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides a detailed analyzer for network hardware.
+
+It includes the `NetworkAnalyzer` class, which is responsible for gathering
+and processing comprehensive information about network interfaces. The
+analyzer uses a variety of system commands, including `ip`, `iwconfig`,
+`ethtool`, and `netstat`, as well as the `/sys/class/net` filesystem, to
+provide a complete picture of the network hardware and its configuration.
+"""
+
 import functools
 import logging
 import re
@@ -25,23 +34,40 @@ from ..system import LinuxSystemInterface
 
 
 class NetworkAnalyzer:
-    """Enhanced network analyzer with detailed capabilities detection."""
+    """Analyzes and retrieves detailed information about network hardware.
+
+    This class provides a comprehensive analysis of network interfaces,
+    including their configuration, drivers, performance metrics, and wireless
+    capabilities. It uses a variety of system tools and files to gather this
+    information.
+
+    Args:
+        system_interface: An optional `SystemInterface` for system interactions.
+                          If not provided, a `LinuxSystemInterface` is used.
+    """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """Initialize network analyzer.
+        """Initializes the NetworkAnalyzer.
 
         Args:
-            system_interface: System interface for command execution
+            system_interface: An optional `SystemInterface` for system
+                              interactions.
         """
         self.system = system_interface or LinuxSystemInterface()
         self.logger = logging.getLogger(__name__)
 
     @functools.lru_cache(maxsize=None)
     def get_network_info(self) -> Dict[str, Any]:
-        """Get comprehensive network hardware information.
+        """Retrieves comprehensive information about the network hardware.
+
+        This is the main public method of the class, which orchestrates the
+        gathering of all network-related data. It collects basic and detailed
+        interface information, wireless capabilities, driver details, and
+        performance metrics. The result is cached to improve performance on
+        subsequent calls.
 
         Returns:
-            Dictionary containing detailed network hardware information
+            A dictionary containing a detailed breakdown of network information.
         """
         info: Dict[str, Any] = {}
 
@@ -63,7 +89,15 @@ class NetworkAnalyzer:
         return info
 
     def _get_basic_network_info(self) -> Dict[str, Any]:
-        """Get basic network interface information using ip command."""
+        """Gathers basic network interface information using the `ip` command.
+
+        This method uses `ip addr` and `ip -s link` to collect fundamental
+        details about each network interface, including IP addresses, MAC
+        addresses, and basic statistics.
+
+        Returns:
+            A dictionary containing the basic network information.
+        """
         info: Dict[str, Any] = {}
 
         # Get network interface information using ip addr
@@ -81,15 +115,21 @@ class NetworkAnalyzer:
             info["ip_link"] = ip_link_result.stdout
             info.update(self._parse_ip_link_output(ip_link_result.stdout))
         else:
-            self.logger.warning(
-                "Failed to run 'ip -s link': %s", ip_link_result.stderr
-            )
+            self.logger.warning("Failed to run 'ip -s link': %s", ip_link_result.stderr)
             info["ip_link_error"] = ip_link_result.stderr or "Failed to run ip -s link"
 
         return info
 
     def _get_detailed_network_info(self) -> Dict[str, Any]:
-        """Get detailed network interface information."""
+        """Gathers detailed information about each network interface from sysfs.
+
+        This method inspects the `/sys/class/net` directory to retrieve in-depth
+        details about each network interface, such as type, speed, duplex, MTU,
+        and various statistics.
+
+        Returns:
+            A dictionary containing a list of detailed interface information.
+        """
         info: Dict[str, Any] = {}
         interfaces = []
 
@@ -114,7 +154,14 @@ class NetworkAnalyzer:
         return info
 
     def _get_wireless_info(self) -> Dict[str, Any]:
-        """Get wireless network information."""
+        """Gathers information about wireless network interfaces.
+
+        This method uses `iwconfig` and `iw` to collect details about wireless
+        interfaces, including ESSID, mode, frequency, and other capabilities.
+
+        Returns:
+            A dictionary containing wireless network information.
+        """
         info: Dict[str, Any] = {}
 
         # Get wireless interface information using iwconfig
@@ -134,7 +181,7 @@ class NetworkAnalyzer:
         if iw_result.success:
             info["iw_list"] = iw_result.stdout
             info["wireless_capabilities"] = self._parse_iw_list_output(iw_result.stdout)
-        elif not iw_result.success:  # pragma: no branch
+        elif not iw_result.success: # pragma: no branch
             self.logger.info(
                 "'iw' command not found or failed, skipping detailed wireless info."
             )
@@ -142,7 +189,14 @@ class NetworkAnalyzer:
         return info
 
     def _get_driver_info(self) -> Dict[str, Any]:
-        """Get network interface driver information."""
+        """Gathers information about network interface drivers.
+
+        This method uses `ethtool` and `modinfo` to identify the driver for
+        each network interface and retrieve details about the driver module.
+
+        Returns:
+            A dictionary containing driver information for each interface.
+        """
         info: Dict[str, Any] = {}
         driver_info = []
 
@@ -169,7 +223,15 @@ class NetworkAnalyzer:
         return info
 
     def _get_performance_metrics(self) -> Dict[str, Any]:
-        """Get network performance metrics."""
+        """Gathers network performance metrics and statistics.
+
+        This method uses `netstat` and `ethtool` to collect a wide range of
+        performance data, including packet counts, errors, and other detailed
+        statistics for each network interface.
+
+        Returns:
+            A dictionary containing network performance metrics.
+        """
         info: Dict[str, Any] = {}
 
         # Get network statistics using netstat
@@ -193,6 +255,7 @@ class NetworkAnalyzer:
             for interface_name in interface_names:
                 if interface_name == "lo":
                     continue
+
                 ethtool_result = self.system.run_command(
                     ["ethtool", "-S", interface_name]
                 )
@@ -211,7 +274,19 @@ class NetworkAnalyzer:
         return info
 
     def _parse_ip_addr_output(self, ip_addr_output: str) -> List[Dict[str, Any]]:
-        """Parse ip addr output."""
+        """Parses the output of the `ip addr` command.
+
+        This method processes the raw text output from `ip addr` and extracts
+        details about each network interface, including its name, state, MAC
+        address, and IP addresses (both IPv4 and IPv6).
+
+        Args:
+            ip_addr_output: The raw string output from the `ip addr` command.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a network
+            interface.
+        """
         interfaces = []
         current_interface: Optional[Dict[str, Any]] = None
 
@@ -258,7 +333,18 @@ class NetworkAnalyzer:
         return interfaces
 
     def _parse_ip_link_output(self, ip_link_output: str) -> Dict[str, Any]:
-        """Parse ip -s link output."""
+        """Parses the output of the `ip -s link` command.
+
+        This method processes the raw text output from `ip -s link` to extract
+        detailed statistics for each interface, such as bytes, packets, errors,
+        and dropped packets for both received (RX) and transmitted (TX) traffic.
+
+        Args:
+            ip_link_output: The raw string output from the `ip -s link` command.
+
+        Returns:
+            A dictionary containing the parsed interface statistics.
+        """
         stats: Dict[str, Any] = {}
         current_interface = None
         section = None
@@ -299,7 +385,19 @@ class NetworkAnalyzer:
         return {"interface_statistics": stats}
 
     def _get_interface_details(self, interface_name: str) -> Dict[str, Any]:
-        """Get detailed information for a specific network interface."""
+        """Retrieves detailed information for a specific network interface from sysfs.
+
+        This method reads various files from the `/sys/class/net/<interface>`
+        directory to gather low-level details about an interface, including its
+        type, state, speed, MTU, and hardware flags.
+
+        Args:
+            interface_name: The name of the network interface.
+
+        Returns:
+            A dictionary containing the detailed information for the specified
+            interface.
+        """
         interface_info: Dict[str, Any] = {"name": interface_name}
         sys_path = f"/sys/class/net/{interface_name}"
 
@@ -346,7 +444,19 @@ class NetworkAnalyzer:
         return interface_info
 
     def _parse_iwconfig_output(self, iwconfig_output: str) -> List[Dict[str, Any]]:
-        """Parse iwconfig output."""
+        """Parses the output of the `iwconfig` command.
+
+        This method processes the raw text output from `iwconfig` to extract
+        key information about wireless interfaces, such as ESSID, mode,
+        frequency, access point, bit rate, and signal level.
+
+        Args:
+            iwconfig_output: The raw string output from the `iwconfig` command.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a wireless
+            interface.
+        """
         interfaces = []
         for block in iwconfig_output.strip().split("\n\n"):
             if not block.strip():
@@ -390,13 +500,31 @@ class NetworkAnalyzer:
         return interfaces
 
     def _parse_iw_list_output(self, iw_list_output: str) -> Dict[str, Any]:
-        """Parse iw list output."""
+        """Parses the output of the `iw list` command.
+
+        This method is intended to process the detailed output of `iw list` to
+        extract advanced wireless capabilities. Currently, it serves as a
+        placeholder and returns the raw text.
+
+        Args:
+            iw_list_output: The raw string output from the `iw list` command.
+
+        Returns:
+            A dictionary containing the parsed wireless capabilities.
+        """
         # This is a placeholder for a more complex parser.
         # For now, we just return the raw text.
         return {"raw": iw_list_output}
 
     def _get_interface_driver(self, interface_name: str) -> Optional[str]:
-        """Get driver for a specific network interface."""
+        """Retrieves the driver for a specific network interface using `ethtool`.
+
+        Args:
+            interface_name: The name of the network interface.
+
+        Returns:
+            The name of the driver as a string, or None if it cannot be determined.
+        """
         ethtool_result = self.system.run_command(["ethtool", "-i", interface_name])
         if ethtool_result.success:
             driver_match = re.search(r"driver:\s*(\S+)", ethtool_result.stdout)
@@ -406,7 +534,14 @@ class NetworkAnalyzer:
         return None
 
     def _get_driver_details(self, driver_name: str) -> Dict[str, Any]:
-        """Get details for a specific network driver."""
+        """Retrieves details for a specific network driver using `modinfo`.
+
+        Args:
+            driver_name: The name of the driver module.
+
+        Returns:
+            A dictionary containing the details of the driver module.
+        """
         details = {}
         modinfo_result = self.system.run_command(["modinfo", driver_name])
         if modinfo_result.success:
@@ -417,7 +552,18 @@ class NetworkAnalyzer:
         return details
 
     def _parse_netstat_output(self, netstat_output: str) -> List[Dict[str, Any]]:
-        """Parse netstat -i output."""
+        """Parses the output of the `netstat -i` command.
+
+        This method processes the raw text output from `netstat -i` to extract
+        interface statistics, such as MTU, packet counts, and error counts.
+
+        Args:
+            netstat_output: The raw string output from the `netstat -i` command.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents the
+            statistics for a network interface.
+        """
         interfaces = []
         lines = netstat_output.strip().split("\n")
         if len(lines) < 2:
@@ -436,7 +582,17 @@ class NetworkAnalyzer:
         return interfaces
 
     def _parse_ethtool_output(self, ethtool_output: str) -> Dict[str, Any]:
-        """Parse ethtool -S output."""
+        """Parses the output of the `ethtool -S` command.
+
+        This method processes the raw text output from `ethtool -S` to extract
+        detailed, driver-specific statistics for a network interface.
+
+        Args:
+            ethtool_output: The raw string output from the `ethtool -S` command.
+
+        Returns:
+            A dictionary of the parsed statistics.
+        """
         stats = {}
         # Skip the first line which is a header
         for line in ethtool_output.strip().split("\n")[1:]:

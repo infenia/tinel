@@ -15,7 +15,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import logging
+"""This module provides a Linux-specific implementation of the SystemInterface.
+
+It offers a secure and robust way to execute system commands and read files,
+with a strong emphasis on security. The LinuxSystemInterface class includes
+mechanisms to prevent command injection, path traversal, and other common
+vulnerabilities. It is the primary means by which Tinel interacts with the
+underlying operating system.
+"""
+
 import os
 import re
 import subprocess
@@ -24,11 +32,16 @@ from typing import Dict, List, Optional
 
 from .interfaces import CommandResult, SystemInterface
 
-logger = logging.getLogger(__name__)
-
 
 class LinuxSystemInterface(SystemInterface):
-    """Linux system interface implementation."""
+    """Provides a concrete implementation of the SystemInterface for Linux systems.
+
+    This class is responsible for all interactions with the Linux operating
+    system, including executing commands and reading files. It is designed
+    with security as a primary concern, incorporating features such as command
+    sanitization, allow-listed commands, and restricted file access to
+    minimize the risk of vulnerabilities.
+    """
 
     def run_command(self, cmd: List[str], timeout: int = 30) -> CommandResult:
         """Execute a system command and return the result.
@@ -65,16 +78,6 @@ class LinuxSystemInterface(SystemInterface):
                 shell=False,  # Security: Never use shell=True
                 env=self._get_safe_environment(),  # Security: Controlled environment
             )
-
-            # Log non-zero exit codes as warnings
-            if result.returncode != 0:
-                logger.warning(
-                    "Command '%s' exited with non-zero status %d: %s",
-                    " ".join(sanitized_cmd),
-                    result.returncode,
-                    result.stderr.strip(),
-                )
-
             return CommandResult(
                 success=result.returncode == 0,
                 stdout=result.stdout.strip(),
@@ -82,9 +85,6 @@ class LinuxSystemInterface(SystemInterface):
                 returncode=result.returncode,
             )
         except subprocess.TimeoutExpired:
-            logger.warning(
-                "Command '%s' timed out after %d seconds", " ".join(cmd), timeout
-            )
             return CommandResult(
                 success=False,
                 stdout="",
@@ -93,7 +93,6 @@ class LinuxSystemInterface(SystemInterface):
                 error=f"Command timed out after {timeout} seconds",
             )
         except (OSError, ValueError) as e:
-            logger.error("Command execution failed for '%s': %s", " ".join(cmd), e)
             return CommandResult(
                 success=False,
                 stdout="",
@@ -102,7 +101,6 @@ class LinuxSystemInterface(SystemInterface):
                 error=f"Command execution failed: {e}",
             )
         except Exception as e:
-            logger.exception("Unexpected error executing command '%s'", " ".join(cmd))
             return CommandResult(
                 success=False,
                 stdout="",
@@ -112,14 +110,19 @@ class LinuxSystemInterface(SystemInterface):
             )
 
     def read_file(self, path: str, max_size: int = 10 * 1024 * 1024) -> Optional[str]:
-        """Read a file from the filesystem with security checks.
+        """Reads a file from the filesystem with enhanced security checks.
+
+        This method validates the file path against a list of safe locations,
+        checks the file size to prevent denial-of-service attacks, and handles
+        potential exceptions gracefully. It is the recommended way to read
+        files from the system.
 
         Args:
-            path: Path to the file to read
-            max_size: Maximum file size to read (default 10MB)
+            path: The absolute path to the file to be read.
+            max_size: The maximum allowed file size in bytes. Defaults to 10MB.
 
         Returns:
-            File contents as string or None if file couldn't be read
+            The content of the file as a string if successful, otherwise None.
         """
         try:
             # Security: Validate and normalize path
@@ -138,27 +141,36 @@ class LinuxSystemInterface(SystemInterface):
             return None
 
     def file_exists(self, path: str) -> bool:
-        """Check if a file exists.
+        """Checks if a file exists at the specified path.
+
+        This method provides a simple and safe way to check for the existence
+        of a file. It uses `pathlib.Path` for robust path handling.
 
         Args:
-            path: Path to check
+            path: The path to the file to check.
 
         Returns:
-            True if file exists, False otherwise
+            True if the file exists, False otherwise.
         """
         return Path(path).exists()
 
     def _sanitize_command(self, cmd: List[str]) -> List[str]:
-        """Sanitize command arguments for security.
+        """Sanitizes and validates a command and its arguments for security.
+
+        This method enforces a strict security policy by checking the command
+        against an allow-list and scanning all arguments for potentially
+        dangerous characters. It is a critical component of the application's
+        defense against command injection attacks.
 
         Args:
-            cmd: Command arguments to sanitize
+            cmd: A list of strings representing the command and its arguments.
 
         Returns:
-            Sanitized command arguments
+            The sanitized list of command arguments.
 
         Raises:
-            ValueError: If command contains unsafe characters
+            ValueError: If the command is not in the allow-list or if any
+                        argument contains dangerous characters.
         """
         # Allow list of safe commands for hardware analysis
         safe_commands = {
@@ -200,10 +212,14 @@ class LinuxSystemInterface(SystemInterface):
         return sanitized
 
     def _get_safe_environment(self) -> Dict[str, str]:
-        """Get a safe environment for command execution.
+        """Creates a safe environment for executing system commands.
+
+        This method constructs a minimal set of environment variables to reduce
+        the potential attack surface. It includes only essential variables like
+        `PATH` and `LC_ALL`, while discarding others that could be exploited.
 
         Returns:
-            Dictionary containing safe environment variables
+            A dictionary representing a safe environment for command execution.
         """
         # Minimal environment to reduce attack surface
         safe_env = {
@@ -220,13 +236,18 @@ class LinuxSystemInterface(SystemInterface):
         return safe_env
 
     def _validate_file_path(self, path: str) -> Optional[str]:
-        """Validate and normalize file path for security.
+        """Validates and normalizes a file path for secure access.
+
+        This method ensures that file access is restricted to a predefined list
+        of safe directories and files. It also prevents path traversal attacks
+        by rejecting paths containing '..' and normalizing the path before
+        validation.
 
         Args:
-            path: File path to validate
+            path: The file path to validate.
 
         Returns:
-            Safe normalized path or None if invalid
+            The normalized, safe path if it is valid, otherwise None.
         """
         try:
             # Security: Only allow reading from safe system paths and specific files

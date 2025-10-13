@@ -15,42 +15,82 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module defines the base class for all tool providers.
+
+It includes the `BaseToolProvider` abstract base class, which provides a
+common framework and shared functionality for all tool providers. This
+ensures a consistent structure and simplifies the implementation of new tools.
+"""
+
 from abc import abstractmethod
 from typing import Any, Dict, Optional
 
 from ..interfaces import ToolProvider
 
-"""Base tool provider implementation."""
-
 
 class BaseToolProvider(ToolProvider):
-    """Base implementation for tool providers."""
+    """A base implementation for tool providers.
+
+    This abstract base class provides a common foundation for all tool
+    providers, including a name, description, and an optional feature flag.
+
+    Args:
+        name: The name of the tool.
+        description: A brief description of what the tool does.
+        feature_name: An optional name of the feature flag that controls
+                      access to this tool.
+    """
 
     def __init__(self, name: str, description: str, feature_name: Optional[str] = None):
-        """Initialize base tool provider.
+        """Initializes the BaseToolProvider.
 
         Args:
-            name: Tool name
-            description: Tool description
-            feature_name: Name of the feature flag that controls access to this tool
+            name: The name of the tool.
+            description: The description of the tool.
+            feature_name: The name of the feature flag.
         """
         self._name = name
         self._description = description
         self.feature_name = feature_name
 
     def get_tool_name(self) -> str:
-        """Get the name of the tool."""
+        """Gets the name of the tool.
+
+        Returns:
+            The name of the tool as a string.
+        """
         return self._name
 
     def get_tool_description(self) -> str:
-        """Get the description of the tool."""
+        """Gets the description of the tool.
+
+        Returns:
+            The description of the tool as a string.
+        """
         return self._description
 
     def get_input_schema(self) -> Dict[str, Any]:
-        """Get the input schema for the tool."""
+        """Gets the input schema for the tool.
+
+        By default, this returns a schema for a tool that takes no parameters.
+        Subclasses should override this method to define their own input schemas.
+
+        Returns:
+            A dictionary representing the JSON schema for the tool's input.
+        """
         return {"type": "object", "properties": {}, "required": []}
 
     @abstractmethod
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """Execute the tool with given parameters."""
+        """Executes the tool with the given parameters.
+
+        This is an abstract method that must be implemented by all subclasses.
+        It contains the core logic for the tool.
+
+        Args:
+            parameters: A dictionary of parameters for the tool.
+
+        Returns:
+            A dictionary containing the result of the tool's execution.
+        """
         pass

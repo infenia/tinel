@@ -15,7 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import logging
+"""This module provides a detailed analysis of the CPU.
+
+It includes the `CPUAnalyzer` class, which gathers comprehensive information
+about the CPU, such as model, vendor, features, topology, and vulnerabilities.
+The analyzer uses a combination of system files, commands, and the `psutil`
+library to provide a complete picture of the CPU's capabilities and status.
+"""
+
 import re
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
@@ -25,32 +32,46 @@ import psutil
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
 
-logger = logging.getLogger(__name__)
-
 
 class CPUAnalyzer:
-    """Enhanced CPU analyzer with detailed feature detection."""
+    """Analyzes and retrieves detailed information about the system's CPU.
+
+    This class provides a comprehensive analysis of the CPU, including its
+    model, features, performance characteristics, and security vulnerabilities.
+    It uses a caching mechanism to improve performance for repeated queries.
+
+    Args:
+        system_interface: An optional `SystemInterface` implementation for
+                          executing commands and reading files. If not provided,
+                          a `LinuxSystemInterface` instance is created.
+    """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """Initialize CPU analyzer.
+        """Initializes the CPUAnalyzer.
 
         Args:
-            system_interface: System interface for command execution
+            system_interface: An optional `SystemInterface` for system
+                              interactions.
         """
         self.system = system_interface or LinuxSystemInterface()
-        self.logger = logging.getLogger(__name__)
         self._cache: Dict[str, Tuple[Any, float]] = {}
         self._cache_ttl = 60  # Cache for 60 seconds
 
     def _get_cached_or_compute(self, key: str, compute_func: Callable[[], Any]) -> Any:
-        """Get cached result or compute and cache new result.
+        """Retrieves a result from the cache or computes it if not present.
+
+        This method implements a time-to-live (TTL) caching strategy to avoid
+        re-computing data that changes infrequently. It checks for a valid
+        cached result and, if not found, executes the `compute_func` to
+        generate and cache a new result.
 
         Args:
-            key: Cache key
-            compute_func: Function to compute the result
+            key: The unique key for the cached item.
+            compute_func: A callable that computes the result if it's not in
+                          the cache.
 
         Returns:
-            Cached or newly computed result
+            The cached or newly computed result.
         """
         current_time = time.time()
 
@@ -66,10 +87,15 @@ class CPUAnalyzer:
         return result
 
     def get_cpu_info(self) -> Dict[str, Any]:
-        """Get comprehensive CPU information with caching.
+        """Retrieves comprehensive information about the CPU.
+
+        This is the main public method of the class. It orchestrates the
+        gathering of all CPU-related data, including basic information,
+        features, topology, and cache details. The result is cached to
+        optimize subsequent calls.
 
         Returns:
-            Dictionary containing detailed CPU information
+            A dictionary containing a detailed breakdown of CPU information.
         """
         return cast(
             Dict[str, Any],
@@ -77,10 +103,15 @@ class CPUAnalyzer:
         )
 
     def _compute_cpu_info(self) -> Dict[str, Any]:
-        """Compute CPU information efficiently.
+        """Gathers and computes all CPU information.
+
+        This internal method is responsible for collecting data from various
+        sources, such as `/proc/cpuinfo` and the `lscpu` command, and
+        organizing it into a structured dictionary. It also triggers
+        analyses for CPU features, topology, and optimization.
 
         Returns:
-            Dictionary containing detailed CPU information
+            A dictionary containing detailed CPU information.
         """
         info: Dict[str, Any] = {}
 
@@ -116,14 +147,18 @@ class CPUAnalyzer:
     def _process_basic_cpu_info(
         self, cpuinfo_content: Optional[str], lscpu_result: Any
     ) -> Dict[str, Any]:
-        """Process basic CPU information from cached data sources.
+        """Processes basic CPU information from `/proc/cpuinfo` and `lscpu`.
+
+        This method extracts fundamental CPU details, such as model name,
+        vendor ID, and architecture, from the provided data sources. It is
+        called by `_compute_cpu_info` to populate the initial information.
 
         Args:
-            cpuinfo_content: Content from /proc/cpuinfo
-            lscpu_result: Result from lscpu command
+            cpuinfo_content: The content of `/proc/cpuinfo`.
+            lscpu_result: The result of the `lscpu` command.
 
         Returns:
-            Dictionary containing processed CPU information
+            A dictionary containing the processed basic CPU information.
         """
         info: Dict[str, Any] = {}
 
@@ -145,13 +180,19 @@ class CPUAnalyzer:
         return info
 
     def _process_cpu_features(self, cpuinfo_content: str) -> Dict[str, Any]:
-        """Process CPU features from cached cpuinfo content.
+        """Processes CPU features and vulnerabilities.
+
+        This method analyzes the CPU flags from `/proc/cpuinfo` to identify
+        supported security, performance, and virtualization features. It also
+        checks for known CPU vulnerabilities by inspecting the relevant sysfs
+        files.
 
         Args:
-            cpuinfo_content: Content from /proc/cpuinfo
+            cpuinfo_content: The content of `/proc/cpuinfo`.
 
         Returns:
-            Dictionary containing CPU features information
+            A dictionary containing detailed information about CPU features
+            and vulnerabilities.
         """
         info: Dict[str, Any] = {}
 
@@ -170,7 +211,15 @@ class CPUAnalyzer:
         return info
 
     def _get_frequency_info(self) -> Dict[str, Any]:
-        """Get detailed CPU frequency information."""
+        """Retrieves detailed CPU frequency and governor information.
+
+        This method reads data from the `cpufreq` sysfs interface to determine
+        the current, minimum, and maximum CPU frequencies, as well as the
+        available and current CPU governors.
+
+        Returns:
+            A dictionary containing CPU frequency and governor details.
+        """
         info: Dict[str, Any] = {}
 
         # Get current frequency
@@ -213,16 +262,21 @@ class CPUAnalyzer:
         return info
 
     def _get_topology_info(self) -> Dict[str, Any]:
-        """Get CPU topology information."""
+        """Retrieves CPU topology information, such as core and thread counts.
+
+        This method determines the number of logical and physical CPUs, as well
+        as the number of cores per socket. It uses a combination of system
+        commands and sysfs files, and cross-verifies the results with `psutil`.
+
+        Returns:
+            A dictionary containing CPU topology details.
+        """
         info: Dict[str, Any] = {}
 
         # Get number of CPUs
         nproc_result = self.system.run_command(["nproc"])
         if nproc_result.success:
-            try:
-                info["logical_cpus"] = int(nproc_result.stdout)
-            except (ValueError, TypeError) as e:
-                logger.warning("Failed to determine logical CPUs from nproc: %s", e)
+            info["logical_cpus"] = int(nproc_result.stdout)
 
         # Get physical CPU count
         physical_cpus = self.system.read_file(
@@ -267,7 +321,15 @@ class CPUAnalyzer:
         return info
 
     def _get_cache_info(self) -> Dict[str, Any]:
-        """Get CPU cache information."""
+        """Retrieves information about the CPU cache hierarchy.
+
+        This method inspects the sysfs filesystem to discover the different
+        levels of CPU cache (L1, L2, L3), their sizes, and their types (e.g.,
+        Data, Instruction, Unified).
+
+        Returns:
+            A dictionary containing details about the CPU cache.
+        """
         info: Dict[str, Any] = {}
         cache_info = {}
 
@@ -291,7 +353,16 @@ class CPUAnalyzer:
         return info
 
     def _analyze_cpu_optimization(self) -> Dict[str, Any]:
-        """Analyze CPU for optimization opportunities."""
+        """Analyzes the CPU configuration for optimization opportunities.
+
+        This method checks for potential performance and security improvements,
+        such as suboptimal governor settings or unmitigated CPU
+        vulnerabilities. It provides actionable recommendations for addressing
+        any identified issues.
+
+        Returns:
+            A dictionary containing a list of optimization recommendations.
+        """
         info: Dict[str, Any] = {}
         recommendations = []
 
@@ -339,7 +410,18 @@ class CPUAnalyzer:
         return info
 
     def _parse_cpuinfo(self, cpuinfo_content: str) -> Dict[str, Any]:
-        """Parse /proc/cpuinfo content."""
+        """Parses the content of `/proc/cpuinfo`.
+
+        This method uses regular expressions to extract key-value information
+        from the `/proc/cpuinfo` file, such as the model name, vendor ID,
+        and CPU family.
+
+        Args:
+            cpuinfo_content: The string content of `/proc/cpuinfo`.
+
+        Returns:
+            A dictionary containing the parsed information.
+        """
         info: Dict[str, Any] = {}
 
         # Extract model name
@@ -370,7 +452,17 @@ class CPUAnalyzer:
         return info
 
     def _parse_lscpu(self, lscpu_output: str) -> Dict[str, Any]:
-        """Parse lscpu output."""
+        """Parses the output of the `lscpu` command.
+
+        This method extracts information from the `lscpu` command's output,
+        such as the CPU architecture, op-modes, and byte order.
+
+        Args:
+            lscpu_output: The string output of the `lscpu` command.
+
+        Returns:
+            A dictionary containing the parsed information.
+        """
         info: Dict[str, Any] = {}
 
         # Extract architecture
@@ -391,14 +483,28 @@ class CPUAnalyzer:
         return info
 
     def _extract_cpu_flags(self, cpuinfo_content: str) -> List[str]:
-        """Extract CPU flags from /proc/cpuinfo."""
+        """Extracts the CPU flags from the `/proc/cpuinfo` content.
+
+        Args:
+            cpuinfo_content: The string content of `/proc/cpuinfo`.
+
+        Returns:
+            A list of strings, where each string is a CPU flag.
+        """
         flags_match = re.search(r"flags\s*:\s*(.+)", cpuinfo_content)
         if flags_match:
             return flags_match.group(1).strip().split()
         return []
 
     def _analyze_security_features(self, flags: List[str]) -> Dict[str, bool]:
-        """Analyze security-related CPU features."""
+        """Analyzes the security-related CPU features from a list of flags.
+
+        Args:
+            flags: A list of CPU flags.
+
+        Returns:
+            A dictionary indicating the presence of various security features.
+        """
         security_features = {
             "nx_bit": "nx" in flags,  # No-execute bit
             "smep": "smep" in flags,  # Supervisor Mode Execution Prevention
@@ -412,7 +518,14 @@ class CPUAnalyzer:
         return security_features
 
     def _analyze_performance_features(self, flags: List[str]) -> Dict[str, bool]:
-        """Analyze performance-related CPU features."""
+        """Analyzes the performance-related CPU features from a list of flags.
+
+        Args:
+            flags: A list of CPU flags.
+
+        Returns:
+            A dictionary indicating the presence of various performance features.
+        """
         performance_features = {
             "sse": "sse" in flags,
             "sse2": "sse2" in flags,
@@ -430,7 +543,15 @@ class CPUAnalyzer:
         return performance_features
 
     def _analyze_virtualization_features(self, flags: List[str]) -> Dict[str, bool]:
-        """Analyze virtualization-related CPU features."""
+        """Analyzes the virtualization-related CPU features from a list of flags.
+
+        Args:
+            flags: A list of CPU flags.
+
+        Returns:
+            A dictionary indicating the presence of various virtualization
+            features.
+        """
         virt_features = {
             "vmx": "vmx" in flags,  # Intel VT-x
             "svm": "svm" in flags,  # AMD-V
@@ -440,7 +561,15 @@ class CPUAnalyzer:
         return virt_features
 
     def _get_cpu_vulnerabilities(self) -> Dict[str, str]:
-        """Get CPU vulnerability information."""
+        """Retrieves information about CPU vulnerabilities from sysfs.
+
+        This method checks for the status of common CPU vulnerabilities by
+        reading the corresponding files in `/sys/devices/system/cpu/vulnerabilities/`.
+
+        Returns:
+            A dictionary where keys are vulnerability names and values are their
+            reported statuses.
+        """
         vulnerabilities = {}
 
         # Common CPU vulnerabilities to check

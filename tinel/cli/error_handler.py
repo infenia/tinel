@@ -15,6 +15,15 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides a comprehensive error handling system for the Tinel CLI.
+
+It defines custom exception classes for various error scenarios, an `ExitCode`
+enum for standardized exit codes, and a `CLIErrorHandler` class to manage
+error reporting, formatting, and graceful termination of the application. The
+error handler is designed to provide informative feedback to the user and
+generate detailed reports for debugging.
+"""
+
 import json
 import logging
 import os
@@ -35,7 +44,13 @@ logger = logging.getLogger(__name__)
 
 
 class ExitCode(IntEnum):
-    """Standard exit codes for the CLI."""
+    """Defines standard and custom exit codes for the Tinel CLI.
+
+    This enumeration provides a set of standardized exit codes to be used
+    throughout the application, ensuring consistent and meaningful termination
+    statuses. It includes both common POSIX exit codes and custom codes
+    specific to Tinel's functionality.
+    """
 
     SUCCESS = 0
     GENERAL_ERROR = 1
@@ -56,7 +71,17 @@ class ExitCode(IntEnum):
 
 
 class CLIError(Exception):
-    """Base exception for CLI errors."""
+    """A base exception class for all custom CLI errors in Tinel.
+
+    This class provides a foundation for creating more specific error types.
+    It encapsulates an error message, an exit code, and optional details,
+    ensuring that all custom errors have a consistent structure.
+
+    Args:
+        message: The error message to be displayed to the user.
+        exit_code: The exit code to be used when the application terminates.
+        details: An optional dictionary of additional details for debugging.
+    """
 
     def __init__(
         self,
@@ -64,12 +89,12 @@ class CLIError(Exception):
         exit_code: int = ExitCode.GENERAL_ERROR,
         details: Optional[Dict[str, Any]] = None,
     ):
-        """Initialize CLI error.
+        """Initializes the CLIError.
 
         Args:
-            message: Error message
-            exit_code: Exit code to use
-            details: Additional error details
+            message: The error message.
+            exit_code: The exit code.
+            details: Additional details about the error.
         """
         super().__init__(message)
         self.message = message
@@ -78,9 +103,14 @@ class CLIError(Exception):
 
 
 class CommandNotFoundError(CLIError):
-    """Raised when a command is not found."""
+    """An exception raised when a specified command is not found."""
 
     def __init__(self, command: str):
+        """Initializes the CommandNotFoundError.
+
+        Args:
+            command: The name of the command that was not found.
+        """
         super().__init__(
             f"Command '{command}' not found",
             ExitCode.COMMAND_NOT_FOUND,
@@ -89,9 +119,15 @@ class CommandNotFoundError(CLIError):
 
 
 class InvalidArgumentError(CLIError):
-    """Raised when invalid arguments are provided."""
+    """An exception raised when an invalid argument is provided to a command."""
 
     def __init__(self, message: str, argument: Optional[str] = None):
+        """Initializes the InvalidArgumentError.
+
+        Args:
+            message: The error message to display.
+            argument: The name of the invalid argument, if applicable.
+        """
         super().__init__(
             message,
             ExitCode.INVALID_ARGUMENT,
@@ -100,9 +136,15 @@ class InvalidArgumentError(CLIError):
 
 
 class PermissionError(CLIError):
-    """Raised when permission is denied."""
+    """An exception raised when a required permission is not granted."""
 
     def __init__(self, message: str, resource: Optional[str] = None):
+        """Initializes the PermissionError.
+
+        Args:
+            message: The error message to display.
+            resource: The resource for which permission was denied.
+        """
         super().__init__(
             message,
             ExitCode.PERMISSION_DENIED,
@@ -111,9 +153,14 @@ class PermissionError(CLIError):
 
 
 class FileNotFoundError(CLIError):
-    """Raised when a required file is not found."""
+    """An exception raised when a required file is not found."""
 
     def __init__(self, file_path: str):
+        """Initializes the FileNotFoundError.
+
+        Args:
+            file_path: The path to the file that was not found.
+        """
         super().__init__(
             f"File not found: {file_path}",
             ExitCode.FILE_NOT_FOUND,
@@ -122,18 +169,30 @@ class FileNotFoundError(CLIError):
 
 
 class NetworkError(CLIError):
-    """Raised when network operations fail."""
+    """An exception raised when a network operation fails."""
 
     def __init__(self, message: str, endpoint: Optional[str] = None):
+        """Initializes the NetworkError.
+
+        Args:
+            message: The error message to display.
+            endpoint: The network endpoint that was being accessed.
+        """
         super().__init__(
             message, ExitCode.NETWORK_ERROR, {"endpoint": endpoint} if endpoint else {}
         )
 
 
 class ConfigurationError(CLIError):
-    """Raised when configuration is invalid."""
+    """An exception raised when there is a configuration error."""
 
     def __init__(self, message: str, config_key: Optional[str] = None):
+        """Initializes the ConfigurationError.
+
+        Args:
+            message: The error message to display.
+            config_key: The configuration key that caused the error.
+        """
         super().__init__(
             message,
             ExitCode.CONFIGURATION_ERROR,
@@ -142,9 +201,15 @@ class ConfigurationError(CLIError):
 
 
 class HardwareError(CLIError):
-    """Raised when hardware operations fail."""
+    """An exception raised when a hardware-related operation fails."""
 
     def __init__(self, message: str, component: Optional[str] = None):
+        """Initializes the HardwareError.
+
+        Args:
+            message: The error message to display.
+            component: The hardware component that caused the error.
+        """
         super().__init__(
             message,
             ExitCode.HARDWARE_ERROR,
@@ -153,9 +218,15 @@ class HardwareError(CLIError):
 
 
 class KernelError(CLIError):
-    """Raised when kernel operations fail."""
+    """An exception raised when a kernel-related operation fails."""
 
     def __init__(self, message: str, operation: Optional[str] = None):
+        """Initializes the KernelError.
+
+        Args:
+            message: The error message to display.
+            operation: The kernel operation that failed.
+        """
         super().__init__(
             message,
             ExitCode.KERNEL_ERROR,
@@ -164,9 +235,15 @@ class KernelError(CLIError):
 
 
 class LogAnalysisError(CLIError):
-    """Raised when log analysis fails."""
+    """An exception raised when log analysis fails."""
 
     def __init__(self, message: str, log_source: Optional[str] = None):
+        """Initializes the LogAnalysisError.
+
+        Args:
+            message: The error message to display.
+            log_source: The source of the log that was being analyzed.
+        """
         super().__init__(
             message,
             ExitCode.LOG_ANALYSIS_ERROR,
@@ -175,9 +252,15 @@ class LogAnalysisError(CLIError):
 
 
 class DiagnosticsError(CLIError):
-    """Raised when diagnostics operations fail."""
+    """An exception raised when a diagnostics operation fails."""
 
     def __init__(self, message: str, diagnostic_type: Optional[str] = None):
+        """Initializes the DiagnosticsError.
+
+        Args:
+            message: The error message to display.
+            diagnostic_type: The type of diagnostic that failed.
+        """
         super().__init__(
             message,
             ExitCode.DIAGNOSTICS_ERROR,
@@ -186,13 +269,24 @@ class DiagnosticsError(CLIError):
 
 
 class CLIErrorHandler:
-    """Handles CLI errors with appropriate formatting and exit codes."""
+    """A class for handling and reporting CLI errors.
+
+    This class provides a centralized mechanism for managing exceptions and
+    errors that occur during the execution of the CLI. It is responsible for
+    formatting error messages, providing helpful suggestions, logging errors,
+    and terminating the application with an appropriate exit code.
+
+    Args:
+        formatter: An `OutputFormatter` instance for printing formatted
+                   messages.
+    """
 
     def __init__(self, formatter: OutputFormatter):
-        """Initialize the error handler.
+        """Initializes the CLIErrorHandler.
 
         Args:
-            formatter: Output formatter instance
+            formatter: An `OutputFormatter` instance to be used for displaying
+                       error messages.
         """
         self.formatter = formatter
         self.error_suggestions = {
@@ -217,13 +311,19 @@ class CLIErrorHandler:
         details: Optional[Dict[str, Any]] = None,
         suggestion: Optional[str] = None,
     ) -> None:
-        """Handle an error with appropriate formatting and exit.
+        """Handles a generic error, formats it, and terminates the application.
+
+        This method is the core of the error handling process. It logs the
+        error, prints a formatted message to the user, provides a helpful
+        suggestion, and, in the case of unexpected errors, saves a detailed
+        error report for debugging.
 
         Args:
-            error: Error message
-            exit_code: Exit code to use
-            details: Additional error details
-            suggestion: Optional suggestion for fixing the error
+            error: The error message to be displayed.
+            exit_code: The exit code to be used for termination.
+            details: An optional dictionary of additional details for debugging.
+            suggestion: An optional suggestion to help the user resolve the
+                        error.
         """
         # Log the error
         logger.error(f"CLI Error: {error}")
@@ -262,21 +362,29 @@ class CLIErrorHandler:
         sys.exit(exit_code)
 
     def handle_cli_error(self, error: CLIError) -> None:
-        """Handle a CLIError instance.
+        """Handles a `CLIError` instance by delegating to `handle_error`.
+
+        This is a convenience method for handling instances of the `CLIError`
+        base class and its subclasses.
 
         Args:
-            error: CLIError instance
+            error: The `CLIError` instance to be handled.
         """
         self.handle_error(error.message, error.exit_code, error.details)
 
     def handle_exception(
         self, exception: Exception, context: Optional[str] = None
     ) -> None:
-        """Handle an unexpected exception.
+        """Handles an unexpected exception.
+
+        This method is designed to catch and process any exceptions that are
+        not explicitly handled as `CLIError` instances. It logs the exception
+        and provides a generic error message to the user.
 
         Args:
-            exception: Exception that occurred
-            context: Optional context information
+            exception: The unexpected exception that occurred.
+            context: Optional context information about where the error
+                     occurred.
         """
         error_msg = f"Unexpected error: {exception}"
         if context:
@@ -292,15 +400,20 @@ class CLIErrorHandler:
         )
 
     def validate_file_access(self, file_path: str, operation: str = "read") -> None:
-        """Validate file access and raise appropriate error if not accessible.
+        """Validates access to a file.
+
+        This method checks for the existence of a file and whether the current
+        user has the necessary permissions to perform the specified operation
+        (read, write, or execute).
 
         Args:
-            file_path: Path to the file
-            operation: Type of operation (read, write, execute)
+            file_path: The path to the file to be validated.
+            operation: The type of operation to be checked ('read', 'write',
+                       or 'execute').
 
         Raises:
-            FileNotFoundError: If file doesn't exist
-            PermissionError: If permission is denied
+            FileNotFoundError: If the file does not exist.
+            PermissionError: If the required permission is not granted.
         """
         if not os.path.exists(file_path):
             raise FileNotFoundError(file_path)
@@ -319,13 +432,17 @@ class CLIErrorHandler:
             )
 
     def validate_command_availability(self, command: str) -> None:
-        """Validate that a system command is available.
+        """Validates the availability of a system command.
+
+        This method checks if a given command is present in the system's PATH
+        and executable.
 
         Args:
-            command: Command to check
+            command: The name of the command to be checked.
 
         Raises:
-            CommandNotFoundError: If command is not found
+            CommandNotFoundError: If the command is not found in the system's
+                                  PATH.
         """
         # Import moved to top
 
@@ -335,15 +452,18 @@ class CLIErrorHandler:
     def validate_network_connectivity(
         self, host: str, port: int, timeout: int = 5
     ) -> None:
-        """Validate network connectivity to a host.
+        """Validates network connectivity to a specified host and port.
+
+        This method attempts to establish a TCP connection to the given host
+        and port to verify network reachability.
 
         Args:
-            host: Hostname or IP address
-            port: Port number
-            timeout: Connection timeout in seconds
+            host: The hostname or IP address to connect to.
+            port: The port number to connect to.
+            timeout: The connection timeout in seconds.
 
         Raises:
-            NetworkError: If connection fails
+            NetworkError: If the connection cannot be established.
         """
         # Import moved to top
 
@@ -366,14 +486,18 @@ class CLIErrorHandler:
     def create_error_report(
         self, error: Exception, context: Optional[Dict[str, Any]] = None
     ) -> Dict[str, Any]:
-        """Create a detailed error report for debugging.
+        """Creates a detailed error report for debugging purposes.
+
+        This method gathers comprehensive information about an error, including
+        a timestamp, a traceback, system details, and any provided context,
+        and compiles it into a structured dictionary.
 
         Args:
-            error: Exception that occurred
-            context: Additional context information
+            error: The exception that occurred.
+            context: An optional dictionary of additional context information.
 
         Returns:
-            Dictionary containing error report
+            A dictionary containing the detailed error report.
         """
         # Imports moved to top
 
@@ -397,14 +521,19 @@ class CLIErrorHandler:
     def save_error_report(
         self, error: Exception, context: Optional[Dict[str, Any]] = None
     ) -> str:
-        """Save an error report to a file for debugging.
+        """Saves a detailed error report to a file.
+
+        This method generates an error report using `create_error_report` and
+        saves it as a JSON file in the system's temporary directory. This is
+        useful for persisting debugging information for unexpected errors.
 
         Args:
-            error: Exception that occurred
-            context: Additional context information
+            error: The exception that occurred.
+            context: An optional dictionary of additional context information.
 
         Returns:
-            Path to the saved error report file
+            The path to the saved error report file, or an empty string if
+            saving fails.
         """
         # Imports moved to top
 
@@ -429,10 +558,13 @@ class CLIErrorHandler:
             return ""
 
     def validate_system_requirements(self) -> None:
-        """Validate system requirements and raise appropriate errors.
+        """Validates that the system meets the necessary requirements to run Tinel.
+
+        This method checks for the correct Python version, operating system,
+        and the availability of required system utilities.
 
         Raises:
-            ConfigurationError: If system requirements are not met
+            ConfigurationError: If any system requirement is not met.
         """
         # Imports moved to top
 
@@ -467,14 +599,17 @@ class CLIErrorHandler:
             )
 
     def handle_permission_escalation(self, operation: str, resource: str) -> None:
-        """Handle permission escalation requests.
+        """Handles operations that require permission escalation.
+
+        This method raises a `PermissionError` with a user-friendly message
+        that suggests re-running the command with `sudo`.
 
         Args:
-            operation: Operation that requires elevated privileges
-            resource: Resource that requires access
+            operation: The operation that requires elevated privileges.
+            resource: The resource that requires access.
 
         Raises:
-            PermissionError: If permission cannot be granted
+            PermissionError: Always, to indicate that permission was denied.
         """
         raise PermissionError(
             f"Permission denied for {operation} on {resource}. "
@@ -484,14 +619,17 @@ class CLIErrorHandler:
         )
 
     def validate_cli_arguments(self, args: Any) -> None:
-        """Validate CLI arguments and raise appropriate errors.
+        """Validates the parsed CLI arguments.
+
+        This method checks for any conflicting or invalid arguments provided by
+        the user, such as using `--quiet` and `--verbose` together or
+        specifying an invalid output format.
 
         Args:
-            args: Parsed command line arguments
+            args: The namespace object returned by `ArgumentParser.parse_args()`.
 
         Raises:
-            InvalidArgumentError: If arguments are invalid
-            ConfigurationError: If configuration is invalid
+            InvalidArgumentError: If any argument is found to be invalid.
         """
         # Check for conflicting options first
         if (
@@ -528,10 +666,14 @@ class CLIErrorHandler:
             )
 
     def get_error_context(self) -> Dict[str, Any]:
-        """Get current system context for error reporting.
+        """Gathers the current system context for error reporting.
+
+        This method collects a snapshot of the system's state at the time of
+        an error, including user, working directory, environment variables, and
+        platform details. This information is invaluable for debugging.
 
         Returns:
-            Dictionary containing system context information
+            A dictionary containing the system context information.
         """
         # Imports moved to top
 
@@ -564,14 +706,18 @@ class CLIErrorHandler:
     def format_error_for_user(
         self, error: Exception, context: Optional[str] = None
     ) -> str:
-        """Format an error message for user-friendly display.
+        """Formats an error message for user-friendly display.
+
+        This method takes an exception and an optional context string and
+        creates a simple, readable error message suitable for display to the
+        end user.
 
         Args:
-            error: Exception that occurred
-            context: Optional context information
+            error: The exception that occurred.
+            context: An optional string providing context for the error.
 
         Returns:
-            Formatted error message
+            A formatted, user-friendly error message as a string.
         """
         error_type = type(error).__name__
         error_message = str(error)

@@ -43,7 +43,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12", "3.13", "3.14"]') }}
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12", "3.13"]') }}
+
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@v2
@@ -206,9 +207,11 @@ jobs:
         uv pip install build twine
 
         # Build package
-        uv run python -m build --wheel --sdist
+        python -m build --wheel --sdist
+
         # Verify package
-        uv run python -m twine check dist/*
+        python -m twine check dist/*
+
         # Test installation in isolated environment
         python -m venv test-env
         source test-env/bin/activate

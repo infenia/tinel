@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module serves as the main entry point for the Tinel command-line tool.
+
+It is responsible for orchestrating the entire CLI workflow, including parsing
+arguments, setting up logging, handling errors, and routing commands to their
+respective handlers. The `main` function is the primary function that is
+executed when the tool is run.
+"""
+
 import logging
 import sys
 import time
@@ -34,18 +42,30 @@ MAX_ARGUMENT_LENGTH = 1000
 
 # Command router initialization
 def _get_command_router(formatter: Any, error_handler: Any) -> Any:
-    """Initialize command router."""
+    """Initializes and returns the command router.
+
+    Args:
+        formatter: The output formatter to be used by the commands.
+        error_handler: The error handler to be used by the commands.
+
+    Returns:
+        An instance of the `CommandRouter`.
+    """
     # Import moved to top
 
     return CommandRouter(formatter, error_handler)
 
 
 def setup_logging(verbosity: int, quiet: bool) -> None:
-    """Set up logging based on verbosity level.
+    """Configures the logging for the application.
+
+    This function sets up the logging level and format based on the user-
+    specified verbosity and quiet settings.
 
     Args:
-        verbosity: Verbosity level (0-3)
-        quiet: Whether to suppress output
+        verbosity: The verbosity level (0-3).
+        quiet: A boolean indicating whether to suppress all output except
+               errors.
     """
     if quiet:
         level = logging.ERROR
@@ -88,16 +108,20 @@ def setup_logging(verbosity: int, quiet: bool) -> None:
 
 
 def _validate_and_sanitize_argv(argv: Optional[List[str]]) -> Optional[List[str]]:
-    """Validate and sanitize command line arguments.
+    """Validates and sanitizes the raw command-line arguments.
+
+    This function performs basic security and sanity checks on the command-
+    line arguments, such as checking for a reasonable number of arguments and
+    argument length.
 
     Args:
-        argv: Raw command line arguments
+        argv: The raw list of command-line arguments.
 
     Returns:
-        Sanitized arguments or None if invalid
+        A sanitized list of arguments, or None if the input is None.
 
     Raises:
-        ValueError: If arguments are invalid
+        ValueError: If the arguments are found to be invalid.
     """
     if argv is None:
         return None
@@ -128,7 +152,12 @@ def _validate_and_sanitize_argv(argv: Optional[List[str]]) -> Optional[List[str]
 
 
 def display_banner() -> None:
-    """Display Tinel banner with Infenia attribution."""
+    """Displays the Tinel ASCII art banner.
+
+    This function prints a banner with the Tinel logo and a brief description
+    of the tool. It is displayed at the start of the application unless the
+    `--quiet` flag is used.
+    """
     banner = """
     ╔══════════════════════════════════════════════════════════╗
     ║                                                          ║
@@ -147,13 +176,18 @@ def display_banner() -> None:
 
 
 def main(argv: Optional[List[str]] = None) -> int:  # noqa: PLR0911
-    """Main CLI entry point.
+    """The main entry point for the Tinel CLI.
+
+    This function orchestrates the entire lifecycle of a CLI command, from
+    parsing arguments to executing the command and handling any errors that
+    occur.
 
     Args:
-        argv: Command line arguments (defaults to sys.argv)
+        argv: A list of command-line arguments. If not provided, `sys.argv`
+              is used.
 
     Returns:
-        Exit code (0 for success, non-zero for error)
+        An integer exit code (0 for success, non-zero for errors).
     """
     try:
         # Display banner unless running in quiet mode
@@ -182,13 +216,16 @@ def main(argv: Optional[List[str]] = None) -> int:  # noqa: PLR0911
 
 
 def _execute_main_logic(argv: Optional[List[str]]) -> int:
-    """Execute the main application logic.
+    """Executes the core logic of the application.
+
+    This function is responsible for parsing arguments, setting up the
+    configuration and logging, and executing the requested command.
 
     Args:
-        argv: Command line arguments
+        argv: The sanitized list of command-line arguments.
 
     Returns:
-        Exit code from command execution
+        The exit code from the command execution.
     """
 
     start_time = time.time()
@@ -240,23 +277,26 @@ def _execute_main_logic(argv: Optional[List[str]]) -> int:
 
 
 def _handle_keyboard_interrupt() -> int:
-    """Handle keyboard interrupt (Ctrl+C) gracefully.
+    """Handles a `KeyboardInterrupt` (Ctrl+C) gracefully.
 
     Returns:
-        Standard exit code for SIGINT (130)
+        The standard exit code for a `SIGINT` signal (130).
     """
     print("\nOperation cancelled by user.", file=sys.stderr)
     return 130  # Standard SIGINT exit code
 
 
 def _handle_unexpected_error(error: Exception) -> int:
-    """Handle unexpected errors when error handler is not available.
+    """Handles an unexpected error that occurs during initialization.
+
+    This function is a fallback for when the main error handler has not yet
+    been initialized.
 
     Args:
-        error: The unexpected exception
+        error: The unexpected exception that occurred.
 
     Returns:
-        Error exit code (1)
+        A general error exit code (1).
     """
     logging.exception("Unexpected error occurred during CLI initialization")
     print(f"Fatal error: {error}", file=sys.stderr)

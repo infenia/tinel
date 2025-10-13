@@ -15,7 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import logging
+"""This module provides an analyzer for system memory.
+
+It includes the `MemoryAnalyzer` class, which gathers and processes
+information about both virtual and physical memory. The analyzer uses `psutil`
+for high-level memory statistics and `dmidecode` for detailed information
+about physical memory devices.
+"""
+
 import re
 from typing import Any, Dict, List, Optional
 
@@ -24,18 +31,39 @@ import psutil
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
 
-logger = logging.getLogger(__name__)
-
 
 class MemoryAnalyzer:
-    """
-    A class to analyze and retrieve memory information.
+    """Analyzes and retrieves information about the system's memory.
+
+    This class provides methods to gather data on both virtual memory (RAM and
+    swap) and physical memory devices. It leverages `psutil` for overall memory
+    statistics and `dmidecode` for detailed hardware information about memory
+    modules.
+
+    Args:
+        system_interface: An optional `SystemInterface` for system interactions.
+                          If not provided, a `LinuxSystemInterface` is used.
     """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
+        """Initializes the MemoryAnalyzer.
+
+        Args:
+            system_interface: An optional `SystemInterface` for system
+                              interactions.
+        """
         self.system = system_interface or LinuxSystemInterface()
 
     def get_memory_info(self) -> Dict[str, Any]:
+        """Retrieves comprehensive information about the system's memory.
+
+        This method gathers statistics about virtual memory and swap space
+        using `psutil`, and detailed information about physical memory devices
+        using `dmidecode`.
+
+        Returns:
+            A dictionary containing a detailed breakdown of memory information.
+        """
         info: Dict[str, Any] = {}
         psutil_errors: List[str] = []
 
@@ -67,6 +95,16 @@ class MemoryAnalyzer:
         return info
 
     def _get_dmidecode_info(self) -> Dict[str, Any]:
+        """Retrieves and parses memory information from `dmidecode`.
+
+        This method executes the `dmidecode` command to get detailed hardware
+        information about the physical memory modules and then parses the
+        output.
+
+        Returns:
+            A dictionary containing the parsed `dmidecode` information, or an
+            error message if the command fails or parsing fails.
+        """
         result = self.system.run_command(["dmidecode", "--type", "memory"])
         if not result.success:
             return {"dmidecode_error": result.error or "Failed to run dmidecode."}
@@ -75,10 +113,22 @@ class MemoryAnalyzer:
         try:
             return self._parse_dmidecode_output(result.stdout)
         except Exception as e:
-            logger.warning("Failed to parse dmidecode output: %s", e)
             return {"dmidecode_parse_error": str(e)}
 
     def _parse_dmidecode_output(self, output: str) -> Dict[str, Any]:
+        """Parses the output of the `dmidecode` command for memory information.
+
+        This method processes the raw text output from `dmidecode` and extracts
+        details about each physical memory device, such as size, type, speed,
+        and manufacturer.
+
+        Args:
+            output: The raw string output from the `dmidecode` command.
+
+        Returns:
+            A dictionary containing a list of memory devices, where each device
+            is represented by a dictionary of its attributes.
+        """
         devices = []
         device_blocks = re.split(r"\nHandle 0x[0-9A-Fa-f]+, DMI type 17,", output)
 

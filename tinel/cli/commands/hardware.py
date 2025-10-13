@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module contains the command handler for hardware-related commands.
+
+It includes the `HardwareCommands` class, which is responsible for processing
+commands related to hardware information, such as `tinel hardware cpu` and
+`tinel hardware all`. The class uses tool providers from the `tools` package
+to gather the necessary information.
+"""
+
 import argparse
 import logging
 from typing import Any
@@ -29,10 +37,23 @@ logger = logging.getLogger(__name__)
 
 
 class HardwareCommands(BaseCommand):
-    """Handler for hardware-related commands."""
+    """A command handler for all hardware-related commands.
+
+    This class is responsible for routing hardware subcommands to their
+    respective handler methods and executing the appropriate tool providers.
+
+    Args:
+        formatter: An `OutputFormatter` instance for displaying output.
+        error_handler: A `CLIErrorHandler` instance for managing errors.
+    """
 
     def __init__(self, formatter: Any, error_handler: Any):
-        """Initialize hardware commands handler."""
+        """Initializes the HardwareCommands handler.
+
+        Args:
+            formatter: An `OutputFormatter` instance.
+            error_handler: A `CLIErrorHandler` instance.
+        """
         super().__init__(formatter, error_handler)
 
         # Initialize tool providers
@@ -40,13 +61,13 @@ class HardwareCommands(BaseCommand):
         self.cpu_tool = CPUInfoToolProvider(self.system)
 
     def execute(self, args: argparse.Namespace) -> int:
-        """Execute hardware command.
+        """Executes the appropriate hardware command based on the parsed arguments.
 
         Args:
-            args: Parsed command line arguments
+            args: The parsed command-line arguments.
 
         Returns:
-            Exit code
+            An integer exit code (0 for success, non-zero for errors).
         """
         try:
             hardware_command = getattr(args, "hardware_command", None)
@@ -75,7 +96,14 @@ class HardwareCommands(BaseCommand):
             return 1  # This should never be reached
 
     def _show_all_hardware(self, args: argparse.Namespace) -> int:
-        """Show all hardware information."""
+        """Handles the `hardware all` command.
+
+        Args:
+            args: The parsed command-line arguments.
+
+        Returns:
+            An integer exit code.
+        """
         try:
             parameters = {
                 "detailed": getattr(args, "detailed", False),
@@ -98,7 +126,14 @@ class HardwareCommands(BaseCommand):
             return 1  # This should never be reached
 
     def _show_cpu_info(self, args: argparse.Namespace) -> int:
-        """Show CPU information."""
+        """Handles the `hardware cpu` command.
+
+        Args:
+            args: The parsed command-line arguments.
+
+        Returns:
+            An integer exit code.
+        """
         try:
             parameters = {
                 "detailed": getattr(args, "detailed", False),

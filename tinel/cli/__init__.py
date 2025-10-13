@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This package contains the command-line interface (CLI) for Tinel.
+
+It is responsible for parsing command-line arguments, routing commands to their
+respective handlers, and formatting the output for the user. The main entry
+point for the CLI is the `main` function in the `main` module.
+"""
+
 from .main import main
 from .parser import create_argument_parser
 

@@ -15,4 +15,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""Tool providers for MCP server."""
+"""This package contains the tool providers for the Tinel application.
+
+Tool providers are classes that encapsulate the logic for a specific action
+or set of actions, such as gathering information about a hardware component.
+They are designed to be used by the command handlers in the `cli` package.
+"""

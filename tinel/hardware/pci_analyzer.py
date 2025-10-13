@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides an analyzer for PCI devices.
+
+It includes the `PCIAnalyzer` class, which is responsible for gathering and
+parsing information about the system's PCI devices. The analyzer uses the
+`lspci` command to obtain the raw data and then processes it to extract
+detailed information about each device.
+"""
+
 import re
 from typing import Any, Dict, List, Optional
 
@@ -24,21 +32,36 @@ from tinel.system import LinuxSystemInterface
 
 
 class PCIAnalyzer:
-    """A PCI device analyzer that parses output from lspci."""
+    """Analyzes and retrieves information about PCI devices.
+
+    This class uses the `lspci` command to gather data about the devices
+    connected to the PCI bus and parses the output to provide a structured
+    representation of the information.
+
+    Args:
+        system_interface: An optional `SystemInterface` for system interactions.
+                          If not provided, a `LinuxSystemInterface` is used.
+    """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """Initialize PCI analyzer.
+        """Initializes the PCIAnalyzer.
 
         Args:
-            system_interface: System interface for command execution.
+            system_interface: An optional `SystemInterface` for system
+                              interactions.
         """
         self.system = system_interface or LinuxSystemInterface()
 
     def get_pci_info(self) -> PCIInfo:
-        """Get PCI device information by running and parsing 'lspci -v'.
+        """Retrieves and parses information about all PCI devices.
+
+        This method executes the `lspci -v` command to get a verbose listing of
+        PCI devices and then parses this output to construct a `PCIInfo` object.
 
         Returns:
-            A PCIInfo object containing the list of devices.
+            A `PCIInfo` object containing a list of all found PCI devices. If
+            the `lspci` command fails or returns no output, an empty `PCIInfo`
+            object is returned.
         """
         lspci_output = self.system.run_command(["lspci", "-v"])
         if not lspci_output.success or not lspci_output.stdout:
@@ -48,13 +71,18 @@ class PCIAnalyzer:
         return PCIInfo(devices=devices)
 
     def _parse_lspci_v_output(self, output: str) -> List[Dict[str, Any]]:
-        """Parse the verbose output of the 'lspci -v' command.
+        """Parses the verbose output of the `lspci -v` command.
+
+        This method processes the raw text output from `lspci -v` and extracts
+        structured information about each PCI device, including its slot,
+        description, and various attributes.
 
         Args:
-            output: The stdout from the 'lspci -v' command.
+            output: The raw string output from the `lspci -v` command.
 
         Returns:
-            A list of dictionaries, where each dictionary represents a PCI device.
+            A list of dictionaries, where each dictionary represents a single
+            PCI device and its properties.
         """
         devices = []
         current_device: Dict[str, Any] = {}

@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+"""This module provides the entry point for the Tinel command-line tool.
+
+When executed as the main program, this module invokes the `main` function
+from the `tinel.cli.main` module and exits with the returned status code.
+This allows the Tinel package to be run as a standalone application.
+"""
+
 import sys
 
 from .cli.main import main
