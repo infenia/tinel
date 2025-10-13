@@ -3,7 +3,7 @@ name: CI Pipeline
 on:
   push:
     branches: [ main, develop ]
-    paths-ignore: 
+    paths-ignore:
       - '**.md'
       - 'docs/**'
       - '.gitignore'
@@ -43,8 +43,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12", "3.13"]') }}
-    
+        python-version: ${{ fromJSON(github.event_name == 'pull_request' && '["3.12"]' || '["3.11", "3.12", "3.13", "3.14"]') }}
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@v2
@@ -92,23 +91,23 @@ jobs:
     - name: Parallel quality checks
       run: |
         echo "::group::Quality Checks"
-        
+
         # Run linting, formatting, and type checking in parallel
         {
           echo "🔍 Ruff linting..."
           uv run ruff check . --output-format=github
         } &
-        
+
         {
           echo "📝 Format checking..."
           uv run ruff format --check .
         } &
-        
+
         {
           echo "🏷️ Type checking..."
           uv run mypy tinel --junit-xml=mypy-report.xml
         } &
-        
+
         # Wait for all checks
         wait
         echo "::endgroup::"
@@ -116,18 +115,18 @@ jobs:
     - name: Security scanning
       run: |
         echo "::group::Security Scanning"
-        
+
         # Run security scans in parallel
         {
           echo "🔒 Dependency vulnerability scanning..."
           uv run safety check --json --output=safety-report.json || echo "Safety warnings detected"
         } &
-        
+
         {
           echo "🛡️ Static security analysis..."
           uv run bandit -r tinel -f json -o bandit-report.json -ll || echo "Bandit warnings detected"
         } &
-        
+
         wait
         echo "::endgroup::"
 
@@ -180,7 +179,7 @@ jobs:
     needs: quality-security-gates
     if: github.event_name != 'pull_request' || contains(github.event.pull_request.labels.*.name, 'test-integration')
     timeout-minutes: 10
-    
+
     steps:
     - name: Harden Runner
       uses: step-security/harden-runner@v2
@@ -201,27 +200,25 @@ jobs:
     - name: Build and test package
       run: |
         echo "::group::Package Build & Test"
-        
+
         # Install build tools
         uv venv
         uv pip install build twine
-        
+
         # Build package
         python -m build --wheel --sdist
-        
         # Verify package
         python -m twine check dist/*
-        
         # Test installation in isolated environment
         python -m venv test-env
         source test-env/bin/activate
         pip install dist/*.whl
-        
+
         # Basic functionality test
         python -c "import tinel; print(f'✅ Package test passed: {tinel.__version__}')"
         python -m tinel --version
         python -m tinel --help > /dev/null
-        
+
         deactivate
         rm -rf test-env
         echo "::endgroup::"
@@ -231,12 +228,12 @@ jobs:
         echo "::group::Integration Tests"
         uv venv
         uv pip install -e ".[dev]"
-        
+
         # Run integration and performance tests if they exist
         if [ -d "tests/integration" ]; then
           uv run pytest tests/integration/ -v --tb=short
         fi
-        
+
         if [ -d "tests/performance" ]; then
           uv run pytest tests/performance/ -v --tb=short
         fi
@@ -255,7 +252,7 @@ jobs:
     runs-on: ubuntu-latest
     if: contains(github.event.head_commit.message, 'docs') || contains(github.event.pull_request.title, 'docs') || github.event_name == 'workflow_dispatch'
     timeout-minutes: 5
-    
+
     steps:
     - name: Checkout code
       uses: actions/checkout@v5
@@ -273,16 +270,16 @@ jobs:
         echo "::group::Documentation Build"
         uv venv
         uv pip install -e ".[docs]"
-        
+
         # Build API documentation
         python -m pdoc --html --output-dir docs tinel
-        
+
         # Validate documentation
         if [ ! -d "docs" ] || [ -z "$(ls -A docs)" ]; then
           echo "❌ Documentation build failed"
           exit 1
         fi
-        
+
         echo "✅ Documentation built successfully"
         echo "::endgroup::"
 
@@ -300,7 +297,7 @@ jobs:
     needs: [quality-security-gates, build-integration, documentation]
     if: always()
     timeout-minutes: 5
-    
+
     steps:
     - name: Checkout code (for artifact analysis)
       uses: actions/checkout@v5
@@ -321,11 +318,11 @@ jobs:
         echo "" >> $GITHUB_STEP_SUMMARY
         echo "**Run ID:** ${{ github.run_id }} | **Commit:** ${{ github.sha }} | **Ref:** ${{ github.ref }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        
+
         echo "### 📊 Job Results" >> $GITHUB_STEP_SUMMARY
         echo "| Component | Status | Conclusion | Details |" >> $GITHUB_STEP_SUMMARY
         echo "|-----------|--------|------------|---------|" >> $GITHUB_STEP_SUMMARY
-        
+
         # Quality & Security Gates analysis
         QSG_STATUS="${{ needs.quality-security-gates.result }}"
         QSG_ICON="✅"
@@ -338,7 +335,7 @@ jobs:
           QSG_DETAILS="Job was cancelled"
         fi
         echo "| Quality & Security Gates | $QSG_ICON $QSG_STATUS | ${{ needs.quality-security-gates.outputs.conclusion || 'N/A' }} | $QSG_DETAILS |" >> $GITHUB_STEP_SUMMARY
-        
+
         # Build & Integration analysis
         BI_STATUS="${{ needs.build-integration.result }}"
         BI_ICON="✅"
@@ -354,7 +351,7 @@ jobs:
           BI_DETAILS="Skipped (PR without integration label)"
         fi
         echo "| Build & Integration | $BI_ICON $BI_STATUS | ${{ needs.build-integration.outputs.conclusion || 'N/A' }} | $BI_DETAILS |" >> $GITHUB_STEP_SUMMARY
-        
+
         # Documentation analysis
         DOC_STATUS="${{ needs.documentation.result }}"
         DOC_ICON="✅"
@@ -371,14 +368,14 @@ jobs:
         fi
         echo "| Documentation | $DOC_ICON $DOC_STATUS | ${{ needs.documentation.outputs.conclusion || 'N/A' }} | $DOC_DETAILS |" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
-        
+
         # Detailed failure analysis
         HAS_FAILURES=false
         if [[ "$QSG_STATUS" == "failure" || "$BI_STATUS" == "failure" || "$DOC_STATUS" == "failure" ]]; then
           HAS_FAILURES=true
           echo "### 🔍 Failure Analysis" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          
+
           if [[ "$QSG_STATUS" == "failure" ]]; then
             echo "#### ❌ Quality & Security Gates Failed" >> $GITHUB_STEP_SUMMARY
             echo "**Possible causes:**" >> $GITHUB_STEP_SUMMARY
@@ -401,7 +398,7 @@ jobs:
             echo '```' >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           if [[ "$BI_STATUS" == "failure" ]]; then
             echo "#### ❌ Build & Integration Failed" >> $GITHUB_STEP_SUMMARY
             echo "**Possible causes:**" >> $GITHUB_STEP_SUMMARY
@@ -421,7 +418,7 @@ jobs:
             echo '```' >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
-          
+
           if [[ "$DOC_STATUS" == "failure" ]]; then
             echo "#### ❌ Documentation Build Failed" >> $GITHUB_STEP_SUMMARY
             echo "**Possible causes:**" >> $GITHUB_STEP_SUMMARY
@@ -441,7 +438,7 @@ jobs:
             echo "" >> $GITHUB_STEP_SUMMARY
           fi
         fi
-        
+
         # Artifact links
         if [[ "$HAS_FAILURES" == "true" ]]; then
           echo "### 📁 Artifacts & Reports" >> $GITHUB_STEP_SUMMARY
@@ -457,9 +454,9 @@ jobs:
           fi
           echo "" >> $GITHUB_STEP_SUMMARY
         fi
-        
+
         # Determine overall status
-        if [[ "$QSG_STATUS" == "success" && 
+        if [[ "$QSG_STATUS" == "success" &&
               ("$BI_STATUS" == "success" || "$BI_STATUS" == "skipped") &&
               ("$DOC_STATUS" == "success" || "$DOC_STATUS" == "skipped") ]]; then
           echo "## ✅ Overall Status: PASSED" >> $GITHUB_STEP_SUMMARY
