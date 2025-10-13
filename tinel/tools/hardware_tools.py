@@ -15,7 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-from dataclasses import asdict
+from dataclasses import asdict, is_dataclass
 from typing import Any, Dict
 
 from ..hardware.device_analyzer import DeviceAnalyzer
@@ -115,7 +115,8 @@ class PCIDevicesToolProvider(HardwareToolProvider):
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get PCI device information."""
-        return self.device_analyzer.get_pci_devices()
+        pci_info = self.device_analyzer.get_pci_devices()
+        return asdict(pci_info) if is_dataclass(pci_info) else pci_info
 
 
 class USBDevicesToolProvider(HardwareToolProvider):
@@ -130,7 +131,8 @@ class USBDevicesToolProvider(HardwareToolProvider):
 
     def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """Execute the tool to get USB device information."""
-        return self.device_analyzer.get_usb_devices()
+        usb_info = self.device_analyzer.get_usb_devices()
+        return asdict(usb_info) if is_dataclass(usb_info) else usb_info
 
 
 class NetworkInfoToolProvider(HardwareToolProvider):
