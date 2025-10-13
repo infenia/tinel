@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import logging
 import re
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
@@ -23,6 +24,8 @@ import psutil
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
+
+logger = logging.getLogger(__name__)
 
 
 class CPUAnalyzer:
@@ -215,7 +218,10 @@ class CPUAnalyzer:
         # Get number of CPUs
         nproc_result = self.system.run_command(["nproc"])
         if nproc_result.success:
-            info["logical_cpus"] = int(nproc_result.stdout)
+            try:
+                info["logical_cpus"] = int(nproc_result.stdout)
+            except (ValueError, TypeError) as e:
+                logger.warning("Failed to determine logical CPUs from nproc: %s", e)
 
         # Get physical CPU count
         physical_cpus = self.system.read_file(

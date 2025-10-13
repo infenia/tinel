@@ -15,6 +15,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import logging
 import os
 import re
 import subprocess
@@ -22,6 +23,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from .interfaces import CommandResult, SystemInterface
+
+logger = logging.getLogger(__name__)
 
 
 class LinuxSystemInterface(SystemInterface):
@@ -62,6 +65,16 @@ class LinuxSystemInterface(SystemInterface):
                 shell=False,  # Security: Never use shell=True
                 env=self._get_safe_environment(),  # Security: Controlled environment
             )
+
+            # Log non-zero exit codes as warnings
+            if result.returncode != 0:
+                logger.warning(
+                    "Command '%s' exited with non-zero status %d: %s",
+                    " ".join(sanitized_cmd),
+                    result.returncode,
+                    result.stderr.strip(),
+                )
+
             return CommandResult(
                 success=result.returncode == 0,
                 stdout=result.stdout.strip(),
@@ -69,6 +82,9 @@ class LinuxSystemInterface(SystemInterface):
                 returncode=result.returncode,
             )
         except subprocess.TimeoutExpired:
+            logger.warning(
+                "Command '%s' timed out after %d seconds", " ".join(cmd), timeout
+            )
             return CommandResult(
                 success=False,
                 stdout="",
@@ -77,6 +93,7 @@ class LinuxSystemInterface(SystemInterface):
                 error=f"Command timed out after {timeout} seconds",
             )
         except (OSError, ValueError) as e:
+            logger.error("Command execution failed for '%s': %s", " ".join(cmd), e)
             return CommandResult(
                 success=False,
                 stdout="",
@@ -85,6 +102,7 @@ class LinuxSystemInterface(SystemInterface):
                 error=f"Command execution failed: {e}",
             )
         except Exception as e:
+            logger.exception("Unexpected error executing command '%s'", " ".join(cmd))
             return CommandResult(
                 success=False,
                 stdout="",
