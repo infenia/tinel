@@ -5,8 +5,8 @@ on:
     workflows: ["Enhanced CI/CD Pipeline", "Enhanced Security Pipeline", "Code Quality"]
     types: [completed, requested]
   schedule:
-    # Health check every 6 hours
-    - cron: '0 */6 * * *'
+    # Health check every 24 hours
+    - cron: '0 0 * * *'
   workflow_dispatch:
 
 env:
@@ -312,7 +312,7 @@ jobs:
             "text": "🚨 Tinel CI/CD Alert",
             "attachments": [
               {
-                "color": "${{ job.status == 'success' && needs.workflow-health-check.outputs.needs_attention != 'true' ? 'good' : 'danger' }}",
+                "color": "${{ (job.status == 'success' && needs.workflow-health-check.outputs.needs_attention != 'true') && 'good' || 'danger' }}",
                 "fields": [
                   {
                     "title": "Repository",
@@ -326,7 +326,7 @@ jobs:
                   },
                   {
                     "title": "Action Required",
-                    "value": "${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'Yes - Check GitHub for details' || 'No' }}",
+                    "value": "${{ (needs.workflow-health-check.outputs.needs_attention == 'true') && 'Yes - Check GitHub for details' || 'No' }}",
                     "short": true
                   }
                 ],
@@ -354,7 +354,7 @@ jobs:
           **Action Required**: ${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'Yes' || 'No' }}
           
           [View Workflows](${{ github.server_url }}/${{ github.repository }}/actions)
-        theme_color: "${{ needs.workflow-health-check.outputs.needs_attention == 'true' && 'FF0000' || '00FF00' }}"
+        theme_color: "${{ (needs.workflow-health-check.outputs.needs_attention == 'true') && 'FF0000' || '00FF00' }}"
 
   metrics-collection:
     name: Metrics Collection

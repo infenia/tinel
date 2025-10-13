@@ -426,7 +426,7 @@ class TestCPUAnalyzer:
         assert cache_info == {}
 
     @unit_test
-    @patch('tinel.hardware.cpu_analyzer.psutil')
+    @patch("tinel.hardware.cpu_analyzer.psutil")
     def test_get_topology_info_missing_files(self, mock_psutil):
         """Test _get_topology_info when files are missing."""
         self.mock_system.run_command.return_value = Mock(
