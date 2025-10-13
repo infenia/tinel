@@ -40,5 +40,8 @@ class HardwareInfo:
     cpu: Dict[str, Any] = dataclasses.field(default_factory=dict)
     memory: Dict[str, Any] = dataclasses.field(default_factory=dict)
     storage: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    motherboard: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    graphics: Dict[str, Any] = dataclasses.field(default_factory=dict)
+    network: Dict[str, Any] = dataclasses.field(default_factory=dict)
     pci: "PCIInfo" = dataclasses.field(default_factory=PCIInfo)
     usb: "USBInfo" = dataclasses.field(default_factory=USBInfo)
