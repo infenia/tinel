@@ -24,13 +24,19 @@ from tinel.interfaces import CommandResult
 
 # --- MOCK DATA ---
 
+EXPECTED_GPU_COUNT = 2
+EXPECTED_MEMORY_TOTAL_MB = 10240
+EXPECTED_UTILIZATION_PERCENT = 50
+EXPECTED_TEMPERATURE_CELSIUS = 75
+
 MOCK_NVIDIA_SMI_OUTPUT = """
 0, NVIDIA GeForce RTX 3080, 510.47.03, 10240, 2048, 8192, 50, 65
 1, NVIDIA GeForce RTX 3080, 510.47.03, 10240, 4096, 6144, 80, 75
 """
 
 MOCK_LSPCI_OUTPUT = """
-00:02.0 VGA compatible controller: Intel Corporation HD Graphics 530 [8086:191b] (rev 06) (prog-if 00 [VGA controller])
+00:02.0 VGA compatible controller: Intel Corporation HD Graphics 530 \
+[8086:191b] (rev 06) (prog-if 00 [VGA controller])
 	Subsystem: Dell HD Graphics 530 [1028:06e0]
 	Flags: bus master, fast devsel, latency 0, IRQ 128
 	Memory at a0000000 (64-bit, non-prefetchable) [size=16M]
@@ -40,8 +46,10 @@ MOCK_LSPCI_OUTPUT = """
 	Capabilities: <access denied>
 	Kernel driver in use: i915
 	Kernel modules: i915
-01:00.0 VGA compatible controller: NVIDIA Corporation GP107 [GeForce GTX 1050 Ti] [10de:1c82] (rev a1) (prog-if 00 [VGA controller])
-	Subsystem: ZOTAC International (MCO) Ltd. GP107 [GeForce GTX 1050 Ti] [19da:1435]
+01:00.0 VGA compatible controller: NVIDIA Corporation GP107 \
+[GeForce GTX 1050 Ti] [10de:1c82] (rev a1) (prog-if 00 [VGA controller])
+	Subsystem: ZOTAC International (MCO) Ltd. GP107 \
+[GeForce GTX 1050 Ti] [19da:1435]
 	Flags: bus master, fast devsel, latency 0, IRQ 129
 	Memory at a2000000 (32-bit, non-prefetchable) [size=16M]
 	Memory at b0000000 (64-bit, prefetchable) [size=256M]
@@ -92,11 +100,11 @@ class TestGraphicsAnalyzer:
         info = analyzer.get_graphics_info()
 
         assert info["source"] == "nvidia-smi"
-        assert len(info["gpus"]) == 2
+        assert len(info["gpus"]) == EXPECTED_GPU_COUNT
         assert info["gpus"][0]["model"] == "NVIDIA GeForce RTX 3080"
-        assert info["gpus"][0]["memory_total_mb"] == 10240
-        assert info["gpus"][0]["utilization_percent"] == 50
-        assert info["gpus"][1]["temperature_celsius"] == 75
+        assert info["gpus"][0]["memory_total_mb"] == EXPECTED_MEMORY_TOTAL_MB
+        assert info["gpus"][0]["utilization_percent"] == EXPECTED_UTILIZATION_PERCENT
+        assert info["gpus"][1]["temperature_celsius"] == EXPECTED_TEMPERATURE_CELSIUS
 
     def test_rocm_smi_fallback(self, analyzer, mock_si):
         """Test fallback to rocm-smi when nvidia-smi fails."""
@@ -118,7 +126,7 @@ class TestGraphicsAnalyzer:
         ]
         info = analyzer.get_graphics_info()
         assert info["source"] == "lspci"
-        assert len(info["gpus"]) == 2
+        assert len(info["gpus"]) == EXPECTED_GPU_COUNT
         assert "Intel Corporation HD Graphics 530" in info["gpus"][0]["model"]
         assert info["gpus"][0]["vendor_id"] == "8086"
         assert "NVIDIA Corporation GP107" in info["gpus"][1]["model"]
@@ -136,7 +144,10 @@ class TestGraphicsAnalyzer:
 
     def test_parse_lspci_output_no_vga(self, analyzer):
         """Test lspci output that contains no VGA devices."""
-        output = "00:00.0 Host bridge: Intel Corporation Sky Lake Host Bridge/DRAM Registers (rev 07)"
+        output = (
+            "00:00.0 Host bridge: Intel Corporation "
+            "Sky Lake Host Bridge/DRAM Registers (rev 07)"
+        )
         # This is an integration-style test of a private method.
         with patch.object(analyzer, "system") as mock_system:
             mock_system.run_command.return_value = CommandResult(True, output, "", 0)
@@ -144,7 +155,11 @@ class TestGraphicsAnalyzer:
             assert gpus is None
 
     def test_parse_nvidia_smi_malformed_line(self, analyzer, mock_si):
-        """Test that malformed lines in nvidia-smi output are skipped and fallback fails."""
+        """
+        Test malformed lines in nvidia-smi output are skipped.
+
+        Verifies fallback behavior when data is corrupted.
+        """
         with patch.object(analyzer, "logger") as mock_logger:
             malformed_output = (
                 "0, GPU, 510, 10240, 2048, 8192, 50\n"  # Missing one field
@@ -164,7 +179,10 @@ class TestGraphicsAnalyzer:
         """Test nvidia-smi parsing with non-numeric values that trigger ValueError."""
         with patch.object(analyzer, "logger") as mock_logger:
             # Mix of good and bad lines - one with non-numeric memory value
-            mixed_output = "0, NVIDIA GeForce RTX 3080, 510.47.03, abc, 2048, 8192, 50, 65\n1, NVIDIA RTX 3090, 510.47.03, 24576, 4096, 20480, 30, 60"
+            mixed_output = (
+                "0, NVIDIA GeForce RTX 3080, 510.47.03, abc, 2048, 8192, 50, 65\n"
+                "1, NVIDIA RTX 3090, 510.47.03, 24576, 4096, 20480, 30, 60"
+            )
             mock_si.run_command.return_value = CommandResult(True, mixed_output, "", 0)
             info = analyzer.get_graphics_info()
             # Should successfully parse the second GPU and log warning for the first

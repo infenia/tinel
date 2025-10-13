@@ -30,7 +30,7 @@ def install_with_uv(session):
 def tests(session):
     """Run the test suite across multiple Python versions."""
     install_with_uv(session)
-    session.run("pytest", "--cov")
+    session.run("pytest", "--cov", "--cov-fail-under=100")
 
 
 @nox.session(python=DEFAULT_PYTHON)
@@ -38,7 +38,12 @@ def coverage(session):
     """Run the test suite with detailed coverage reporting."""
     install_with_uv(session)
     session.run(
-        "pytest", "--cov", "--cov-report=term", "--cov-report=html", "--cov-report=xml"
+        "pytest",
+        "--cov",
+        "--cov-fail-under=100",
+        "--cov-report=term",
+        "--cov-report=html",
+        "--cov-report=xml",
     )
 
 
@@ -91,4 +96,4 @@ def check(session):
     session.run("ruff", "check", *LOCATIONS)
     session.run("ruff", "format", "--check", *LOCATIONS)
     session.run("mypy", PACKAGE)
-    session.run("pytest", "--cov")
+    session.run("pytest", "--cov", "--cov-fail-under=100")
