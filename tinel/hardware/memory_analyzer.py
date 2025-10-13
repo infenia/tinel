@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import re
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional
 
 import psutil
 
@@ -38,24 +38,24 @@ class MemoryAnalyzer:
 
         try:
             virtual_mem = psutil.virtual_memory()
-            info['total_memory_bytes'] = virtual_mem.total
-            info['available_memory_bytes'] = virtual_mem.available
-            info['used_memory_bytes'] = virtual_mem.used
-            info['memory_usage_percent'] = virtual_mem.percent
+            info["total_memory_bytes"] = virtual_mem.total
+            info["available_memory_bytes"] = virtual_mem.available
+            info["used_memory_bytes"] = virtual_mem.used
+            info["memory_usage_percent"] = virtual_mem.percent
         except Exception as e:
             psutil_errors.append(f"virtual_memory: {e}")
 
         try:
             swap_mem = psutil.swap_memory()
-            info['total_swap_bytes'] = swap_mem.total
-            info['used_swap_bytes'] = swap_mem.used
-            info['free_swap_bytes'] = swap_mem.free
-            info['swap_usage_percent'] = swap_mem.percent
+            info["total_swap_bytes"] = swap_mem.total
+            info["used_swap_bytes"] = swap_mem.used
+            info["free_swap_bytes"] = swap_mem.free
+            info["swap_usage_percent"] = swap_mem.percent
         except Exception as e:
             psutil_errors.append(f"swap_memory: {e}")
 
         if psutil_errors:
-            info['psutil_error'] = "; ".join(psutil_errors)
+            info["psutil_error"] = "; ".join(psutil_errors)
 
         dmi_info = self._get_dmidecode_info()
         if dmi_info:
@@ -76,7 +76,7 @@ class MemoryAnalyzer:
 
     def _parse_dmidecode_output(self, output: str) -> Dict[str, Any]:
         devices = []
-        device_blocks = re.split(r'\nHandle 0x[0-9A-Fa-f]+, DMI type 17,', output)
+        device_blocks = re.split(r"\nHandle 0x[0-9A-Fa-f]+, DMI type 17,", output)
 
         for block in device_blocks:
             if "Memory Device" not in block:

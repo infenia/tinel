@@ -14,6 +14,7 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 import json
 import unittest
 from unittest.mock import MagicMock
@@ -79,11 +80,17 @@ class TestStorageAnalyzer(unittest.TestCase):
         mock_system_interface = MagicMock()
         mock_system_interface.run_command.side_effect = [
             CommandResult(
-                success=True, stdout=json.dumps(MOCK_LSBLK_OUTPUT), stderr="", returncode=0
+                success=True,
+                stdout=json.dumps(MOCK_LSBLK_OUTPUT),
+                stderr="",
+                returncode=0,
             ),
             CommandResult(success=True, stdout=MOCK_DF_OUTPUT, stderr="", returncode=0),
             CommandResult(
-                success=True, stdout=MOCK_SMARTCTL_OUTPUT_PASSED, stderr="", returncode=0
+                success=True,
+                stdout=MOCK_SMARTCTL_OUTPUT_PASSED,
+                stderr="",
+                returncode=0,
             ),
         ]
 
@@ -114,11 +121,17 @@ class TestStorageAnalyzer(unittest.TestCase):
         mock_system_interface = MagicMock()
         mock_system_interface.run_command.side_effect = [
             CommandResult(
-                success=True, stdout=json.dumps(MOCK_LSBLK_OUTPUT), stderr="", returncode=0
+                success=True,
+                stdout=json.dumps(MOCK_LSBLK_OUTPUT),
+                stderr="",
+                returncode=0,
             ),
             CommandResult(success=False, stdout="", stderr="error", returncode=1),
             CommandResult(
-                success=True, stdout=MOCK_SMARTCTL_OUTPUT_PASSED, stderr="", returncode=0
+                success=True,
+                stdout=MOCK_SMARTCTL_OUTPUT_PASSED,
+                stderr="",
+                returncode=0,
             ),
         ]
         analyzer = StorageAnalyzer(system_interface=mock_system_interface)
@@ -130,7 +143,10 @@ class TestStorageAnalyzer(unittest.TestCase):
         mock_system_interface = MagicMock()
         mock_system_interface.run_command.side_effect = [
             CommandResult(
-                success=True, stdout=json.dumps(MOCK_LSBLK_OUTPUT), stderr="", returncode=0
+                success=True,
+                stdout=json.dumps(MOCK_LSBLK_OUTPUT),
+                stderr="",
+                returncode=0,
             ),
             CommandResult(success=True, stdout=MOCK_DF_OUTPUT, stderr="", returncode=0),
             CommandResult(success=False, stdout="", stderr="error", returncode=1),
@@ -207,9 +223,7 @@ class TestStorageAnalyzer(unittest.TestCase):
 
     def test_get_info_with_disk_no_name(self):
         """Test that disks with no name are handled gracefully."""
-        mock_lsblk_output_no_name = {
-            "blockdevices": [{"size": "10G", "type": "disk"}]
-        }
+        mock_lsblk_output_no_name = {"blockdevices": [{"size": "10G", "type": "disk"}]}
         mock_system_interface = MagicMock()
         mock_system_interface.run_command.side_effect = [
             CommandResult(
