@@ -446,7 +446,9 @@ class CPUAnalyzer:
             performance_info["psutil_cpu_frequency_error"] = str(e)
         except Exception as e:
             # Catch any other unexpected errors from psutil
-            performance_info["psutil_cpu_frequency_error"] = f"An unexpected error occurred: {e}"
+            performance_info["psutil_cpu_frequency_error"] = (
+                f"An unexpected error occurred: {e}"
+            )
 
         return {"performance_analysis": performance_info}
 

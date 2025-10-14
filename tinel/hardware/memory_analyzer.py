@@ -65,6 +65,7 @@ def analyze_memory_performance(info: Dict[str, Any]) -> Dict[str, Any]:
 
     return analysis
 
+
 """This module provides an analyzer for system memory.
 
 It includes the `MemoryAnalyzer` class, which gathers and processes
