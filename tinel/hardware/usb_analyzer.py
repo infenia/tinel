@@ -99,25 +99,36 @@ class USBAnalyzer:
                     busnum_path = f"{dev_path}/busnum"
                     devnum_path = f"{dev_path}/devnum"
 
-                    bus_num_content = self.system.read_file(busnum_path).strip()
-                    dev_num_content = self.system.read_file(devnum_path).strip()
+                    bus_num_content_raw = self.system.read_file(busnum_path)
+                    dev_num_content_raw = self.system.read_file(devnum_path)
+
+                    if not bus_num_content_raw or not dev_num_content_raw:
+                        continue
+
+                    bus_num_content = bus_num_content_raw.strip()
+                    dev_num_content = dev_num_content_raw.strip()
 
                     if int(bus_num_content) == int(bus) and int(dev_num_content) == int(
                         dev_id
                     ):
+                        vendor_id_raw = self.system.read_file(f"{dev_path}/idVendor")
+                        product_id_raw = self.system.read_file(f"{dev_path}/idProduct")
+                        manufacturer_raw = self.system.read_file(
+                            f"{dev_path}/manufacturer"
+                        )
+                        product_raw = self.system.read_file(f"{dev_path}/product")
+
                         details: Dict[str, Any] = {
-                            "vendor_id": self.system.read_file(
-                                f"{dev_path}/idVendor"
-                            ).strip(),
-                            "product_id": self.system.read_file(
-                                f"{dev_path}/idProduct"
-                            ).strip(),
-                            "manufacturer": self.system.read_file(
-                                f"{dev_path}/manufacturer"
-                            ).strip(),
-                            "product": self.system.read_file(
-                                f"{dev_path}/product"
-                            ).strip(),
+                            "vendor_id": vendor_id_raw.strip()
+                            if vendor_id_raw
+                            else None,
+                            "product_id": product_id_raw.strip()
+                            if product_id_raw
+                            else None,
+                            "manufacturer": manufacturer_raw.strip()
+                            if manufacturer_raw
+                            else None,
+                            "product": product_raw.strip() if product_raw else None,
                         }
                         return details
                 except (IOError, OSError, FileNotFoundError):
@@ -133,7 +144,7 @@ class USBAnalyzer:
         This method caches the output of the `lsusb` command to avoid
         running it multiple times during a single analysis.
         """
-        details = {}
+        details: Dict[str, str] = {}
         if self._lsusb_output_cache is None:
             self._lsusb_output_cache = self.system.run_command(["lsusb"])
 
@@ -141,7 +152,6 @@ class USBAnalyzer:
         if not lsusb_output.success:
             return details
 
-        # Example: "Bus 002 Device 002: ID 0bda:579c Realtek Semiconductor Corp. Webcam"
         pattern = re.compile(
             r"Bus\s+{0:03d}\s+Device\s+{1:03d}:\s+ID\s+([0-9a-fA-F]{{4}}):([0-9a-fA-F]{{4}})".format(
                 int(bus), int(dev_id)

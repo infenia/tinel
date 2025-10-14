@@ -284,7 +284,9 @@ class TestUSBAnalyzer(unittest.TestCase):
             CommandResult(
                 success=True,
                 # lsusb output with different bus/device numbers
-                stdout="Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub\n",
+                stdout=(
+                    "Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub\n"
+                ),
                 stderr="",
                 returncode=0,
             ),
@@ -383,3 +385,47 @@ class TestUSBAnalyzer(unittest.TestCase):
         self.assertEqual(len(root_hubs), 1)
         # Root hub should have no children since orphaned device was skipped
         self.assertEqual(len(root_hubs[0]["children"]), 0)
+
+    def test_sysfs_empty_busnum_devnum(self):
+        """Test that devices with empty busnum or devnum are skipped."""
+        mock_system_interface = Mock()
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_T_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+        ]
+        # Mock list_dir to return directories
+        mock_system_interface.list_dir.return_value = ["2-1", "2-2", "2-3"]
+
+        # Mock read_file to return empty strings for specific paths
+        def mock_read_file(path):
+            if path == "/sys/bus/usb/devices/2-1/busnum":
+                return ""  # Empty busnum
+            elif path == "/sys/bus/usb/devices/2-1/devnum":
+                return "1"
+            elif path == "/sys/bus/usb/devices/2-2/busnum":
+                return "2"
+            elif path == "/sys/bus/usb/devices/2-2/devnum":
+                return None  # None devnum
+            elif path in MOCK_SYSFS_DATA:
+                return MOCK_SYSFS_DATA[path]
+            raise FileNotFoundError(f"File not found: {path}")
+
+        mock_system_interface.read_file = Mock(side_effect=mock_read_file)
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        # Verify that lsusb was called as fallback
+        self.assertEqual(mock_system_interface.run_command.call_count, 2)
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 2)

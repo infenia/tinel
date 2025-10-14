@@ -1053,7 +1053,7 @@ class TestNetworkPerformance:
             info = analyzer.analyze_network_performance()
             assert "performance_capabilities" in info
             assert "eth0" in info["performance_capabilities"]
-            assert info["performance_capabilities"]["eth0"]["speed"] == 1000
+            assert info["performance_capabilities"]["eth0"]["speed"] == MOCK_SYS_SPEED
             assert (
                 info["performance_capabilities"]["eth0"]["duplex"]
                 == psutil.NIC_DUPLEX_FULL
@@ -1066,13 +1066,15 @@ class TestNetworkPerformance:
             CommandResult(False, "", "not found", 1),
         ]
         psutil_error = Exception("psutil error")
-        with patch("psutil.net_if_stats", side_effect=psutil_error):
-            with patch.object(analyzer, "logger") as mock_logger:
-                info = analyzer.analyze_network_performance()
-                assert "performance_capabilities" not in info
-                mock_logger.error.assert_called_with(
-                    "Failed to get psutil stats for %s: %s", "eth0", psutil_error
-                )
+        with (
+            patch("psutil.net_if_stats", side_effect=psutil_error),
+            patch.object(analyzer, "logger") as mock_logger,
+        ):
+            info = analyzer.analyze_network_performance()
+            assert "performance_capabilities" not in info
+            mock_logger.error.assert_called_with(
+                "Failed to get psutil stats for %s: %s", "eth0", psutil_error
+            )
 
     def test_parse_ethtool_capabilities(self, analyzer):
         """Test parsing of `ethtool` capabilities output."""
