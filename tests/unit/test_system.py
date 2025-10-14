@@ -439,3 +439,29 @@ class TestRunCommandExceptionHandling:
             assert result.returncode == -1
             assert "Unexpected error" in result.error
             assert "Unexpected runtime error" in result.error
+
+    @unit_test
+    def test_run_command_oserror(self):
+        """Test run_command handles OSError."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = OSError("No such file or directory")
+
+            result = self.system.run_command(["lscpu"])
+
+            assert result.success is False
+            assert result.returncode == -1
+            assert "Command execution failed" in result.error
+            assert "No such file or directory" in result.error
+
+    @unit_test
+    def test_run_command_valueerror(self):
+        """Test run_command handles ValueError."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = ValueError("Invalid parameter")
+
+            result = self.system.run_command(["lscpu"])
+
+            assert result.success is False
+            assert result.returncode == -1
+            assert "Command execution failed" in result.error
+            assert "Invalid parameter" in result.error
