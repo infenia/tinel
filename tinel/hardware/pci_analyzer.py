@@ -55,30 +55,77 @@ class PCIAnalyzer:
     def get_pci_info(self) -> PCIInfo:
         """Retrieves and parses information about all PCI devices.
 
-        This method executes the `lspci -v` command to get a verbose listing of
-        PCI devices and then parses this output to construct a `PCIInfo` object.
+        This method executes the `lspci -vnnk` command to get a verbose,
+        numeric listing of PCI devices, including kernel driver information.
+        It then parses this output to construct a `PCIInfo` object.
 
         Returns:
             A `PCIInfo` object containing a list of all found PCI devices. If
             the `lspci` command fails or returns no output, an empty `PCIInfo`
             object is returned.
         """
-        lspci_output = self.system.run_command(["lspci", "-v"])
-        if not lspci_output.success or not lspci_output.stdout:
-            return PCIInfo(devices=[])
+        lspci_output = self.system.run_command(["lspci", "-vnnk"])
+        if lspci_output.success and lspci_output.stdout:
+            devices = self._parse_lspci_vnnk_output(lspci_output.stdout)
+            return PCIInfo(devices=devices)
+        else:
+            # Fallback to sysfs if lspci fails
+            devices = self._get_pci_info_from_sysfs()
+            return PCIInfo(devices=devices)
 
-        devices = self._parse_lspci_v_output(lspci_output.stdout)
-        return PCIInfo(devices=devices)
+    def _get_pci_info_from_sysfs(self) -> List[Dict[str, Any]]:
+        """Retrieves basic PCI device information from sysfs.
 
-    def _parse_lspci_v_output(self, output: str) -> List[Dict[str, Any]]:
-        """Parses the verbose output of the `lspci -v` command.
+        This method serves as a fallback when `lspci` is not available. It
+        parses the `/sys/bus/pci/devices` directory to gather information
+        about each PCI device.
 
-        This method processes the raw text output from `lspci -v` and extracts
-        structured information about each PCI device, including its slot,
-        description, and various attributes.
+        Returns:
+            A list of dictionaries, where each dictionary represents a
+            single PCI device and its properties.
+        """
+        devices = []
+        pci_path = "/sys/bus/pci/devices"
+        device_dirs = self.system.list_dir(pci_path)
+        if not device_dirs:
+            return []
+
+        for device_dir in device_dirs:
+            try:
+                device_path = f"{pci_path}/{device_dir}"
+                vendor_file = self.system.read_file(f"{device_path}/vendor")
+                device_file = self.system.read_file(f"{device_path}/device")
+                class_file = self.system.read_file(f"{device_path}/class")
+
+                if not (vendor_file and device_file and class_file):
+                    continue
+
+                driver_path = self.system.readlink(f"{device_path}/driver")
+                driver = driver_path.split("/")[-1] if driver_path else "N/A"
+
+                devices.append(
+                    {
+                        "slot": device_dir,
+                        "vendor_id": vendor_file.strip(),
+                        "device_id": device_file.strip(),
+                        "class": class_file.strip(),
+                        "driver": driver,
+                        "description": "N/A (from sysfs)",
+                    }
+                )
+            except (FileNotFoundError, PermissionError):
+                continue
+        return devices
+
+    def _parse_lspci_vnnk_output(self, output: str) -> List[Dict[str, Any]]:
+        """Parses the verbose output of the `lspci -vnnk` command.
+
+        This method processes the raw text output from `lspci -vnnk` and
+        extracts structured information about each PCI device, including its
+        slot, description, vendor/device IDs, and kernel driver.
 
         Args:
-            output: The raw string output from the `lspci -v` command.
+            output: The raw string output from the `lspci -vnnk` command.
 
         Returns:
             A list of dictionaries, where each dictionary represents a single
@@ -86,37 +133,38 @@ class PCIAnalyzer:
         """
         devices = []
         current_device: Dict[str, Any] = {}
-        # Regex to identify the start of a new device entry, e.g., "00:01.0 ..."
-        device_header_re = re.compile(r"^([0-9a-f]{2}:[0-9a-f]{2}\.\d)\s+(.*)")
+        device_header_re = re.compile(
+            r"^([0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.\d)\s+(.*)\s+\[([0-9a-fA-F]{4}):([0-9a-fA-F]{4})\]"
+        )
 
         for line in output.strip().split("\n"):
             header_match = device_header_re.match(line)
             if header_match:
-                # A new device header is found.
-                # Save the previous device and start a new one.
                 if current_device:
                     devices.append(current_device)
 
-                slot, description = header_match.groups()
+                slot, description, vendor_id, device_id = header_match.groups()
                 current_device = {
                     "slot": slot.strip(),
                     "description": description.strip(),
+                    "vendor_id": vendor_id.strip(),
+                    "device_id": device_id.strip(),
                 }
             elif current_device and line.strip():
-                # This is a detail line for the current device.
                 line_content = line.strip()
-                if ":" in line_content:
-                    key, value = [part.strip() for part in line_content.split(":", 1)]
-                    # Normalize the key: lowercase, replace spaces with underscores.
-                    key = key.lower().replace(" ", "_")
-                    current_device[key] = value
+                kv_match = re.match(r"([^:]+):\s+(.*)", line_content)
+                if kv_match:
+                    key, value = kv_match.groups()
+                    key = key.lower().replace(" ", "_").replace("-", "_")
+                    if key == "kernel_driver_in_use":
+                        current_device["driver"] = value
+                    else:
+                        current_device[key] = value
                 else:
-                    # For lines without a colon, add them to a 'details' list.
                     if "details" not in current_device:
                         current_device["details"] = []
                     current_device["details"].append(line_content)
 
-        # Append the last processed device
         if current_device:
             devices.append(current_device)
 

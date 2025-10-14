@@ -459,9 +459,10 @@ class TestCPUAnalyzer:
         assert "performance_analysis" in performance_analysis
         analysis_data = performance_analysis["performance_analysis"]
 
+        cpu_freq_current = 3400
         assert analysis_data["optimizations"]["avx2_supported"] is True
         assert "psutil_cpu_frequency" in analysis_data
-        assert analysis_data["psutil_cpu_frequency"]["current"] == 3400
+        assert analysis_data["psutil_cpu_frequency"]["current"] == cpu_freq_current
         assert "psutil_cpu_stats" in analysis_data
         assert analysis_data["psutil_cpu_stats"]["context_switches"] == 1
 

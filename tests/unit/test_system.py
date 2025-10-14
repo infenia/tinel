@@ -253,6 +253,20 @@ class TestLinuxSystemInterface:
             assert result is False
 
     @unit_test
+    def test_list_dir_invalid_path(self):
+        """Test list_dir with an invalid path."""
+        with patch.object(self.system, "_validate_file_path", return_value=None):
+            result = self.system.list_dir("/invalid/path")
+            assert result == []
+
+    @unit_test
+    def test_readlink_invalid_path(self):
+        """Test readlink with an invalid path."""
+        with patch.object(self.system, "_validate_file_path", return_value=None):
+            result = self.system.readlink("/invalid/path")
+            assert result == ""
+
+    @unit_test
     def test_run_command_input_validation(self):
         """Test command input validation."""
         # Test empty command list
@@ -306,6 +320,30 @@ class TestLinuxSystemInterface:
         with patch.dict(os.environ, {}, clear=True):
             env = self.system._get_safe_environment()
             assert "HOME" not in env and "USER" not in env and "LOGNAME" not in env
+
+    @unit_test
+    def test_list_dir_valid_path(self):
+        """Test list_dir with a valid path."""
+        with (
+            patch.object(self.system, "_validate_file_path", return_value="/fake/path"),
+            patch("os.listdir") as mock_listdir,
+        ):
+            mock_listdir.return_value = ["file1", "file2"]
+            result = self.system.list_dir("/fake/path")
+            mock_listdir.assert_called_with("/fake/path")
+            assert result == ["file1", "file2"]
+
+    @unit_test
+    def test_readlink_valid_path(self):
+        """Test readlink with a valid path."""
+        with (
+            patch.object(self.system, "_validate_file_path", return_value="/fake/path"),
+            patch("os.readlink") as mock_readlink,
+        ):
+            mock_readlink.return_value = "/another/path"
+            result = self.system.readlink("/fake/path")
+            mock_readlink.assert_called_with("/fake/path")
+            assert result == "/another/path"
 
 
 class TestCommandResultCreation:
