@@ -253,6 +253,20 @@ class TestLinuxSystemInterface:
             assert result is False
 
     @unit_test
+    def test_list_dir_invalid_path(self):
+        """Test list_dir with an invalid path."""
+        with patch.object(self.system, "_validate_file_path", return_value=None):
+            result = self.system.list_dir("/invalid/path")
+            assert result == []
+
+    @unit_test
+    def test_readlink_invalid_path(self):
+        """Test readlink with an invalid path."""
+        with patch.object(self.system, "_validate_file_path", return_value=None):
+            result = self.system.readlink("/invalid/path")
+            assert result == ""
+
+    @unit_test
     def test_run_command_input_validation(self):
         """Test command input validation."""
         # Test empty command list
@@ -298,37 +312,28 @@ class TestLinuxSystemInterface:
             assert "HOME" not in env and "USER" not in env and "LOGNAME" not in env
 
     @unit_test
-    @patch("subprocess.run")
-    def test_run_command_generic_exception(self, mock_run):
-        """Test that run_command handles generic exceptions."""
-
-        class CustomError(Exception):
-            pass
-
-        mock_run.side_effect = CustomError("generic error")
-        result = self.system.run_command(["echo", "hello"])
-        assert not result.success
-        assert "Unexpected error: generic error" in result.error
-
-    @unit_test
-    @patch("subprocess.run")
-    def test_run_command_oserror_exception(self, mock_run):
-        """Test that run_command handles OSError exceptions."""
-        mock_run.side_effect = OSError("OS error occurred")
-        result = self.system.run_command(["echo", "hello"])
-        assert not result.success
-        assert result.returncode == -1
-        assert "Command execution failed: OS error occurred" in result.error
+    def test_list_dir_valid_path(self):
+        """Test list_dir with a valid path."""
+        with (
+            patch.object(self.system, "_validate_file_path", return_value="/fake/path"),
+            patch("os.listdir") as mock_listdir,
+        ):
+            mock_listdir.return_value = ["file1", "file2"]
+            result = self.system.list_dir("/fake/path")
+            mock_listdir.assert_called_with("/fake/path")
+            assert result == ["file1", "file2"]
 
     @unit_test
-    @patch("subprocess.run")
-    def test_run_command_valueerror_exception(self, mock_run):
-        """Test that run_command handles ValueError exceptions."""
-        mock_run.side_effect = ValueError("Invalid value")
-        result = self.system.run_command(["echo", "hello"])
-        assert not result.success
-        assert result.returncode == -1
-        assert "Command execution failed: Invalid value" in result.error
+    def test_readlink_valid_path(self):
+        """Test readlink with a valid path."""
+        with (
+            patch.object(self.system, "_validate_file_path", return_value="/fake/path"),
+            patch("os.readlink") as mock_readlink,
+        ):
+            mock_readlink.return_value = "/another/path"
+            result = self.system.readlink("/fake/path")
+            mock_readlink.assert_called_with("/fake/path")
+            assert result == "/another/path"
 
 
 class TestCommandResultCreation:
@@ -411,3 +416,52 @@ def test_command_whitelist(command, expected_allowed):
     else:
         with pytest.raises(ValueError):
             system._sanitize_command(command)
+
+
+class TestRunCommandExceptionHandling:
+    """Test exception handling in run_command."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.system = LinuxSystemInterface()
+
+    @unit_test
+    def test_run_command_generic_exception(self):
+        """Test run_command handles generic exceptions."""
+        with patch("subprocess.run") as mock_run:
+            # Simulate a generic exception that's not
+            # TimeoutExpired, OSError, or ValueError
+            mock_run.side_effect = RuntimeError("Unexpected runtime error")
+
+            result = self.system.run_command(["lscpu"])
+
+            assert result.success is False
+            assert result.returncode == -1
+            assert "Unexpected error" in result.error
+            assert "Unexpected runtime error" in result.error
+
+    @unit_test
+    def test_run_command_oserror(self):
+        """Test run_command handles OSError."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = OSError("No such file or directory")
+
+            result = self.system.run_command(["lscpu"])
+
+            assert result.success is False
+            assert result.returncode == -1
+            assert "Command execution failed" in result.error
+            assert "No such file or directory" in result.error
+
+    @unit_test
+    def test_run_command_valueerror(self):
+        """Test run_command handles ValueError."""
+        with patch("subprocess.run") as mock_run:
+            mock_run.side_effect = ValueError("Invalid parameter")
+
+            result = self.system.run_command(["lscpu"])
+
+            assert result.success is False
+            assert result.returncode == -1
+            assert "Command execution failed" in result.error
+            assert "Invalid parameter" in result.error

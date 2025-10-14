@@ -124,6 +124,30 @@ class SystemInterface(ABC):
         """
         pass
 
+    @abstractmethod
+    def list_dir(self, path: str) -> List[str]:
+        """Lists the contents of a directory.
+
+        Args:
+            path: The path to the directory.
+
+        Returns:
+            A list of names of the entries in the directory.
+        """
+        pass
+
+    @abstractmethod
+    def readlink(self, path: str) -> str:
+        """Reads the value of a symbolic link.
+
+        Args:
+            path: The path to the symbolic link.
+
+        Returns:
+            A string representing the path to which the symbolic link points.
+        """
+        pass
+
 
 class ToolProvider(ABC):
     """Defines an abstract interface for tool providers.

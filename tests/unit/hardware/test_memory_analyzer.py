@@ -226,10 +226,10 @@ Handle 0x0001, DMI type 17, 40 bytes
 
     def test_analyze_memory_performance_with_none_device(self, analyzer):
         """Test that analyze_memory_performance handles None in memory_devices."""
+        effective_speed_mhz = 2400
         info = {"memory_devices": [None, {"speed": "2400 MT/s"}]}
         analysis = analyze_memory_performance(info)
-        mock_effective_speed = 2400
-        assert analysis["effective_speed_mhz"] == mock_effective_speed
+        assert analysis["effective_speed_mhz"] == effective_speed_mhz
 
     def test_analyze_memory_performance_no_valid_speed(self, analyzer):
         """Test that analyze_memory_performance handles no valid speed."""

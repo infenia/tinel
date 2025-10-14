@@ -154,6 +154,43 @@ class LinuxSystemInterface(SystemInterface):
         """
         return Path(path).exists()
 
+    def list_dir(self, path: str) -> List[str]:
+        """Lists the contents of a directory.
+
+        Args:
+            path: The path to the directory.
+
+        Returns:
+            A list of names of the entries in the directory.
+
+        Raises:
+            FileNotFoundError: If the path does not exist.
+            PermissionError: If the user does not have permission to read the
+                             directory.
+        """
+        safe_path = self._validate_file_path(path)
+        if not safe_path:
+            return []
+        return os.listdir(safe_path)
+
+    def readlink(self, path: str) -> str:
+        """Reads the value of a symbolic link.
+
+        Args:
+            path: The path to the symbolic link.
+
+        Returns:
+            A string representing the path to which the symbolic link points.
+
+        Raises:
+            FileNotFoundError: If the link does not exist.
+            OSError: If the path is not a symbolic link.
+        """
+        safe_path = self._validate_file_path(path)
+        if not safe_path:
+            return ""
+        return os.readlink(safe_path)
+
     def _sanitize_command(self, cmd: List[str]) -> List[str]:
         """Sanitizes and validates a command and its arguments for security.
 
