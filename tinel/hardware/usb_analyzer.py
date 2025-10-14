@@ -4,7 +4,7 @@ Copyright 2025 Infenia Private Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
 you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
+You may- obtain a copy of the License at
 
     http://www.apache.org/licenses/LICENSE-2.0
 
@@ -19,7 +19,7 @@ import re
 from typing import Any, Dict, List, Optional
 
 from tinel.hardware.models import USBInfo
-from tinel.interfaces import SystemInterface
+from tinel.interfaces import CommandResult, SystemInterface
 from tinel.system import LinuxSystemInterface
 
 """This module provides an analyzer for USB devices.
@@ -51,6 +51,7 @@ class USBAnalyzer:
                               interactions.
         """
         self.system = system_interface or LinuxSystemInterface()
+        self._lsusb_output_cache: Optional[CommandResult] = None
 
     def get_usb_info(self) -> USBInfo:
         """Retrieves and parses information about all USB devices.
@@ -63,6 +64,9 @@ class USBAnalyzer:
             A `USBInfo` object containing the USB device tree. If the `lsusb`
             command fails, an empty tree is returned.
         """
+        # Reset the cache at the start of each analysis.
+        self._lsusb_output_cache = None
+
         lsusb_output = self.system.run_command(["lsusb", "-t"])
         if not lsusb_output.success:
             return USBInfo(tree={"root_hubs": []})
@@ -70,23 +74,95 @@ class USBAnalyzer:
         tree = self._parse_lsusb_t_output(lsusb_output.stdout)
         return USBInfo(tree={"root_hubs": tree})
 
+    def _get_device_details(self, bus: str, dev_id: str) -> Dict[str, Any]:
+        """Retrieves detailed information for a specific USB device from sysfs.
+
+        This function reads device attributes such as vendor ID, product ID,
+        manufacturer, and product name from the corresponding sysfs directory.
+        If sysfs is unavailable or a match is not found, it falls back to
+        parsing `lsusb` output.
+
+        Args:
+            bus: The USB bus number.
+            dev_id: The device ID on the bus.
+
+        Returns:
+            A dictionary containing the detailed device information.
+        """
+        sysfs_base = "/sys/bus/usb/devices"
+        device_dirs = self.system.list_dir(sysfs_base)
+
+        if device_dirs:
+            for dev_dir in device_dirs:
+                dev_path = f"{sysfs_base}/{dev_dir}"
+                try:
+                    busnum_path = f"{dev_path}/busnum"
+                    devnum_path = f"{dev_path}/devnum"
+
+                    bus_num_content = self.system.read_file(busnum_path).strip()
+                    dev_num_content = self.system.read_file(devnum_path).strip()
+
+                    if int(bus_num_content) == int(bus) and int(
+                        dev_num_content
+                    ) == int(dev_id):
+                        details: Dict[str, Any] = {
+                            "vendor_id": self.system.read_file(
+                                f"{dev_path}/idVendor"
+                            ).strip(),
+                            "product_id": self.system.read_file(
+                                f"{dev_path}/idProduct"
+                            ).strip(),
+                            "manufacturer": self.system.read_file(
+                                f"{dev_path}/manufacturer"
+                            ).strip(),
+                            "product": self.system.read_file(
+                                f"{dev_path}/product"
+                            ).strip(),
+                        }
+                        return details
+                except (IOError, OSError, FileNotFoundError):
+                    continue
+
+        # Fallback to lsusb if sysfs fails or device not found
+        return self._get_details_from_lsusb(bus, dev_id)
+
+    def _get_details_from_lsusb(self, bus: str, dev_id: str) -> Dict[str, str]:
+        """
+        Fallback method to get vendor and product IDs from `lsusb` output.
+
+        This method caches the output of the `lsusb` command to avoid
+        running it multiple times during a single analysis.
+        """
+        details = {}
+        if self._lsusb_output_cache is None:
+            self._lsusb_output_cache = self.system.run_command(["lsusb"])
+
+        lsusb_output = self._lsusb_output_cache
+        if not lsusb_output.success:
+            return details
+
+        # Example: "Bus 002 Device 002: ID 0bda:579c Realtek Semiconductor Corp. Webcam"
+        pattern = re.compile(
+            r"Bus\s+{0:03d}\s+Device\s+{1:03d}:\s+ID\s+([0-9a-fA-F]{{4}}):([0-9a-fA-F]{{4}})".format(
+                int(bus), int(dev_id)
+            )
+        )
+
+        for line in lsusb_output.stdout.split("\n"):
+            match = pattern.search(line)
+            if match:
+                details["vendor_id"] = match.group(1)
+                details["product_id"] = match.group(2)
+                return details
+        return details
+
     def _parse_lsusb_t_output(self, output: str) -> List[Dict[str, Any]]:
         """Parses the tree-like output of the `lsusb -t` command.
 
         This method processes the raw text output from `lsusb -t` to build a
-        hierarchical data structure representing the USB device tree. It handles
-        the indentation and structure of the output to correctly nest child
-        devices under their parent hubs.
-
-        Args:
-            output: The raw string output from the `lsusb -t` command.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a root hub
-            and contains its children in a nested structure.
+        hierarchical data structure representing the USB device tree.
         """
         hubs = []
-        # A stack to keep track of the current parent device at each indentation level.
         parent_stack: List[Dict[str, Any]] = []
 
         for line in output.strip().split("\n"):
@@ -94,11 +170,9 @@ class USBAnalyzer:
             if not line_content:
                 continue
 
-            # Determine the indentation level to understand the hierarchy.
             indentation = len(line) - len(line.lstrip(" "))
             level = indentation // 4
 
-            # Handle root hub lines, which start with '/:'
             if line_content.startswith("/:"):
                 root_match = re.match(
                     (
@@ -119,10 +193,11 @@ class USBAnalyzer:
                     "speed": speed,
                     "children": [],
                 }
+                details = self._get_device_details(bus, dev)
+                node.update(details)
                 hubs.append(node)
-                parent_stack = [node]  # Reset stack for this hub
+                parent_stack = [node]
             else:
-                # Handle child device lines
                 cleaned_line = line_content.lstrip(" |-_")
                 match = re.match(
                     (
@@ -144,17 +219,15 @@ class USBAnalyzer:
                     "speed": speed,
                     "children": [],
                 }
-
-                # Adjust parent stack based on the current indentation level
-                # The parent is at `level - 1`, so the stack should be `level` deep.
                 while len(parent_stack) > level:
                     parent_stack.pop()
 
-                # Add the new node to its parent's children list
                 if parent_stack:
+                    bus_num = parent_stack[0]["bus"]
+                    details = self._get_device_details(bus_num, dev)
+                    node.update(details)
                     parent_stack[-1]["children"].append(node)
 
-                # Add the current node to the stack for subsequent children
                 parent_stack.append(node)
 
         return hubs

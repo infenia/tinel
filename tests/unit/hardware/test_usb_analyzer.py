@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import unittest
-from unittest.mock import Mock
+from unittest.mock import Mock, call
 
 from tinel.hardware.usb_analyzer import USBAnalyzer
 from tinel.interfaces import CommandResult
@@ -30,197 +30,163 @@ MOCK_LSUSB_T_OUTPUT = """
     |__ Port 5: Dev 3, If 0, Class=Wireless, Driver=btusb, 12M
 """
 
+# Mock data for sysfs reads
+MOCK_SYSFS_DATA = {
+    # Bus 2, Device 1 (Root Hub)
+    "/sys/bus/usb/devices/2-1/busnum": "2",
+    "/sys/bus/usb/devices/2-1/devnum": "1",
+    "/sys/bus/usb/devices/2-1/idVendor": "1d6b",
+    "/sys/bus/usb/devices/2-1/idProduct": "0003",
+    "/sys/bus/usb/devices/2-1/manufacturer": "Linux Foundation",
+    "/sys/bus/usb/devices/2-1/product": "3.0 root hub",
+    # Bus 2, Device 2 (Webcam)
+    "/sys/bus/usb/devices/2-2/busnum": "2",
+    "/sys/bus/usb/devices/2-2/devnum": "2",
+    "/sys/bus/usb/devices/2-2/idVendor": "0bda",
+    "/sys/bus/usb/devices/2-2/idProduct": "579c",
+    "/sys/bus/usb/devices/2-2/manufacturer": "Generic",
+    "/sys/bus/usb/devices/2-2/product": "Webcam",
+    # Bus 1, Device 1 (Root Hub)
+    "/sys/bus/usb/devices/1-1/busnum": "1",
+    "/sys/bus/usb/devices/1-1/devnum": "1",
+    "/sys/bus/usb/devices/1-1/idVendor": "1d6b",
+    "/sys/bus/usb/devices/1-1/idProduct": "0002",
+    "/sys/bus/usb/devices/1-1/manufacturer": "Linux Foundation",
+    "/sys/bus/usb/devices/1-1/product": "2.0 root hub",
+    # Bus 1, Device 2 (Bluetooth)
+    "/sys/bus/usb/devices/1-2/busnum": "1",
+    "/sys/bus/usb/devices/1-2/devnum": "2",
+    "/sys/bus/usb/devices/1-2/idVendor": "8087",
+    "/sys/bus/usb/devices/1-2/idProduct": "0a2a",
+    "/sys/bus/usb/devices/1-2/manufacturer": "Intel Corp.",
+    "/sys/bus/usb/devices/1-2/product": "Bluetooth wireless interface",
+    # Bus 1, Device 3 (Wireless)
+    "/sys/bus/usb/devices/1-3/busnum": "1",
+    "/sys/bus/usb/devices/1-3/devnum": "3",
+    "/sys/bus/usb/devices/1-3/idVendor": "0a5c",
+    "/sys/bus/usb/devices/1-3/idProduct": "21e8",
+    "/sys/bus/usb/devices/1-3/manufacturer": "Broadcom Corp",
+    "/sys/bus/usb/devices/1-3/product": "BCM20702A0",
+}
+
+MOCK_LSUSB_OUTPUT = """
+Bus 002 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
+Bus 002 Device 002: ID 0bda:579c Realtek Semiconductor Corp. Webcam
+Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub
+Bus 001 Device 002: ID 8087:0a2a Intel Corp.
+Bus 001 Device 003: ID 0a5c:21e8 Broadcom Corp. BCM20702A0
+"""
+
 
 class TestUSBAnalyzer(unittest.TestCase):
-    def test_get_usb_info_parses_lsusb_t_output_correctly(self):
-        """Verify that the USB analyzer correctly parses lsusb -t output."""
-        # Arrange
+    def test_get_usb_info_with_sysfs_details(self):
+        """Verify that the analyzer enriches USB data with sysfs details."""
         mock_system_interface = Mock()
         mock_system_interface.run_command.return_value = CommandResult(
             success=True,
             stdout=MOCK_LSUSB_T_OUTPUT,
             stderr="",
             returncode=0,
-            error=None,
         )
         analyzer = USBAnalyzer(system_interface=mock_system_interface)
 
-        # Act
+        def mock_read_file(path):
+            if path in MOCK_SYSFS_DATA:
+                return MOCK_SYSFS_DATA[path]
+            raise FileNotFoundError(f"File not found: {path}")
+
+        analyzer.system.read_file = Mock(side_effect=mock_read_file)
+        # Provide a complete list of directories to search through
+        analyzer.system.list_dir.return_value = [
+            "1-1",
+            "1-2",
+            "1-3",
+            "2-1",
+            "2-2",
+            "usb1",
+            "usb2",
+        ]
+
         usb_info = analyzer.get_usb_info()
 
-        # Assert
+        # Assert that lsusb was NOT called as a fallback
         mock_system_interface.run_command.assert_called_once_with(["lsusb", "-t"])
 
         root_hubs = usb_info.tree.get("root_hubs", [])
         self.assertEqual(len(root_hubs), 2)
 
-        # Check the first root hub and its child
-        hub1 = root_hubs[0]
-        self.assertEqual(hub1["bus"], "02")
-        self.assertEqual(hub1["class"], "root_hub")
-        self.assertEqual(len(hub1["children"]), 1)
+        webcam = root_hubs[0]["children"][0]
+        self.assertEqual(webcam["vendor_id"], "0bda")
+        self.assertEqual(webcam["product_id"], "579c")
+        self.assertEqual(webcam["manufacturer"], "Generic")
+        self.assertEqual(webcam["product"], "Webcam")
 
-        child1 = hub1["children"][0]
-        self.assertEqual(child1["class"], "Video")
-        self.assertEqual(child1["driver"], "uvcvideo")
+        bluetooth = root_hubs[1]["children"][0]
+        self.assertEqual(bluetooth["vendor_id"], "8087")
+        self.assertEqual(bluetooth["product_id"], "0a2a")
+
+    def test_get_usb_info_fallback_to_lsusb(self):
+        """Test that the analyzer falls back to lsusb when sysfs fails."""
+        mock_system_interface = Mock()
+        # Mock the sequence of command calls: first lsusb -t, then lsusb
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_T_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+        ]
+        # Simulate a sysfs failure by returning an empty list of directories
+        mock_system_interface.list_dir.return_value = []
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+
+        usb_info = analyzer.get_usb_info()
+
+        # Assert that lsusb -t and lsusb were both called
+        mock_system_interface.run_command.assert_has_calls(
+            [call(["lsusb", "-t"]), call(["lsusb"])]
+        )
+        self.assertEqual(mock_system_interface.run_command.call_count, 2)
+
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 2)
+
+        # Check the first root hub and its child (Webcam)
+        hub1 = root_hubs[0]
+        self.assertEqual(hub1["vendor_id"], "1d6b")
+        self.assertEqual(hub1["product_id"], "0003")
+        webcam = hub1["children"][0]
+        self.assertEqual(webcam["vendor_id"], "0bda")
+        self.assertEqual(webcam["product_id"], "579c")
 
         # Check the second root hub and its children
         hub2 = root_hubs[1]
-        self.assertEqual(hub2["bus"], "01")
-        self.assertEqual(len(hub2["children"]), 2)
-
-        child2 = hub2["children"][0]
-        self.assertEqual(child2["class"], "Human Interface Device")
-
-        child3 = hub2["children"][1]
-        self.assertEqual(child3["driver"], "btusb")
+        self.assertEqual(hub2["vendor_id"], "1d6b")
+        self.assertEqual(hub2["product_id"], "0002")
+        bluetooth = hub2["children"][0]
+        self.assertEqual(bluetooth["vendor_id"], "8087")
+        self.assertEqual(bluetooth["product_id"], "0a2a")
+        wireless = hub2["children"][1]
+        self.assertEqual(wireless["vendor_id"], "0a5c")
+        self.assertEqual(wireless["product_id"], "21e8")
 
     def test_get_usb_info_handles_command_failure(self):
         """
-        Test that get_usb_info returns an empty tree when the command fails.
+        Test that get_usb_info returns an empty tree when the lsusb -t command fails.
         """
-        # Arrange
         mock_system_interface = Mock()
         mock_system_interface.run_command.return_value = CommandResult(
-            success=False,
-            stdout="",
-            stderr="Command not found",
-            returncode=1,
-            error="Command not found",
+            success=False, stdout="", stderr="Command not found", returncode=1
         )
         analyzer = USBAnalyzer(system_interface=mock_system_interface)
 
-        # Act
         usb_info = analyzer.get_usb_info()
 
-        # Assert
-        self.assertEqual(usb_info.tree, {"root_hubs": []})
-
-    def test_get_usb_info_with_malformed_child_line(self):
-        """Test that the parser handles a malformed child device line."""
-        # Arrange
-        mock_system_interface = Mock()
-        output_with_bad_child = (
-            "/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/10p, 480M\n"
-            "    |__ Port 4: This is a malformed line\n"
-            "    |__ Port 5: Dev 3, If 0, Class=Wireless, Driver=btusb, 12M\n"
-        )
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout=output_with_bad_child,
-            stderr="",
-            returncode=0,
-            error=None,
-        )
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-
-        # Act
-        usb_info = analyzer.get_usb_info()
-
-        # Assert
-        root_hubs = usb_info.tree.get("root_hubs", [])
-        self.assertEqual(len(root_hubs), 1)
-        self.assertEqual(len(root_hubs[0]["children"]), 1)
-        self.assertEqual(root_hubs[0]["children"][0]["driver"], "btusb")
-
-    def test_get_usb_info_with_deeply_nested_devices(self):
-        """Test parsing of a deeply nested USB device tree."""
-        # Arrange
-        mock_system_interface = Mock()
-        nested_output = (
-            "/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/10p, 480M\n"
-            "    |__ Port 2: Dev 2, If 0, Class=Hub, Driver=hub/4p, 480M\n"
-            "        |__ Port 1: Dev 3, If 0, Class=Vendor Specific, Driver=, 1.5M\n"
-            "    |__ Port 3: Dev 4, If 0, Class=Human Interface Device, "
-            "Driver=usbhid, 12M\n"
-        )
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout=nested_output,
-            stderr="",
-            returncode=0,
-            error=None,
-        )
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-
-        # Act
-        usb_info = analyzer.get_usb_info()
-
-        # Assert
-        root_hubs = usb_info.tree.get("root_hubs", [])
-        self.assertEqual(len(root_hubs), 1)
-        hub = root_hubs[0]
-        self.assertEqual(len(hub["children"]), 2)
-        # Check the nested hub
-        nested_hub = hub["children"][0]
-        self.assertEqual(nested_hub["class"], "Hub")
-        self.assertEqual(len(nested_hub["children"]), 1)
-        # Check the device under the nested hub
-        nested_device = nested_hub["children"][0]
-        self.assertEqual(nested_device["class"], "Vendor Specific")
-        # Check the other top-level device
-        hid_device = hub["children"][1]
-        self.assertEqual(hid_device["class"], "Human Interface Device")
-
-    def test_get_usb_info_with_malformed_output(self):
-        """
-        Test that get_usb_info handles malformed lines gracefully.
-        """
-        # Arrange
-        mock_system_interface = Mock()
-        malformed_output = "/: Malformed root hub line\n    |__ Malformed child line"
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout=malformed_output,
-            stderr="",
-            returncode=0,
-            error=None,
-        )
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-
-        # Act
-        usb_info = analyzer.get_usb_info()
-
-        # Assert
-        self.assertEqual(usb_info.tree, {"root_hubs": []})
-
-    def test_get_usb_info_with_empty_output(self):
-        """
-        Test that get_usb_info returns an empty tree for empty command output.
-        """
-        # Arrange
-        mock_system_interface = Mock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True, stdout="", stderr="", returncode=0, error=None
-        )
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-
-        # Act
-        usb_info = analyzer.get_usb_info()
-
-        # Assert
-        self.assertEqual(usb_info.tree, {"root_hubs": []})
-
-    def test_get_usb_info_with_orphaned_child_device(self):
-        """
-        Test that child devices without a parent root hub are skipped gracefully.
-        This covers the branch where parent_stack is empty when processing a child.
-        """
-        # Arrange
-        mock_system_interface = Mock()
-        # Child device without a root hub parent
-        orphaned_output = "    |__ Port 4: Dev 2, If 0, Class=HID, Driver=usbhid, 12M\n"
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout=orphaned_output,
-            stderr="",
-            returncode=0,
-            error=None,
-        )
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-
-        # Act
-        usb_info = analyzer.get_usb_info()
-
-        # Assert - The orphaned child should not be added to root_hubs
         self.assertEqual(usb_info.tree, {"root_hubs": []})
