@@ -19,6 +19,8 @@ import logging
 import re
 from typing import Any, Dict, List, Optional
 
+import psutil
+
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
 
@@ -87,6 +89,9 @@ class NetworkAnalyzer:
 
         # Get network performance metrics
         info.update(self._get_performance_metrics())
+
+        # Get network performance capabilities
+        info.update(self.analyze_network_performance())
 
         self._network_info_cache = info
         return info
@@ -612,4 +617,68 @@ class NetworkAnalyzer:
                     stats[key] = int(value)
         return stats
 
-    pass
+    def analyze_network_performance(self) -> Dict[str, Any]:
+        """Analyzes network performance and capabilities.
+
+        This method enriches the network information dictionary with
+        performance data, such as speed and duplex, using `ethtool`. If `ethtool`
+        is not available, it falls back to `psutil` for basic metrics.
+
+        Returns:
+            A dictionary containing performance capabilities.
+        """
+        capabilities: Dict[str, Any] = {}
+        ls_result = self.system.run_command(["ls", "/sys/class/net/"])
+
+        if ls_result.success:
+            interface_names = ls_result.stdout.strip().split()
+            for interface_name in interface_names:
+                if interface_name == "lo":
+                    continue
+
+                ethtool_result = self.system.run_command(["ethtool", interface_name])
+                if ethtool_result.success:
+                    capabilities[interface_name] = self._parse_ethtool_capabilities(
+                        ethtool_result.stdout
+                    )
+                else:
+                    self.logger.info(
+                        "Could not get ethtool data for %s, falling back to psutil.",
+                        interface_name,
+                    )
+                    try:
+                        stats = psutil.net_if_stats()
+                        if interface_name in stats:
+                            capabilities[interface_name] = {
+                                "speed": stats[interface_name].speed,
+                                "duplex": stats[interface_name].duplex,
+                                "mtu": stats[interface_name].mtu,
+                            }
+                    except Exception as e:
+                        self.logger.error(
+                            "Failed to get psutil stats for %s: %s", interface_name, e
+                        )
+
+        if capabilities:
+            return {"performance_capabilities": capabilities}
+        return {}
+
+    def _parse_ethtool_capabilities(self, ethtool_output: str) -> Dict[str, Any]:
+        """Parses the output of the `ethtool` command for capabilities.
+
+        Args:
+            ethtool_output: The raw string output from the `ethtool` command.
+
+        Returns:
+            A dictionary of the parsed capabilities.
+        """
+        capabilities: Dict[str, Any] = {}
+        for line in ethtool_output.strip().split("\n"):
+            line = line.strip()
+            if ":" in line:
+                key, value = line.split(":", 1)
+                key = key.strip().lower().replace(" ", "_")
+                value = value.strip()
+                if key in ["speed", "duplex"]:
+                    capabilities[key] = value
+        return capabilities
