@@ -17,8 +17,8 @@ limitations under the License.
 
 from unittest.mock import MagicMock, patch
 
-import pytest
 import psutil
+import pytest
 
 from tinel.hardware.network_analyzer import NetworkAnalyzer
 from tinel.interfaces import CommandResult
@@ -136,7 +136,9 @@ class TestNetworkAnalyzer:
             patch.object(NetworkAnalyzer, "_get_wireless_info", return_value={}),
             patch.object(NetworkAnalyzer, "_get_driver_info", return_value={}),
             patch.object(NetworkAnalyzer, "_get_performance_metrics", return_value={}),
-            patch.object(NetworkAnalyzer, "analyze_network_performance", return_value={}),
+            patch.object(
+                NetworkAnalyzer, "analyze_network_performance", return_value={}
+            ),
         ):
             mock_si.run_command.return_value = CommandResult(
                 success=True, stdout="data", stderr="", returncode=0
@@ -1052,7 +1054,10 @@ class TestNetworkPerformance:
             assert "performance_capabilities" in info
             assert "eth0" in info["performance_capabilities"]
             assert info["performance_capabilities"]["eth0"]["speed"] == 1000
-            assert info["performance_capabilities"]["eth0"]["duplex"] == psutil.NIC_DUPLEX_FULL
+            assert (
+                info["performance_capabilities"]["eth0"]["duplex"]
+                == psutil.NIC_DUPLEX_FULL
+            )
 
     def test_analyze_network_performance_psutil_failure(self, analyzer, mock_si):
         """Test analyze_network_performance with psutil failure."""
@@ -1074,3 +1079,43 @@ class TestNetworkPerformance:
         parsed = analyzer._parse_ethtool_capabilities(MOCK_ETHTOOL_CAPABILITIES_OUTPUT)
         assert parsed["speed"] == "1000Mb/s"
         assert parsed["duplex"] == "Full"
+
+    def test_analyze_network_performance_ls_fails(self, analyzer, mock_si):
+        """Test analyze_network_performance when ls command fails."""
+        mock_si.run_command.return_value = CommandResult(False, "", "error", 1)
+        info = analyzer.analyze_network_performance()
+        assert not info
+
+    def test_analyze_network_performance_psutil_interface_not_found(
+        self, analyzer, mock_si
+    ):
+        """Test analyze_network_performance when psutil doesn't have the interface."""
+        mock_si.run_command.side_effect = [
+            CommandResult(True, "eth0", "", 0),
+            CommandResult(False, "", "not found", 1),
+        ]
+        with patch("psutil.net_if_stats") as mock_net_if_stats:
+            # psutil returns stats, but eth0 is not in them
+            mock_stats = {"wlan0": MagicMock(speed=1000, duplex=2, mtu=1500)}
+            mock_net_if_stats.return_value = mock_stats
+            info = analyzer.analyze_network_performance()
+            # Should return empty dict since no capabilities were collected
+            assert not info
+
+    def test_parse_ethtool_capabilities_no_speed_duplex(self, analyzer):
+        """Test parsing ethtool capabilities with irrelevant fields only."""
+        output = """Settings for eth0:
+    Auto-negotiation: on
+    Link detected: yes
+    Port: Twisted Pair"""
+        parsed = analyzer._parse_ethtool_capabilities(output)
+        # Should return empty since no speed/duplex fields present
+        assert not parsed
+
+    def test_parse_ethtool_capabilities_no_colons(self, analyzer):
+        """Test parsing ethtool capabilities with no colon lines."""
+        output = """Settings for eth0
+Some line without colon
+Another line"""
+        parsed = analyzer._parse_ethtool_capabilities(output)
+        assert not parsed
