@@ -416,3 +416,26 @@ def test_command_whitelist(command, expected_allowed):
     else:
         with pytest.raises(ValueError):
             system._sanitize_command(command)
+
+
+class TestRunCommandExceptionHandling:
+    """Test exception handling in run_command."""
+
+    def setup_method(self):
+        """Set up test fixtures."""
+        self.system = LinuxSystemInterface()
+
+    @unit_test
+    def test_run_command_generic_exception(self):
+        """Test run_command handles generic exceptions."""
+        with patch("subprocess.run") as mock_run:
+            # Simulate a generic exception that's not
+            # TimeoutExpired, OSError, or ValueError
+            mock_run.side_effect = RuntimeError("Unexpected runtime error")
+
+            result = self.system.run_command(["lscpu"])
+
+            assert result.success is False
+            assert result.returncode == -1
+            assert "Unexpected error" in result.error
+            assert "Unexpected runtime error" in result.error

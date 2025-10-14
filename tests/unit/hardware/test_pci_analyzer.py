@@ -200,6 +200,26 @@ Junk line
 
         self.assertEqual(len(pci_info.devices), 0)
 
+    def test_parse_lspci_no_device_at_end(self):
+        """Test parsing when output ends with no current_device (empty lines only)."""
+        mock_system_interface = MagicMock()
+        # Output with only whitespace/empty lines, no device header
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True,
+            stdout="""
+
+
+""",
+            stderr="",
+            returncode=0,
+        )
+
+        analyzer = PCIAnalyzer(system_interface=mock_system_interface)
+        pci_info = analyzer.get_pci_info()
+
+        # Should handle gracefully with no devices
+        self.assertEqual(len(pci_info.devices), 0)
+
 
 if __name__ == "__main__":
     unittest.main()
