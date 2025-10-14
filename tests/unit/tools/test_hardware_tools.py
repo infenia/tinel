@@ -16,6 +16,7 @@ limitations under the License.
 """
 
 import unittest
+from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
 
 from tinel.interfaces import HardwareInfo
@@ -28,11 +29,24 @@ from tinel.tools.hardware_tools import (
     PCIDevicesToolProvider,
     StorageInfoToolProvider,
     USBDevicesToolProvider,
+    _to_dict,
 )
 
 
 class TestHardwareToolProviders(unittest.TestCase):
     """Test cases for hardware tool providers."""
+
+    def test_to_dict_with_list_of_dataclasses(self):
+        """Test that _to_dict handles lists of dataclasses correctly."""
+
+        @dataclass
+        class MyData:
+            x: int
+            y: str
+
+        data = [MyData(x=1, y="a"), MyData(x=2, y="b")]
+        expected = [{"x": 1, "y": "a"}, {"x": 2, "y": "b"}]
+        self.assertEqual(_to_dict(data), expected)
 
     def setUp(self):
         """Set up test fixtures."""

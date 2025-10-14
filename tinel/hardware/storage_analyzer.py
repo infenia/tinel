@@ -179,9 +179,10 @@ class StorageAnalyzer:
         """Parses the output of the `df` command."""
         lines = (df_output or "").strip().split("\n")
         filesystems = []
+        min_df_parts = 6
         for line in lines[1:]:
             parts = line.split()
-            if len(parts) >= 6:
+            if len(parts) >= min_df_parts:
                 filesystems.append(
                     {
                         "filesystem": parts[0],
@@ -241,9 +242,10 @@ class StorageAnalyzer:
         """Parses the output of the `df -i` command."""
         lines = (df_output or "").strip().split("\n")
         filesystems = []
+        min_df_parts = 6
         for line in lines[1:]:
             parts = line.split()
-            if len(parts) >= 6:
+            if len(parts) >= min_df_parts:
                 filesystems.append(
                     {
                         "filesystem": parts[0],

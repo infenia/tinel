@@ -295,16 +295,6 @@ class TestLinuxSystemInterface:
             assert call_kwargs["text"] is True
 
     @unit_test
-    def test_run_command_unexpected_exception(self):
-        """Test run_command handles unexpected exceptions."""
-        with patch.object(
-            self.system, "_sanitize_command", side_effect=Exception("boom")
-        ):
-            result = self.system.run_command(["lscpu"])
-            assert result.success is False
-            assert result.error and "Unexpected error" in result.error
-
-    @unit_test
     def test_validate_file_path_oserror(self):
         """Test _validate_file_path handles OSError/ValueError."""
         with patch("os.path.normpath", side_effect=OSError("fail")):

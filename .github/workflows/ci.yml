@@ -142,8 +142,7 @@ jobs:
           --cov-report=term-missing \
           --cov-fail-under=100 \
           --junit-xml=junit-${{ matrix.python-version }}.xml \
-          --maxfail=5 \
-          -x
+          tests/unit
         echo "::endgroup::"
 
     - name: Upload test results

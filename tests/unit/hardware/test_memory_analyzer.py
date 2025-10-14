@@ -19,7 +19,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from tinel.hardware.memory_analyzer import MemoryAnalyzer, analyze_memory_performance
+from tinel.hardware.memory_analyzer import (
+    MemoryAnalyzer,
+    analyze_memory_performance,
+)
 from tinel.interfaces import CommandResult
 
 # --- Test Data ---
