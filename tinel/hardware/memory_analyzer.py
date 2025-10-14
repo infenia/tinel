@@ -69,10 +69,12 @@ def analyze_memory_performance(info: Dict[str, Any]) -> Dict[str, Any]:
 class MemoryAnalyzer:
     """Analyzes and retrieves information about the system's memory.
 
-    This class provides methods to gather data on both virtual memory (RAM and
-    swap) and physical memory devices. It leverages `psutil` for overall memory
-    statistics and `dmidecode` for detailed hardware information about memory
-    modules.
+    This class provides a comprehensive analysis of the system's memory. It uses
+    `psutil` as the primary source for overall memory and swap usage statistics.
+    For detailed information about physical memory modules (RAM sticks), it uses
+    the `dmidecode` command. If `dmidecode` is not available or fails, the
+    physical device information will be omitted, but the `psutil` data will
+    still be returned.
 
     Args:
         system_interface: An optional `SystemInterface` for system interactions.
@@ -89,11 +91,11 @@ class MemoryAnalyzer:
         self.system = system_interface or LinuxSystemInterface()
 
     def get_memory_info(self) -> Dict[str, Any]:
-        """Retrieves comprehensive information about the system's memory.
+        """Retrieves comprehensive memory info from psutil and dmidecode.
 
-        This method gathers statistics about virtual memory and swap space
-        using `psutil`, and detailed information about physical memory devices
-        using `dmidecode`.
+        Gathers virtual memory and swap statistics from `psutil`. It then
+        attempts to gather physical memory device details from `dmidecode`.
+        Failures in one do not prevent the other from being returned.
 
         Returns:
             A dictionary containing a detailed breakdown of memory information.
@@ -101,6 +103,7 @@ class MemoryAnalyzer:
         info: Dict[str, Any] = {}
         psutil_errors: List[str] = []
 
+        # --- Primary Source: psutil for memory usage ---
         try:
             virtual_mem = psutil.virtual_memory()
             info["total_memory_bytes"] = virtual_mem.total
@@ -122,6 +125,7 @@ class MemoryAnalyzer:
         if psutil_errors:
             info["psutil_error"] = "; ".join(psutil_errors)
 
+        # --- Secondary Source: dmidecode for hardware details ---
         dmi_info = self._get_dmidecode_info()
         if dmi_info:
             if dmi_info.get("memory_devices"):
@@ -130,40 +134,34 @@ class MemoryAnalyzer:
                 performance_analysis = analyze_memory_performance(info)
                 if performance_analysis:
                     info["performance_analysis"] = performance_analysis
-            elif "dmidecode_error" in dmi_info:
-                info["dmidecode_error"] = dmi_info["dmidecode_error"]
-            elif "dmidecode_parse_error" in dmi_info:
-                info["dmidecode_parse_error"] = dmi_info["dmidecode_parse_error"]
+            elif "error" in dmi_info:
+                info["dmidecode_error"] = dmi_info["error"]
 
         return info
 
     def _get_dmidecode_info(self) -> Dict[str, Any]:
-        """Retrieves and parses memory information from `dmidecode`.
-
-        This method executes the `dmidecode` command to get detailed hardware
-        information about the physical memory modules and then parses the
-        output.
+        """Retrieves and parses memory info from `dmidecode`.
 
         Returns:
-            A dictionary containing the parsed `dmidecode` information, or an
-            error message if the command fails or parsing fails.
+            A dictionary with parsed data or an error key if it fails.
         """
-        result = self.system.run_command(["dmidecode", "--type", "memory"])
-        if not result.success:
-            # Fallback to psutil if dmidecode is not available
-            if "No such file or directory" in (result.stderr or "") or (
-                result.error and "not found" in result.error
-            ):
-                return {
-                    "dmidecode_error": "dmidecode not found, using psutil fallback."
-                }
-            return {"dmidecode_error": result.error or "Failed to run dmidecode."}
-        if not result.stdout:
-            return {}
         try:
+            result = self.system.run_command(["dmidecode", "--type", "memory"])
+            if not result.success:
+                if "not found" in (result.stderr or "") or "No such file" in (
+                    result.stderr or ""
+                ):
+                    return {"error": "`dmidecode` command not found."}
+                return {
+                    "error": f"`dmidecode` failed: {result.stderr or 'Unknown error'}"
+                }
+            if not result.stdout:
+                return {}
             return self._parse_dmidecode_output(result.stdout)
         except Exception as e:
-            return {"dmidecode_parse_error": str(e)}
+            return {
+                "error": f"An unexpected error occurred while running dmidecode: {e}"
+            }
 
     def _parse_dmidecode_output(self, output: str) -> Dict[str, Any]:
         """Parses the output of the `dmidecode` command for memory information.

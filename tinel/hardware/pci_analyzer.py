@@ -18,6 +18,8 @@ limitations under the License.
 import re
 from typing import Any, Dict, List, Optional
 
+import psutil
+
 from tinel.hardware.models import PCIInfo
 from tinel.interfaces import SystemInterface
 from tinel.system import LinuxSystemInterface
@@ -25,18 +27,18 @@ from tinel.system import LinuxSystemInterface
 """This module provides an analyzer for PCI devices.
 
 It includes the `PCIAnalyzer` class, which is responsible for gathering and
-parsing information about the system's PCI devices. The analyzer uses the
-`lspci` command to obtain the raw data and then processes it to extract
-detailed information about each device.
+parsing information about the system's PCI devices. The analyzer uses a
+fallback chain: `lspci`, then `/sys/bus/pci/devices`, and finally `psutil`.
 """
 
 
 class PCIAnalyzer:
     """Analyzes and retrieves information about PCI devices.
 
-    This class uses the `lspci` command to gather data about the devices
-    connected to the PCI bus and parses the output to provide a structured
-    representation of the information.
+    This class uses a fallback mechanism to gather PCI device data:
+    1. `lspci -vnnk` for the most detailed information.
+    2. Reads from the `/sys/bus/pci/devices` directory as a fallback.
+    3. Uses `psutil.pci.devices()` as a final resort for basic information.
 
     Args:
         system_interface: An optional `SystemInterface` for system interactions.
@@ -55,23 +57,28 @@ class PCIAnalyzer:
     def get_pci_info(self) -> PCIInfo:
         """Retrieves and parses information about all PCI devices.
 
-        This method executes the `lspci -vnnk` command to get a verbose,
-        numeric listing of PCI devices, including kernel driver information.
-        It then parses this output to construct a `PCIInfo` object.
+        This method orchestrates the fallback chain to get PCI information.
 
         Returns:
-            A `PCIInfo` object containing a list of all found PCI devices. If
-            the `lspci` command fails or returns no output, an empty `PCIInfo`
-            object is returned.
+            A `PCIInfo` object containing a list of all found PCI devices.
         """
+        # 1. Try lspci
         lspci_output = self.system.run_command(["lspci", "-vnnk"])
         if lspci_output.success and lspci_output.stdout:
             devices = self._parse_lspci_vnnk_output(lspci_output.stdout)
-            return PCIInfo(devices=devices)
-        else:
-            # Fallback to sysfs if lspci fails
-            devices = self._get_pci_info_from_sysfs()
-            return PCIInfo(devices=devices)
+            return PCIInfo(devices=devices, source="lspci")
+
+        # 2. Fallback to sysfs
+        sysfs_devices = self._get_pci_info_from_sysfs()
+        if sysfs_devices:
+            return PCIInfo(devices=sysfs_devices, source="sysfs")
+
+        # 3. Fallback to psutil
+        psutil_devices = self._get_pci_info_from_psutil()
+        if psutil_devices:
+            return PCIInfo(devices=psutil_devices, source="psutil")
+
+        return PCIInfo(devices=[])
 
     def _get_pci_info_from_sysfs(self) -> List[Dict[str, Any]]:
         """Retrieves basic PCI device information from sysfs.
@@ -165,7 +172,48 @@ class PCIAnalyzer:
                         current_device["details"] = []
                     current_device["details"].append(line_content)
 
-        if current_device:
-            devices.append(current_device)
+                return devices
 
-        return devices
+            def _get_pci_info_from_psutil(self) -> List[Dict[str, Any]]:
+                """Retrieves basic PCI device information using `psutil`.
+
+
+
+                This method serves as a final fallback when both `lspci` and `sysfs`
+
+                are unavailable. It uses `psutil.pci.devices()` to get a list of
+
+                devices.
+
+
+
+                Returns:
+
+                    A list of dictionaries, where each dictionary represents a
+
+                    single PCI device and its properties.
+
+                """
+
+                devices = []
+
+                try:
+                    pci_devices = psutil.pci.devices()
+
+                    for dev in pci_devices:
+                        devices.append(
+                            {
+                                "slot": dev.addr,
+                                "vendor_id": dev.vendor_id,
+                                "device_id": dev.device_id,
+                                "description": dev.name,
+                                "driver": "N/A (from psutil)",
+                            }
+                        )
+
+                except (ImportError, AttributeError, Exception):
+                    # psutil might not be installed or might not support pci.devices()
+
+                    return []
+
+                return devices

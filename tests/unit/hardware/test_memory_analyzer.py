@@ -124,10 +124,17 @@ class TestMemoryAnalyzerFinal:
         mock_si.run_command.return_value = CommandResult(False, "", "", 1, None)
         with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
             info = analyzer.get_memory_info()
-        assert (
-            "dmidecode_error" in info
-            and "Failed to run dmidecode" in info["dmidecode_error"]
+        assert "dmidecode_error" in info and "Unknown error" in info["dmidecode_error"]
+
+    def test_get_memory_info_dmidecode_not_found(self, analyzer, mock_si):
+        """Test that the correct error message is returned when dmidecode is not found."""
+        mock_si.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="command not found", returncode=127
         )
+        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
+            info = analyzer.get_memory_info()
+        assert "dmidecode_error" in info
+        assert "`dmidecode` command not found" in info["dmidecode_error"]
 
     def test_dmidecode_empty_stdout(self, analyzer, mock_si):
         mock_si.run_command.return_value = CommandResult(True, "", "", 0, None)

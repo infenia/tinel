@@ -27,8 +27,8 @@ from ..system import LinuxSystemInterface
 It includes the `GraphicsAnalyzer` class, which is responsible for detecting
 and gathering information about the system's graphics cards. The analyzer
 employs a fallback mechanism, first attempting to use vendor-specific tools
-like `nvidia-smi` and `rocm-smi`, and then resorting to the generic `lspci`
-command if necessary.
+like `nvidia-smi` and `rocm-smi`, then resorting to the generic `lspci`
+command, and finally using `psutil` as a last resort.
 """
 
 
@@ -59,10 +59,13 @@ class GraphicsAnalyzer:
         """Retrieves comprehensive information about the graphics hardware.
 
         This method serves as the primary entry point for gathering graphics
-        card data. It employs a fallback strategy, attempting to use
-        vendor-specific tools like `nvidia-smi` and `rocm-smi` before
-        resorting to the more generic `lspci` command. The result is cached
-        to improve performance on subsequent calls.
+        card data. It employs a fallback strategy:
+        1. `nvidia-smi` for detailed NVIDIA GPU information.
+        2. `rocm-smi` for detailed AMD GPU information (placeholder).
+        3. `lspci` for generic VGA controller information.
+        4. `psutil` as a last resort to detect PCI devices.
+
+        The result is cached to improve performance on subsequent calls.
 
         Returns:
             A dictionary containing detailed graphics hardware information,
@@ -94,6 +97,14 @@ class GraphicsAnalyzer:
         if lspci_info:
             info["gpus"] = lspci_info
             info["source"] = "lspci"
+            self._graphics_info_cache = info
+            return info
+
+        # Final fallback to psutil
+        psutil_info = self._get_psutil_info()
+        if psutil_info:
+            info["gpus"] = psutil_info
+            info["source"] = "psutil"
             self._graphics_info_cache = info
             return info
 
@@ -233,5 +244,40 @@ class GraphicsAnalyzer:
 
         if current_gpu:
             gpus.append(current_gpu)
+
+        return gpus if gpus else None
+
+    def _get_psutil_info(self) -> Optional[List[Dict[str, Any]]]:
+        """Retrieves basic GPU information using `psutil`.
+
+        This method serves as a last resort when no other tools are available.
+        It iterates through PCI devices using `psutil` and identifies
+        VGA-compatible controllers.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a GPU
+            found by `psutil`, or None if no devices are found.
+        """
+        gpus = []
+        try:
+            # This is a simplified check. A real implementation might need a
+            # more robust way to identify VGA controllers from psutil data.
+            # For now, we assume any device with a name containing "VGA" is a GPU.
+            import psutil
+
+            devices = psutil.pci.devices()
+            for dev in devices:
+                if "VGA" in dev.name.upper():
+                    gpus.append(
+                        {
+                            "model": dev.name,
+                            "pci_address": dev.addr,
+                            "vendor_id": dev.vendor_id,
+                            "device_id": dev.device_id,
+                        }
+                    )
+        except (ImportError, AttributeError, Exception) as e:
+            self.logger.info(f"psutil check for GPUs failed: {e}")
+            return None
 
         return gpus if gpus else None

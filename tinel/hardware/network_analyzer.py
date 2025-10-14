@@ -37,9 +37,10 @@ provide a complete picture of the network hardware and its configuration.
 class NetworkAnalyzer:
     """Analyzes and retrieves detailed information about network hardware.
 
-    This class provides a comprehensive analysis of network interfaces,
-    including their configuration, drivers, performance metrics, and wireless
-    capabilities. It uses a variety of system tools and files to gather this
+    This class provides a comprehensive analysis of network interfaces. It first
+    attempts to use a variety of command-line tools (`ip`, `ethtool`, etc.) for
+    the most detailed information. If these tools fail or provide incomplete
+    data, it falls back to using the `psutil` library for basic network
     information.
 
     Args:
@@ -59,13 +60,11 @@ class NetworkAnalyzer:
         self._network_info_cache: Optional[Dict[str, Any]] = None
 
     def get_network_info(self) -> Dict[str, Any]:
-        """Retrieves comprehensive information about the network hardware.
+        """Retrieves comprehensive network information with a fallback to psutil.
 
-        This is the main public method of the class, which orchestrates the
-        gathering of all network-related data. It collects basic and detailed
-        interface information, wireless capabilities, driver details, and
-        performance metrics. The result is cached to improve performance on
-        subsequent calls.
+        This method orchestrates the gathering of all network-related data.
+        It first attempts to use command-line tools and then uses `psutil` to
+        either supplement the data or as a complete fallback.
 
         Returns:
             A dictionary containing a detailed breakdown of network information.
@@ -74,26 +73,34 @@ class NetworkAnalyzer:
             return self._network_info_cache
 
         info: Dict[str, Any] = {}
+        command_based_info = self._get_command_based_info()
 
-        # Get basic network interface info
-        info.update(self._get_basic_network_info())
-
-        # Get detailed network interface information
-        info.update(self._get_detailed_network_info())
-
-        # Get wireless network information
-        info.update(self._get_wireless_info())
-
-        # Get network driver information
-        info.update(self._get_driver_info())
-
-        # Get network performance metrics
-        info.update(self._get_performance_metrics())
-
-        # Get network performance capabilities
-        info.update(self.analyze_network_performance())
+        if command_based_info:
+            info.update(command_based_info)
+            info["source"] = "commands"
+        else:
+            self.logger.warning(
+                "Command-based network info failed, falling back to psutil."
+            )
+            psutil_info = self._get_psutil_info()
+            if psutil_info:
+                info.update(psutil_info)
+                info["source"] = "psutil"
+            else:
+                self.logger.error("All network information sources failed.")
 
         self._network_info_cache = info
+        return info
+
+    def _get_command_based_info(self) -> Dict[str, Any]:
+        """Gathers network info using command-line tools."""
+        info: Dict[str, Any] = {}
+        info.update(self._get_basic_network_info())
+        info.update(self._get_detailed_network_info())
+        info.update(self._get_wireless_info())
+        info.update(self._get_driver_info())
+        info.update(self._get_performance_metrics())
+        info.update(self.analyze_network_performance())
         return info
 
     def _get_basic_network_info(self) -> Dict[str, Any]:
@@ -662,6 +669,65 @@ class NetworkAnalyzer:
         if capabilities:
             return {"performance_capabilities": capabilities}
         return {}
+
+    def _get_psutil_info(self) -> Dict[str, Any]:
+        """Gathers network information using the `psutil` library.
+
+        This method serves as a fallback when command-line tools are not
+        available. It collects interface addresses, statistics, and
+        capabilities using `psutil`.
+
+        Returns:
+            A dictionary containing network information from `psutil`.
+        """
+        info: Dict[str, Any] = {}
+        try:
+            # Get addresses
+            addresses = psutil.net_if_addrs()
+            info["interfaces"] = [
+                {
+                    "name": iface,
+                    "addresses": [
+                        {"family": addr.family.name, "address": addr.address}
+                        for addr in addrs
+                    ],
+                }
+                for iface, addrs in addresses.items()
+            ]
+
+            # Get stats
+            stats = psutil.net_if_stats()
+            info["interface_stats"] = {
+                iface: {
+                    "is_up": s.isup,
+                    "duplex": s.duplex.name,
+                    "speed": s.speed,
+                    "mtu": s.mtu,
+                }
+                for iface, s in stats.items()
+            }
+
+            # Get I/O counters
+            io_counters = psutil.net_io_counters(pernic=True)
+            info["io_counters"] = {
+                iface: {
+                    "bytes_sent": c.bytes_sent,
+                    "bytes_recv": c.bytes_recv,
+                    "packets_sent": c.packets_sent,
+                    "packets_recv": c.packets_recv,
+                    "errin": c.errin,
+                    "errout": c.errout,
+                    "dropin": c.dropin,
+                    "dropout": c.dropout,
+                }
+                for iface, c in io_counters.items()
+            }
+
+        except Exception as e:
+            self.logger.error(f"Failed to get network info from psutil: {e}")
+            return {}
+
+        return info
 
     def _parse_ethtool_capabilities(self, ethtool_output: str) -> Dict[str, Any]:
         """Parses the output of the `ethtool` command for capabilities.

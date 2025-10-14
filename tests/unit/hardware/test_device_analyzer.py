@@ -71,72 +71,105 @@ class TestDeviceAnalyzer:
         mock_cpu_analyzer.get_cpu_info.assert_called_once()
 
     @unit_test
-    @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
-    @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
-    @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
-    @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
-    @patch("tinel.hardware.device_analyzer.PCIAnalyzer")
     @patch("tinel.hardware.device_analyzer.USBAnalyzer")
+    @patch("tinel.hardware.device_analyzer.PCIAnalyzer")
+    @patch("tinel.hardware.device_analyzer.MotherboardAnalyzer")
+    @patch("tinel.hardware.device_analyzer.StorageAnalyzer")
+    @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
+    @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
+    @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
+    @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
     def test_get_all_hardware_info(self, *mocks):
         """Test the aggregation of all hardware information."""
         # Setup mocks for each analyzer's get_info method
         (
-            mock_usb_class,
-            mock_pci_class,
-            mock_graphics_class,
-            mock_network_class,
-            mock_memory_class,
             mock_cpu_class,
+            mock_memory_class,
+            mock_network_class,
+            mock_graphics_class,
+            mock_storage_class,
+            mock_motherboard_class,
+            mock_pci_class,
+            mock_usb_class,
         ) = mocks
 
         mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
         mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
+        mock_storage_class.return_value.get_storage_info.return_value = {
+            "storage": "data"
+        }
         mock_network_class.return_value.get_network_info.return_value = {
             "network": "data"
         }
         mock_graphics_class.return_value.get_graphics_info.return_value = {
             "graphics": "data"
         }
+        mock_motherboard_class.return_value.get_motherboard_info.return_value = {
+            "motherboard": "data"
+        }
         mock_pci_class.return_value.get_pci_info.return_value = {"pci": "data"}
         mock_usb_class.return_value.get_usb_info.return_value = {"usb": "data"}
 
         analyzer = DeviceAnalyzer(self.mock_system)
 
-        # Mock the other info methods that are not yet implemented
-        with (
-            patch.object(analyzer, "get_storage_info", return_value={"disks": "data"}),
-            patch.object(
-                analyzer, "get_motherboard_info", return_value={"motherboard": "data"}
-            ),
-        ):
-            result = analyzer.get_all_hardware_info()
+        result = analyzer.get_all_hardware_info()
 
-            assert isinstance(result, HardwareInfo)
-            assert result.cpu == {"cpu": "data"}
-            assert result.memory == {"memory": "data"}
-            assert result.network == {"network": "data"}
-            assert result.graphics == {"graphics": "data"}
-            assert result.storage == {"disks": "data"}
-            assert result.motherboard == {"motherboard": "data"}
-            assert result.pci == {"pci": "data"}
-            assert result.usb == {"usb": "data"}
+        assert isinstance(result, HardwareInfo)
+        assert result.cpu == {"cpu": "data"}
+        assert result.memory == {"memory": "data"}
+        assert result.storage == {"storage": "data"}
+        assert result.network == {"network": "data"}
+        assert result.graphics == {"graphics": "data"}
+        assert result.motherboard == {"motherboard": "data"}
+        assert result.pci == {"pci": "data"}
+        assert result.usb == {"usb": "data"}
 
-            mock_cpu_class.return_value.get_cpu_info.assert_called_once()
-            mock_memory_class.return_value.get_memory_info.assert_called_once()
-            mock_network_class.return_value.get_network_info.assert_called_once()
-            mock_graphics_class.return_value.get_graphics_info.assert_called_once()
-            mock_pci_class.return_value.get_pci_info.assert_called_once()
-            mock_usb_class.return_value.get_usb_info.assert_called_once()
+        mock_cpu_class.return_value.get_cpu_info.assert_called_once()
+        mock_memory_class.return_value.get_memory_info.assert_called_once()
+        mock_storage_class.return_value.get_storage_info.assert_called_once()
+        mock_network_class.return_value.get_network_info.assert_called_once()
+        mock_graphics_class.return_value.get_graphics_info.assert_called_once()
+        mock_motherboard_class.return_value.get_motherboard_info.assert_called_once()
+        mock_pci_class.return_value.get_pci_info.assert_called_once()
+        mock_usb_class.return_value.get_usb_info.assert_called_once()
 
     @unit_test
-    def test_unimplemented_methods_return_placeholders(self):
-        """Test that unimplemented methods return the correct placeholder."""
-        analyzer = DeviceAnalyzer(system_interface=self.mock_system)
-        storage_info = analyzer.get_storage_info()
-        motherboard_info = analyzer.get_motherboard_info()
+    @patch("tinel.hardware.device_analyzer.StorageAnalyzer")
+    def test_get_storage_info(self, mock_storage_analyzer_class):
+        """Test getting storage info delegates to StorageAnalyzer."""
+        # Setup
+        mock_storage_analyzer = Mock()
+        expected_storage_info = {"disks": []}
+        mock_storage_analyzer.get_storage_info.return_value = expected_storage_info
+        mock_storage_analyzer_class.return_value = mock_storage_analyzer
+        analyzer = DeviceAnalyzer(self.mock_system)
 
-        assert storage_info == {"storage": "Not implemented yet"}
-        assert motherboard_info == {"motherboard": "Not implemented yet"}
+        # Execute
+        result = analyzer.get_storage_info()
+
+        # Verify
+        assert result == expected_storage_info
+        mock_storage_analyzer.get_storage_info.assert_called_once()
+
+    @unit_test
+    @patch("tinel.hardware.device_analyzer.MotherboardAnalyzer")
+    def test_get_motherboard_info(self, mock_motherboard_analyzer_class):
+        """Test getting motherboard info delegates to MotherboardAnalyzer."""
+        # Setup
+        mock_motherboard_analyzer = Mock()
+        expected_motherboard_info = {"manufacturer": "Test Inc."}
+        mock_motherboard_analyzer.get_motherboard_info.return_value = (
+            expected_motherboard_info
+        )
+        mock_motherboard_analyzer_class.return_value = mock_motherboard_analyzer
+        analyzer = DeviceAnalyzer(self.mock_system)
+
+        # Execute
+        result = analyzer.get_motherboard_info()
+
+        # Verify
+        assert result == expected_motherboard_info
+        mock_motherboard_analyzer.get_motherboard_info.assert_called_once()
 
     @unit_test
     @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
@@ -155,13 +188,6 @@ class TestDeviceAnalyzer:
         # Verify
         assert result == expected_memory_info
         mock_memory_analyzer.get_memory_info.assert_called_once()
-
-    @unit_test
-    def test_get_storage_info(self):
-        """Test getting storage info returns placeholder implementation."""
-        analyzer = DeviceAnalyzer(self.mock_system)
-        result = analyzer.get_storage_info()
-        assert result == {"storage": "Not implemented yet"}
 
     @unit_test
     @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")

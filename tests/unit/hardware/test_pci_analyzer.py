@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import unittest
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 from tinel.hardware.pci_analyzer import PCIAnalyzer
 from tinel.interfaces import CommandResult
@@ -136,8 +136,32 @@ class TestPCIAnalyzer(unittest.TestCase):
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
         pci_info = analyzer.get_pci_info()
 
-        self.assertEqual(len(pci_info.devices), 1)
         self.assertEqual(pci_info.devices[0]["driver"], "N/A")
+
+    @patch("tinel.hardware.pci_analyzer.psutil")
+    def test_get_pci_info_psutil_fallback(self, mock_psutil):
+        """Test that psutil is used as a fallback if lspci and sysfs fail."""
+        mock_system_interface = MagicMock()
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="lspci not found", returncode=127
+        )
+        mock_system_interface.list_dir.return_value = []
+
+        mock_device = MagicMock()
+        mock_device.addr = "00:02.0"
+        mock_device.vendor_id = 1234
+        mock_device.device_id = 5678
+        mock_device.name = "Test PCI Device"
+        mock_psutil.pci.devices.return_value = [mock_device]
+
+        analyzer = PCIAnalyzer(system_interface=mock_system_interface)
+        pci_info = analyzer.get_pci_info()
+
+        self.assertEqual(pci_info.source, "psutil")
+        self.assertEqual(len(pci_info.devices), 1)
+        self.assertEqual(pci_info.devices[0]["slot"], "00:02.0")
+        self.assertEqual(pci_info.devices[0]["vendor_id"], 1234)
+        self.assertEqual(pci_info.devices[0]["description"], "Test PCI Device")
 
     def test_parse_lspci_with_details_line(self):
         mock_system_interface = MagicMock()

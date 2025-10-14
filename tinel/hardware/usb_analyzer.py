@@ -18,6 +18,8 @@ limitations under the License.
 import re
 from typing import Any, Dict, List, Optional
 
+import psutil
+
 from tinel.hardware.models import USBInfo
 from tinel.interfaces import CommandResult, SystemInterface
 from tinel.system import LinuxSystemInterface
@@ -25,18 +27,19 @@ from tinel.system import LinuxSystemInterface
 """This module provides an analyzer for USB devices.
 
 It includes the `USBAnalyzer` class, which is responsible for gathering and
-parsing information about the system's USB devices. The analyzer uses the
-`lsusb` command to obtain the raw data and then processes it to build a
-hierarchical representation of the USB device tree.
+parsing information about the system's USB devices. It uses `lsusb` to get a
+hierarchical view and falls back to `psutil` for a flat list if `lsusb` fails.
 """
 
 
 class USBAnalyzer:
     """Analyzes and retrieves information about USB devices.
 
-    This class uses the `lsusb` command to gather data about the devices
-    connected to the USB bus and parses the output to provide a structured,
-    hierarchical representation of the device tree.
+    This class uses a fallback mechanism to gather USB device data:
+    1. `lsusb -t` to get a hierarchical tree of devices, enriched with details
+       from `/sys/bus/usb/devices` or `lsusb`.
+    2. `psutil.usb.devices()` as a fallback to get a flat list of devices if
+       `lsusb` is not available.
 
     Args:
         system_interface: An optional `SystemInterface` for system interactions.
@@ -56,23 +59,23 @@ class USBAnalyzer:
     def get_usb_info(self) -> USBInfo:
         """Retrieves and parses information about all USB devices.
 
-        This method executes the `lsusb -t` command to get a tree-like view of
-        USB devices and then parses this output to construct a `USBInfo` object
-        containing a hierarchical representation of the devices.
+        This method orchestrates the fallback chain to get USB information.
 
         Returns:
-            A `USBInfo` object containing the USB device tree. If the `lsusb`
-            command fails, an empty tree is returned.
+            A `USBInfo` object containing the USB device tree or list.
         """
-        # Reset the cache at the start of each analysis.
-        self._lsusb_output_cache = None
-
+        # 1. Try lsusb
         lsusb_output = self.system.run_command(["lsusb", "-t"])
-        if not lsusb_output.success:
-            return USBInfo(tree={"root_hubs": []})
+        if lsusb_output.success:
+            tree = self._parse_lsusb_t_output(lsusb_output.stdout)
+            return USBInfo(tree={"root_hubs": tree})
 
-        tree = self._parse_lsusb_t_output(lsusb_output.stdout)
-        return USBInfo(tree={"root_hubs": tree})
+        # 2. Fallback to psutil
+        psutil_devices = self._get_usb_info_from_psutil()
+        if psutil_devices:
+            return USBInfo(tree={"devices": psutil_devices})
+
+        return USBInfo(tree={"root_hubs": []})
 
     def _get_device_details(self, bus: str, dev_id: str) -> Dict[str, Any]:
         """Retrieves detailed information for a specific USB device from sysfs.
@@ -241,3 +244,32 @@ class USBAnalyzer:
                 parent_stack.append(node)
 
         return hubs
+
+    def _get_usb_info_from_psutil(self) -> List[Dict[str, Any]]:
+        """Retrieves a flat list of USB devices using `psutil`.
+
+        This method serves as a fallback when `lsusb` is not available.
+        It uses `psutil.usb.devices()` to get a list of devices.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a
+            single USB device and its properties.
+        """
+        devices = []
+        try:
+            usb_devices = psutil.usb.devices()
+            for dev in usb_devices:
+                devices.append(
+                    {
+                        "vendor_id": dev.vendor_id,
+                        "product_id": dev.product_id,
+                        "name": dev.name,
+                        "manufacturer": dev.manufacturer,
+                        "product": dev.product,
+                        "serial": dev.serial,
+                    }
+                )
+        except (ImportError, AttributeError, Exception):
+            # psutil might not be installed or might not support usb.devices()
+            return []
+        return devices

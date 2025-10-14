@@ -216,51 +216,71 @@ class CPUAnalyzer:
     def _get_frequency_info(self) -> Dict[str, Any]:
         """Retrieves detailed CPU frequency and governor information.
 
-        This method reads data from the `cpufreq` sysfs interface to determine
-        the current, minimum, and maximum CPU frequencies, as well as the
-        available and current CPU governors.
+        This method first attempts to read data from the `cpufreq` sysfs
+        interface. If that fails or provides incomplete data, it falls back
+        to using `psutil.cpu_freq()` for frequency information. Governor
+        information is only available through sysfs.
 
         Returns:
             A dictionary containing CPU frequency and governor details.
         """
         info: Dict[str, Any] = {}
+        sysfs_success = False
 
-        # Get current frequency
-        current_freq = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
-        )
-        if current_freq:
-            info["current_frequency_khz"] = int(current_freq)
-            info["current_frequency_mhz"] = round(int(current_freq) / 1000, 2)
+        # --- Primary Method: sysfs ---
+        try:
+            current_freq = self.system.read_file(
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
+            )
+            min_freq = self.system.read_file(
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"
+            )
+            max_freq = self.system.read_file(
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
+            )
 
-        # Get min/max frequencies
-        min_freq = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"
-        )
-        if min_freq:
-            info["min_frequency_khz"] = int(min_freq)
-            info["min_frequency_mhz"] = round(int(min_freq) / 1000, 2)
+            if current_freq and min_freq and max_freq:
+                info["current_frequency_khz"] = int(current_freq)
+                info["current_frequency_mhz"] = round(int(current_freq) / 1000, 2)
+                info["min_frequency_khz"] = int(min_freq)
+                info["min_frequency_mhz"] = round(int(min_freq) / 1000, 2)
+                info["max_frequency_khz"] = int(max_freq)
+                info["max_frequency_mhz"] = round(int(max_freq) / 1000, 2)
+                info["source"] = "sysfs"
+                sysfs_success = True
 
-        max_freq = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
-        )
-        if max_freq:
-            info["max_frequency_khz"] = int(max_freq)
-            info["max_frequency_mhz"] = round(int(max_freq) / 1000, 2)
+            governors = self.system.read_file(
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors"
+            )
+            if governors:
+                info["available_governors"] = governors.split()
 
-        # Get available governors
-        governors = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors"
-        )
-        if governors:
-            info["available_governors"] = governors.split()
+            current_governor = self.system.read_file(
+                "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
+            )
+            if current_governor:
+                info["current_governor"] = current_governor
 
-        # Get current governor
-        current_governor = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
-        )
-        if current_governor:
-            info["current_governor"] = current_governor
+        except (IOError, ValueError) as e:
+            info["sysfs_frequency_error"] = str(e)
+
+        # --- Fallback Method: psutil ---
+        if not sysfs_success:
+            try:
+                freq = psutil.cpu_freq()
+                if freq:
+                    # psutil provides MHz, so we convert to kHz for consistency
+                    info["current_frequency_mhz"] = freq.current
+                    info["current_frequency_khz"] = freq.current * 1000
+                    info["min_frequency_mhz"] = freq.min
+                    info["min_frequency_khz"] = freq.min * 1000
+                    info["max_frequency_mhz"] = freq.max
+                    info["max_frequency_khz"] = freq.max * 1000
+                    info["source"] = "psutil"
+            except (AttributeError, NotImplementedError, PermissionError) as e:
+                info["psutil_frequency_error"] = str(e)
+            except Exception as e:
+                info["psutil_frequency_error"] = f"An unexpected error occurred: {e}"
 
         return info
 
@@ -269,57 +289,78 @@ class CPUAnalyzer:
 
         This method determines the number of logical and physical CPUs, as well
         as the number of cores per socket. It uses a combination of system
-        commands and sysfs files, and cross-verifies the results with `psutil`.
+        commands (`nproc`) and sysfs files. If these methods fail, it falls
+        back to `psutil` for core counts.
 
         Returns:
             A dictionary containing CPU topology details.
         """
         info: Dict[str, Any] = {}
 
-        # Get number of CPUs
-        nproc_result = self.system.run_command(["nproc"])
-        if nproc_result.success:
-            info["logical_cpus"] = int(nproc_result.stdout)
+        # --- Primary Method: nproc and sysfs ---
+        try:
+            # Get number of logical CPUs from nproc
+            nproc_result = self.system.run_command(["nproc"])
+            if nproc_result.success and nproc_result.stdout.strip().isdigit():
+                info["logical_cpus"] = int(nproc_result.stdout)
+                info["logical_cpus_source"] = "nproc"
 
-        # Get physical CPU count
-        physical_cpus = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/topology/physical_package_id"
-        )
-        if physical_cpus is not None:
-            # Count unique physical package IDs
+            # Get physical CPU and core counts from sysfs
             package_ids = set()
-            cpu_num = 0
-            while True:
-                package_id = self.system.read_file(
-                    f"/sys/devices/system/cpu/cpu{cpu_num}/topology/physical_package_id"
-                )
-                if package_id is None:
-                    break
-                package_ids.add(package_id)
-                cpu_num += 1
-            info["physical_cpus"] = len(package_ids)
-
-        # Get cores per socket
-        core_id = self.system.read_file("/sys/devices/system/cpu/cpu0/topology/core_id")
-        if core_id is not None:
             core_ids = set()
             cpu_num = 0
             while True:
-                core_id = self.system.read_file(
-                    f"/sys/devices/system/cpu/cpu{cpu_num}/topology/core_id"
-                )
-                if core_id is None:
-                    break
-                core_ids.add(core_id)
-                cpu_num += 1
-            info["cores_per_socket"] = len(core_ids)
+                base_path = f"/sys/devices/system/cpu/cpu{cpu_num}/topology/"
+                package_id_path = f"{base_path}physical_package_id"
+                core_id_path = f"{base_path}core_id"
 
-        # Cross-verify with psutil
+                if not self.system.file_exists(package_id_path):
+                    break  # No more CPUs
+
+                package_id = self.system.read_file(package_id_path)
+                if package_id is not None:
+                    package_ids.add(package_id.strip())
+
+                core_id = self.system.read_file(core_id_path)
+                if core_id is not None:
+                    core_ids.add(core_id.strip())
+
+                cpu_num += 1
+
+            if package_ids:
+                info["physical_cpus"] = len(package_ids)
+                info["physical_cpus_source"] = "sysfs"
+            if core_ids:
+                info["cores_per_socket"] = len(core_ids)
+                info["cores_per_socket_source"] = "sysfs"
+
+        except (IOError, ValueError) as e:
+            info["sysfs_topology_error"] = str(e)
+
+        # --- Fallback and Verification: psutil ---
         try:
-            info["logical_cpus_psutil"] = psutil.cpu_count(logical=True)
-            info["physical_cores_psutil"] = psutil.cpu_count(logical=False)
+            # Use psutil if primary methods failed or for verification
+            if "logical_cpus" not in info:
+                info["logical_cpus"] = psutil.cpu_count(logical=True)
+                info["logical_cpus_source"] = "psutil"
+
+            if "physical_cpus" not in info:
+                # psutil.cpu_count(logical=False) returns physical cores, not sockets
+                physical_cores = psutil.cpu_count(logical=False)
+                if physical_cores:
+                    info["physical_cores"] = physical_cores
+                    info["physical_cores_source"] = "psutil"
+
+            # Add psutil data for cross-verification if not already used as source
+            if info.get("logical_cpus_source") != "psutil":
+                info["logical_cpus_psutil"] = psutil.cpu_count(logical=True)
+            if info.get("physical_cores_source") != "psutil":
+                info["physical_cores_psutil"] = psutil.cpu_count(logical=False)
+
+        except (AttributeError, NotImplementedError, PermissionError) as e:
+            info["psutil_topology_error"] = str(e)
         except Exception as e:
-            info["psutil_error"] = str(e)
+            info["psutil_topology_error"] = f"An unexpected error occurred: {e}"
 
         return info
 

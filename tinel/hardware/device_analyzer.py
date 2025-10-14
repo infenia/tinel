@@ -24,8 +24,10 @@ from .cpu_analyzer import CPUAnalyzer
 from .graphics_analyzer import GraphicsAnalyzer
 from .memory_analyzer import MemoryAnalyzer
 from .models import PCIInfo, USBInfo
+from .motherboard_analyzer import MotherboardAnalyzer
 from .network_analyzer import NetworkAnalyzer
 from .pci_analyzer import PCIAnalyzer
+from .storage_analyzer import StorageAnalyzer
 from .usb_analyzer import USBAnalyzer
 
 """This module provides a unified analyzer for all hardware components.
@@ -58,8 +60,10 @@ class DeviceAnalyzer:
         self.system = system_interface or LinuxSystemInterface()
         self.cpu_analyzer = CPUAnalyzer(self.system)
         self.memory_analyzer = MemoryAnalyzer(self.system)
+        self.storage_analyzer = StorageAnalyzer(self.system)
         self.network_analyzer = NetworkAnalyzer(self.system)
         self.graphics_analyzer = GraphicsAnalyzer(self.system)
+        self.motherboard_analyzer = MotherboardAnalyzer(self.system)
         self.pci_analyzer = PCIAnalyzer(self.system)
         self.usb_analyzer = USBAnalyzer(self.system)
 
@@ -106,8 +110,7 @@ class DeviceAnalyzer:
         Returns:
             A dictionary containing comprehensive storage details.
         """
-        # TODO: Implement storage information gathering
-        return {"storage": "Not implemented yet"}
+        return self.storage_analyzer.get_storage_info()
 
     def get_network_info(self) -> Dict[str, Any]:
         """Retrieves detailed network information.
@@ -134,7 +137,7 @@ class DeviceAnalyzer:
         return self.pci_analyzer.get_pci_info()
 
     def get_usb_devices(self) -> "USBInfo":
-        """Retrieves information about USB devices.
+        """Retrieve information about USB devices.
 
         Returns:
             A `USBInfo` object containing details about all USB devices.
@@ -147,5 +150,4 @@ class DeviceAnalyzer:
         Returns:
             A dictionary containing comprehensive motherboard details.
         """
-        # TODO: Implement motherboard information gathering
-        return {"motherboard": "Not implemented yet"}
+        return self.motherboard_analyzer.get_motherboard_info()

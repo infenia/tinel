@@ -657,6 +657,108 @@ class TestCPUAnalyzer:
 
         self.mock_system.read_file.side_effect = mock_read_file
 
+    @unit_test
+    def test_get_frequency_info_sysfs_success(self):
+        """Test that frequency info is read correctly from sysfs."""
+        self._setup_frequency_mocks()
+        freq_info = self.analyzer._get_frequency_info()
+
+        assert freq_info["source"] == "sysfs"
+        assert freq_info["current_frequency_khz"] == 2000000
+        assert freq_info["max_frequency_mhz"] == 4600.0
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_get_frequency_info_psutil_fallback(self, mock_psutil):
+        """Test that the psutil fallback is used when sysfs fails."""
+        # Arrange: sysfs calls return None, psutil returns valid data
+        self.mock_system.read_file.return_value = None
+        mock_psutil.cpu_freq.return_value = Mock(current=2500, min=800, max=3500)
+
+        # Act
+        freq_info = self.analyzer._get_frequency_info()
+
+        # Assert
+        assert freq_info["source"] == "psutil"
+        assert freq_info["current_frequency_mhz"] == 2500
+        assert freq_info["current_frequency_khz"] == 2500000
+        assert freq_info["max_frequency_mhz"] == 3500
+        assert "sysfs_frequency_error" not in freq_info
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_get_frequency_info_psutil_error(self, mock_psutil):
+        """Test that errors from psutil are handled correctly."""
+        # Arrange: sysfs fails, psutil raises an exception
+        self.mock_system.read_file.return_value = None
+        mock_psutil.cpu_freq.side_effect = PermissionError("Permission denied")
+
+        # Act
+        freq_info = self.analyzer._get_frequency_info()
+
+        # Assert
+        assert "source" not in freq_info
+        assert "psutil_frequency_error" in freq_info
+        assert "Permission denied" in freq_info["psutil_frequency_error"]
+
+    @unit_test
+    def test_get_topology_info_sysfs_success(self):
+        """Test that topology info is read correctly from sysfs and nproc."""
+        # Arrange
+        self.mock_system.run_command.return_value = CommandResult(
+            success=True, stdout="8", stderr="", returncode=0
+        )
+        self._setup_topology_mocks()
+
+        # Act
+        topology_info = self.analyzer._get_topology_info()
+
+        # Assert
+        assert topology_info["logical_cpus_source"] == "nproc"
+        assert topology_info["logical_cpus"] == 8
+        assert topology_info["physical_cpus_source"] == "sysfs"
+        assert topology_info["physical_cpus"] == 1
+        assert topology_info["cores_per_socket_source"] == "sysfs"
+        assert topology_info["cores_per_socket"] == 4
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_get_topology_info_psutil_fallback(self, mock_psutil):
+        """Test that the psutil fallback is used when sysfs/nproc fails."""
+        # Arrange: nproc and sysfs fail, psutil provides data
+        self.mock_system.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="command not found", returncode=127
+        )
+        self.mock_system.file_exists.return_value = False
+        mock_psutil.cpu_count.side_effect = [16, 8]  # logical, then physical
+
+        # Act
+        topology_info = self.analyzer._get_topology_info()
+
+        # Assert
+        assert topology_info["logical_cpus_source"] == "psutil"
+        assert topology_info["logical_cpus"] == 16
+        assert topology_info["physical_cores_source"] == "psutil"
+        assert topology_info["physical_cores"] == 8
+        assert "sysfs_topology_error" not in topology_info
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_get_topology_info_psutil_error(self, mock_psutil):
+        """Test that errors from psutil are handled correctly."""
+        # Arrange: Primary methods fail, and psutil also raises an error
+        self.mock_system.run_command.return_value = CommandResult(success=False)
+        self.mock_system.file_exists.return_value = False
+        mock_psutil.cpu_count.side_effect = PermissionError("Permission denied")
+
+        # Act
+        topology_info = self.analyzer._get_topology_info()
+
+        # Assert
+        assert "logical_cpus" not in topology_info
+        assert "psutil_topology_error" in topology_info
+        assert "Permission denied" in topology_info["psutil_topology_error"]
+
     def _setup_all_mocks(self, sample_cpuinfo=None, sample_lscpu=None):
         """Set up all mocks for comprehensive testing."""
         if not sample_cpuinfo:

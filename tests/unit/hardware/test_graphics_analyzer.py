@@ -131,6 +131,27 @@ class TestGraphicsAnalyzer:
         assert info["gpus"][1]["device_id"] == "1c82"
         assert "kernel_driver_in_use" in info["gpus"][1]["details"]
 
+    @patch("tinel.hardware.graphics_analyzer.psutil")
+    def test_psutil_fallback(self, mock_psutil, analyzer, mock_si):
+        """Test fallback to psutil when all other commands fail."""
+        # Arrange
+        mock_si.run_command.return_value = CommandResult(False, "", "error", 1)
+        mock_device = MagicMock()
+        mock_device.name = "Test VGA Adapter"
+        mock_device.addr = "00:02.0"
+        mock_device.vendor_id = 1234
+        mock_device.device_id = 5678
+        mock_psutil.pci.devices.return_value = [mock_device]
+
+        # Act
+        info = analyzer.get_graphics_info()
+
+        # Assert
+        assert info["source"] == "psutil"
+        assert len(info["gpus"]) == 1
+        assert info["gpus"][0]["model"] == "Test VGA Adapter"
+        assert info["gpus"][0]["vendor_id"] == 1234
+
     def test_all_tools_fail(self, analyzer, mock_si):
         """Test the case where all underlying commands fail."""
         with patch.object(analyzer, "logger") as mock_logger:

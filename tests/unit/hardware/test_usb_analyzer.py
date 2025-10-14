@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import unittest
-from unittest.mock import Mock, call
+from unittest.mock import MagicMock, Mock, call, patch
 
 from tinel.hardware.usb_analyzer import USBAnalyzer
 from tinel.interfaces import CommandResult
@@ -301,6 +301,31 @@ class TestUSBAnalyzer(unittest.TestCase):
         self.assertEqual(len(root_hubs), 1)
         # Device details should be empty since no match was found
         self.assertNotIn("vendor_id", root_hubs[0])
+
+    @patch("tinel.hardware.usb_analyzer.psutil")
+    def test_get_usb_info_psutil_fallback(self, mock_psutil):
+        """Test that psutil is used as a fallback if lsusb fails."""
+        mock_system_interface = Mock()
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="lsusb not found", returncode=127
+        )
+
+        mock_device = MagicMock()
+        mock_device.vendor_id = 1234
+        mock_device.product_id = 5678
+        mock_device.name = "Test USB Device"
+        mock_device.manufacturer = "Test Manufacturer"
+        mock_device.product = "Test Product"
+        mock_device.serial = "12345"
+        mock_psutil.usb.devices.return_value = [mock_device]
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        devices = usb_info.tree.get("devices", [])
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(devices[0]["vendor_id"], 1234)
+        self.assertEqual(devices[0]["name"], "Test USB Device")
 
     def test_parse_lsusb_t_with_empty_lines(self):
         """Test parsing lsusb -t output with empty and whitespace lines."""
