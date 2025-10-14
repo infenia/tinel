@@ -15,6 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import json
+from typing import Any, Dict, List, Optional
+
+from ..interfaces import SystemInterface
+from ..system import LinuxSystemInterface
+
 """This module provides an analyzer for storage devices.
 
 It includes the `StorageAnalyzer` class, which is responsible for gathering
@@ -22,12 +28,6 @@ and processing information about the system's storage devices. The analyzer
 uses a combination of `lsblk`, `df`, and `smartctl` to provide a
 comprehensive overview of block devices, disk usage, and device health.
 """
-
-import json
-from typing import Any, Dict, List, Optional
-
-from ..interfaces import SystemInterface
-from ..system import LinuxSystemInterface
 
 
 class StorageAnalyzer:
@@ -96,7 +96,10 @@ class StorageAnalyzer:
         if result.success and result.stdout:
             try:
                 lsblk_data = json.loads(result.stdout)
-                return lsblk_data.get("blockdevices")
+                block_devices = lsblk_data.get("blockdevices")
+                if isinstance(block_devices, list):
+                    return block_devices
+                return None
             except json.JSONDecodeError:
                 return None
         return None
@@ -136,7 +139,7 @@ class StorageAnalyzer:
         # Skip header line
         for line in lines[1:]:
             parts = line.split()
-            if len(parts) >= 6:
+            if len(parts) >= 6:  # noqa: PLR2004
                 filesystem_info = {
                     "filesystem": parts[0],
                     "size": parts[1],

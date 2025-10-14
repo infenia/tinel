@@ -15,13 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module defines the base class for all CLI commands.
-
-It includes the `BaseCommand` abstract base class, which provides a common
-framework and shared functionality for all command handlers. This ensures a
-consistent structure and simplifies the implementation of new commands.
-"""
-
 import argparse
 import logging
 from abc import ABC, abstractmethod
@@ -37,6 +30,13 @@ from ..error_handler import (
     LogAnalysisError,
 )
 from ..formatters import OutputFormatter
+
+"""This module defines the base class for all CLI commands.
+
+It includes the `BaseCommand` abstract base class, which provides a common
+framework and shared functionality for all command handlers. This ensures a
+consistent structure and simplifies the implementation of new commands.
+"""
 
 logger = logging.getLogger(__name__)
 

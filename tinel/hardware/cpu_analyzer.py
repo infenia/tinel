@@ -15,14 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module provides a detailed analysis of the CPU.
-
-It includes the `CPUAnalyzer` class, which gathers comprehensive information
-about the CPU, such as model, vendor, features, topology, and vulnerabilities.
-The analyzer uses a combination of system files, commands, and the `psutil`
-library to provide a complete picture of the CPU's capabilities and status.
-"""
-
 import re
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
@@ -31,6 +23,14 @@ import psutil
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
+
+"""This module provides a detailed analysis of the CPU.
+
+It includes the `CPUAnalyzer` class, which gathers comprehensive information
+about the CPU, such as model, vendor, features, topology, and vulnerabilities.
+The analyzer uses a combination of system files, commands, and the `psutil`
+library to provide a complete picture of the CPU's capabilities and status.
+"""
 
 
 class CPUAnalyzer:

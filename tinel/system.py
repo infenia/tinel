@@ -15,6 +15,14 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import os
+import re
+import subprocess
+from pathlib import Path
+from typing import Dict, List, Optional
+
+from .interfaces import CommandResult, SystemInterface
+
 """This module provides a Linux-specific implementation of the SystemInterface.
 
 It offers a secure and robust way to execute system commands and read files,
@@ -23,14 +31,6 @@ mechanisms to prevent command injection, path traversal, and other common
 vulnerabilities. It is the primary means by which Tinel interacts with the
 underlying operating system.
 """
-
-import os
-import re
-import subprocess
-from pathlib import Path
-from typing import Dict, List, Optional
-
-from .interfaces import CommandResult, SystemInterface
 
 
 class LinuxSystemInterface(SystemInterface):

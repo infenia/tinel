@@ -65,7 +65,7 @@ class TestMemoryAnalyzerFinal:
                     "memory_devices"
                 ]
             )
-            == 2
+            == 2  # noqa: PLR2004
         )
         assert not analyzer._parse_dmidecode_output(DMIDECODE_UNINSTALLED)[
             "memory_devices"
@@ -148,9 +148,12 @@ class TestMemoryAnalyzerFinal:
         assert "dmidecode_parse_error" in info
 
     def test_no_dmi_info_return(self, analyzer, mock_si):
-        with patch.object(analyzer, "_get_dmidecode_info", return_value=None):
-            with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
-                info = analyzer.get_memory_info()
+        with (
+            patch.object(analyzer, "_get_dmidecode_info", return_value=None),
+            patch("psutil.virtual_memory"),
+            patch("psutil.swap_memory"),
+        ):
+            info = analyzer.get_memory_info()
         assert "memory_devices" not in info
         assert "dmidecode_error" not in info
 
@@ -179,7 +182,7 @@ class TestMemoryAnalyzerFinal:
         )
 
     def test_parse_dmidecode_comprehensive_edge_cases(self, analyzer):
-        """Test that lines with empty keys, empty values, or other irregularities are skipped."""
+        """Test that lines with empty keys, empty values, or other irregularities are skipped."""  # noqa: E501
         dmidecode_output = """
 Handle 0x0001, DMI type 17, 40 bytes
 	Memory Device

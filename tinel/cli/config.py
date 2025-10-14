@@ -15,6 +15,12 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import argparse
+import os
+import sys
+from dataclasses import dataclass
+from typing import Optional
+
 """This module defines the configuration for the Tinel CLI.
 
 It includes the `CLIConfig` dataclass, which holds all the configuration
@@ -22,12 +28,6 @@ settings for a CLI session, such as output format, color usage, and
 verbosity. The module also provides methods for creating, validating, and
 interpreting the configuration.
 """
-
-import argparse
-import os
-import sys
-from dataclasses import dataclass
-from typing import Optional
 
 # Verbosity constants
 MAX_VERBOSITY_LEVEL = 3

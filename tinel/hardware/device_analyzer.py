@@ -15,13 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module provides a unified analyzer for all hardware components.
-
-It includes the `DeviceAnalyzer` class, which acts as a facade for all other
-hardware analyzers. This class simplifies the process of gathering
-comprehensive hardware information by providing a single point of entry.
-"""
-
 from typing import Any, Dict, Optional
 
 from ..interfaces import SystemInterface
@@ -30,9 +23,17 @@ from . import HardwareInfo
 from .cpu_analyzer import CPUAnalyzer
 from .graphics_analyzer import GraphicsAnalyzer
 from .memory_analyzer import MemoryAnalyzer
+from .models import PCIInfo, USBInfo
 from .network_analyzer import NetworkAnalyzer
 from .pci_analyzer import PCIAnalyzer
 from .usb_analyzer import USBAnalyzer
+
+"""This module provides a unified analyzer for all hardware components.
+
+It includes the `DeviceAnalyzer` class, which acts as a facade for all other
+hardware analyzers. This class simplifies the process of gathering
+comprehensive hardware information by providing a single point of entry.
+"""
 
 
 class DeviceAnalyzer:

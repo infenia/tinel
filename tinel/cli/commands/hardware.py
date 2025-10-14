@@ -15,14 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module contains the command handler for hardware-related commands.
-
-It includes the `HardwareCommands` class, which is responsible for processing
-commands related to hardware information, such as `tinel hardware cpu` and
-`tinel hardware all`. The class uses tool providers from the `tools` package
-to gather the necessary information.
-"""
-
 import argparse
 import logging
 from typing import Any
@@ -32,6 +24,14 @@ from ...tools.hardware_tools import (
     CPUInfoToolProvider,
 )
 from .base import BaseCommand
+
+"""This module contains the command handler for hardware-related commands.
+
+It includes the `HardwareCommands` class, which is responsible for processing
+commands related to hardware information, such as `tinel hardware cpu` and
+`tinel hardware all`. The class uses tool providers from the `tools` package
+to gather the necessary information.
+"""
 
 logger = logging.getLogger(__name__)
 

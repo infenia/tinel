@@ -1,3 +1,7 @@
+from .interfaces import (
+    HardwareInfo,
+)
+
 """
 Copyright 2025 Infenia Private Limited
 
@@ -20,9 +24,6 @@ from various system commands and files, presenting it in a clear and
 user-friendly format.
 """
 
-from .interfaces import (
-    HardwareInfo,
-)
 
 __version__ = "0.1.0"
 __author__ = "Infenia Private Limited"

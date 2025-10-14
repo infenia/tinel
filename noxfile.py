@@ -81,7 +81,7 @@ def build(session):
 def docs(session):
     """Build the documentation using pdoc."""
     session.run("uv", "pip", "install", "pdoc", external=True)
-    session.run("python", "-m", "pdoc", "--html", "--output-dir", "docs", PACKAGE)
+    session.run("python", "-m", "pdoc", "--output-dir", "docs", PACKAGE)
 
 
 @nox.session(python=DEFAULT_PYTHON)

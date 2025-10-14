@@ -15,14 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module serves as the main entry point for the Tinel command-line tool.
-
-It is responsible for orchestrating the entire CLI workflow, including parsing
-arguments, setting up logging, handling errors, and routing commands to their
-respective handlers. The `main` function is the primary function that is
-executed when the tool is run.
-"""
-
 import logging
 import sys
 import time
@@ -33,6 +25,14 @@ from .config import CLIConfig
 from .error_handler import CLIErrorHandler
 from .formatters import OutputFormatter
 from .parser import parse_arguments
+
+"""This module serves as the main entry point for the Tinel command-line tool.
+
+It is responsible for orchestrating the entire CLI workflow, including parsing
+arguments, setting up logging, handling errors, and routing commands to their
+respective handlers. The `main` function is the primary function that is
+executed when the tool is run.
+"""
 
 # CLI constants
 DEBUG_VERBOSITY_THRESHOLD = 2

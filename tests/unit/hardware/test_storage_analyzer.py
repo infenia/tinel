@@ -282,6 +282,20 @@ class TestStorageAnalyzer(unittest.TestCase):
         self.assertEqual(parsed_output[0]["filesystem"], "/dev/sda2")
         self.assertEqual(parsed_output[1]["filesystem"], "/dev/sda1")
 
+    def test_get_lsblk_info_invalid_block_devices(self):
+        """Test _get_lsblk_info with invalid 'blockdevices' value."""
+        mock_system_interface = MagicMock()
+        mock_lsblk_output_invalid = {"blockdevices": "not-a-list"}
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True,
+            stdout=json.dumps(mock_lsblk_output_invalid),
+            stderr="",
+            returncode=0,
+        )
+        analyzer = StorageAnalyzer(system_interface=mock_system_interface)
+        lsblk_info = analyzer._get_lsblk_info()
+        self.assertIsNone(lsblk_info)
+
 
 if __name__ == "__main__":
     unittest.main()
