@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import dataclasses
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 """This module defines the data models for the hardware components.
 
