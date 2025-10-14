@@ -281,16 +281,6 @@ class TestLinuxSystemInterface:
             assert call_kwargs["text"] is True
 
     @unit_test
-    def test_run_command_unexpected_exception(self):
-        """Test run_command handles unexpected exceptions."""
-        with patch.object(
-            self.system, "_sanitize_command", side_effect=Exception("boom")
-        ):
-            result = self.system.run_command(["lscpu"])
-            assert result.success is False
-            assert result.error and "Unexpected error" in result.error
-
-    @unit_test
     def test_validate_file_path_oserror(self):
         """Test _validate_file_path handles OSError/ValueError."""
         with patch("os.path.normpath", side_effect=OSError("fail")):
@@ -306,6 +296,19 @@ class TestLinuxSystemInterface:
         with patch.dict(os.environ, {}, clear=True):
             env = self.system._get_safe_environment()
             assert "HOME" not in env and "USER" not in env and "LOGNAME" not in env
+
+    @unit_test
+    @patch("subprocess.run")
+    def test_run_command_generic_exception(self, mock_run):
+        """Test that run_command handles generic exceptions."""
+
+        class CustomError(Exception):
+            pass
+
+        mock_run.side_effect = CustomError("generic error")
+        result = self.system.run_command(["echo", "hello"])
+        assert not result.success
+        assert "Unexpected error: generic error" in result.error
 
 
 class TestCommandResultCreation:
