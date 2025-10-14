@@ -442,6 +442,107 @@ class TestCPUAnalyzer:
         assert len(topology_info) == 1
 
     @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_analyze_cpu_performance_with_avx2(self, mock_psutil):
+        """Test CPU performance analysis with AVX2 support."""
+        # Arrange
+        mock_psutil.cpu_freq.return_value = Mock(current=3400, min=800, max=4200)
+        info = {"lscpu_flags": ["fpu", "vme", "de", "pse", "avx", "avx2"]}
+
+        # Act
+        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+
+        # Assert
+        assert "performance_analysis" in performance_analysis
+        analysis_data = performance_analysis["performance_analysis"]
+
+        assert analysis_data["avx2_supported"] is True
+        assert "psutil_cpu_frequency" in analysis_data
+        assert analysis_data["psutil_cpu_frequency"]["current"] == 3400
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_analyze_cpu_performance_no_avx2(self, mock_psutil):
+        """Test CPU performance analysis without AVX2 support."""
+        # Arrange
+        mock_psutil.cpu_freq.return_value = Mock(current=2500, min=800, max=3000)
+        info = {"lscpu_flags": ["fpu", "vme", "de", "pse", "avx"]}
+
+        # Act
+        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+
+        # Assert
+        analysis_data = performance_analysis["performance_analysis"]
+        assert analysis_data["avx2_supported"] is False
+        assert "psutil_cpu_frequency" in analysis_data
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_analyze_cpu_performance_generic_psutil_exception(self, mock_psutil):
+        """Test CPU performance analysis handles generic psutil exceptions."""
+        # Arrange
+        mock_psutil.cpu_freq.side_effect = Exception("Generic Error")
+        info = {"lscpu_flags": ["avx2"]}
+
+        # Act
+        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+
+        # Assert
+        analysis_data = performance_analysis["performance_analysis"]
+        assert "psutil_cpu_frequency" not in analysis_data
+        assert "psutil_cpu_frequency_error" in analysis_data
+        assert "Generic Error" in analysis_data["psutil_cpu_frequency_error"]
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_analyze_cpu_performance_psutil_returns_none(self, mock_psutil):
+        """Test CPU performance analysis when psutil.cpu_freq() returns None."""
+        # Arrange
+        mock_psutil.cpu_freq.return_value = None
+        info = {"lscpu_flags": ["avx2"]}
+
+        # Act
+        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+
+        # Assert
+        analysis_data = performance_analysis["performance_analysis"]
+        assert "psutil_cpu_frequency" not in analysis_data
+        assert "psutil_cpu_frequency_error" not in analysis_data
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_analyze_cpu_performance_psutil_error(self, mock_psutil):
+        """Test CPU performance analysis when psutil fails."""
+        # Arrange
+        mock_psutil.cpu_freq.side_effect = PermissionError("Permission denied")
+        info = {"lscpu_flags": ["avx2"]}
+
+        # Act
+        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+
+        # Assert
+        analysis_data = performance_analysis["performance_analysis"]
+        assert "psutil_cpu_frequency" not in analysis_data
+        assert "psutil_cpu_frequency_error" in analysis_data
+        assert "Permission denied" in analysis_data["psutil_cpu_frequency_error"]
+
+    @unit_test
+    @patch("tinel.hardware.cpu_analyzer.psutil")
+    def test_analyze_cpu_performance_no_lscpu_flags(self, mock_psutil):
+        """Test CPU performance analysis when lscpu flags are missing."""
+        # Arrange
+        mock_psutil.cpu_freq.return_value = Mock(current=2500, min=800, max=3000)
+        info = {}  # No lscpu_flags
+
+        # Act
+        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+
+        # Assert
+        analysis_data = performance_analysis["performance_analysis"]
+        assert analysis_data["avx2_supported"] is False
+        assert "psutil_cpu_frequency" in analysis_data
+
+    @unit_test
     def test_get_cpu_vulnerabilities_all_missing(self):
         """Test _get_cpu_vulnerabilities when all files are missing."""
         self.mock_system.read_file.return_value = None

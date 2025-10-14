@@ -191,8 +191,10 @@ class TestCPUAnalyzerPerformance:
         end_time = time.perf_counter()
         elapsed = end_time - start_time
 
-        # All results should be identical (cached)
+        # All results should be identical (cached), except for the performance data
         for result in results[1:]:
+            result.pop("performance_analysis", None)
+            results[0].pop("performance_analysis", None)
             assert result == results[0]
 
         # Should complete quickly due to caching
