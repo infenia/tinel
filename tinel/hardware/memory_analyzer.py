@@ -16,20 +16,54 @@ limitations under the License.
 """
 
 import re
+from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 import psutil
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
+from .models import MemoryDeviceDetails
 
-"""This module provides an analyzer for system memory.
 
-It includes the `MemoryAnalyzer` class, which gathers and processes
-information about both virtual and physical memory. The analyzer uses `psutil`
-for high-level memory statistics and `dmidecode` for detailed information
-about physical memory devices.
-"""
+def analyze_memory_performance(info: Dict[str, Any]) -> Dict[str, Any]:
+    """Analyzes memory performance metrics from dmidecode info.
+
+    This function calculates effective speed and other metrics based on the
+    parsed `dmidecode` data.
+
+    Args:
+        info: A dictionary containing memory device information.
+
+    Returns:
+        A dictionary with calculated performance metrics.
+    """
+    if "memory_devices" not in info or not info["memory_devices"]:
+        return {}
+
+    analysis: Dict[str, Any] = {"effective_speed_mhz": 0}
+    speeds = []
+
+    for device in info["memory_devices"]:
+        if not device:
+            continue
+        try:
+            speed_str = device.get("speed")
+            if speed_str and "MT/s" in speed_str:
+                # Extract numeric value from "2400 MT/s"
+                match = re.match(r"(\d+)", speed_str)
+                if match:
+                    speed_val = int(match.group(1))
+                    speeds.append(speed_val)
+        except (ValueError, TypeError):
+            continue
+
+    if speeds:
+        # A simplified approach to effective speed; a more complex model might
+        # consider memory channels, ranks, and timings.
+        analysis["effective_speed_mhz"] = sum(speeds) // len(speeds)
+
+    return analysis
 
 
 class MemoryAnalyzer:
@@ -90,7 +124,16 @@ class MemoryAnalyzer:
 
         dmi_info = self._get_dmidecode_info()
         if dmi_info:
-            info.update(dmi_info)
+            if dmi_info.get("memory_devices"):
+                # Convert list of dataclasses to list of dicts for JSON serialization
+                info["memory_devices"] = [asdict(d) for d in dmi_info["memory_devices"]]
+                performance_analysis = analyze_memory_performance(info)
+                if performance_analysis:
+                    info["performance_analysis"] = performance_analysis
+            elif "dmidecode_error" in dmi_info:
+                info["dmidecode_error"] = dmi_info["dmidecode_error"]
+            elif "dmidecode_parse_error" in dmi_info:
+                info["dmidecode_parse_error"] = dmi_info["dmidecode_parse_error"]
 
         return info
 
@@ -107,6 +150,13 @@ class MemoryAnalyzer:
         """
         result = self.system.run_command(["dmidecode", "--type", "memory"])
         if not result.success:
+            # Fallback to psutil if dmidecode is not available
+            if "No such file or directory" in (result.stderr or "") or (
+                result.error and "not found" in result.error
+            ):
+                return {
+                    "dmidecode_error": "dmidecode not found, using psutil fallback."
+                }
             return {"dmidecode_error": result.error or "Failed to run dmidecode."}
         if not result.stdout:
             return {}
@@ -129,31 +179,40 @@ class MemoryAnalyzer:
             A dictionary containing a list of memory devices, where each device
             is represented by a dictionary of its attributes.
         """
-        devices = []
+        devices: List[MemoryDeviceDetails] = []
         device_blocks = re.split(r"\nHandle 0x[0-9A-Fa-f]+, DMI type 17,", output)
 
         for block in device_blocks:
             if "Memory Device" not in block:
                 continue
 
-            device_info = {}
+            raw_details: Dict[str, str] = {}
             for line in block.splitlines():
                 if ":" not in line:
                     continue
 
                 parts = line.split(":", 1)
-                key = parts[0].strip()
+                key = parts[0].strip().lower().replace(" ", "_")
                 value = parts[1].strip()
 
-                if not key or not value:
+                if not key or not value or value in ("Unknown", "Not Specified"):
                     continue
 
-                if value in ("Unknown", "Not Specified", "Not Provided"):
-                    continue
+                raw_details[key] = value
 
-                device_info[key.lower().replace(" ", "_")] = value
-
-            if device_info and device_info.get("size") != "No Module Installed":
-                devices.append(device_info)
+            if raw_details and raw_details.get("size") != "No Module Installed":
+                devices.append(
+                    MemoryDeviceDetails(
+                        size=raw_details.get("size"),
+                        form_factor=raw_details.get("form_factor"),
+                        device_type=raw_details.get("type"),
+                        speed=raw_details.get("speed"),
+                        manufacturer=raw_details.get("manufacturer"),
+                        serial_number=raw_details.get("serial_number"),
+                        part_number=raw_details.get("part_number"),
+                        attributes=raw_details.get("attributes"),
+                        raw_details=raw_details,
+                    )
+                )
 
         return {"memory_devices": devices}

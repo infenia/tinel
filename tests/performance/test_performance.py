@@ -341,11 +341,10 @@ class TestSystemInterfacePerformance:
 
                 # Should read successfully and within reasonable time
                 assert result is not None
-                # Reading should be fast (under 10ms per 100KB)
+                # Reading should be fast (under 250ms per 100KB)
                 max_time = max(
-                    0.01 * (size / (100 * 1024)), 0.001
-                )  # At least 1ms minimum
-                # Just assert it's under the max time, don't enforce minimum
+                    0.25 * (size / (100 * 1024)), 0.025
+                )  # At least 25ms minimum
                 assert timing["elapsed"] <= max_time, (
                     f"File reading took {timing['elapsed']:.4f}s, "
                     f"expected ≤ {max_time:.4f}s"

@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import dataclasses
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 """This module defines the data models for the hardware components.
 
@@ -25,6 +25,37 @@ USB devices, as well as a comprehensive `HardwareInfo` dataclass that
 aggregates all hardware data into a single object. These models ensure a
 consistent and predictable data structure throughout the application.
 """
+
+
+@dataclasses.dataclass
+class MemoryDeviceDetails:
+    """Represents the detailed attributes of a physical memory device.
+
+    This dataclass provides a structured representation of the information
+    retrieved from `dmidecode` for a single memory module.
+
+    Attributes:
+        size: The size of the memory device (e.g., "8 GB").
+        form_factor: The physical form factor (e.g., "DIMM").
+        device_type: The type of memory (e.g., "DDR4").
+        speed: The configured speed of the memory module (e.g., "2400 MT/s").
+        manufacturer: The name of the manufacturer.
+        serial_number: The serial number of the module.
+        part_number: The part number of the module.
+        attributes: Any additional attributes of the memory device.
+        raw_details: A dictionary containing all raw key-value pairs from
+                     `dmidecode`.
+    """
+
+    size: Optional[str] = None
+    form_factor: Optional[str] = None
+    device_type: Optional[str] = None
+    speed: Optional[str] = None
+    manufacturer: Optional[str] = None
+    serial_number: Optional[str] = None
+    part_number: Optional[str] = None
+    attributes: Optional[str] = None
+    raw_details: Dict[str, Any] = dataclasses.field(default_factory=dict)
 
 
 @dataclasses.dataclass
