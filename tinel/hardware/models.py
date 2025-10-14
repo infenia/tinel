@@ -15,6 +15,9 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import dataclasses
+from typing import Any, Dict
+
 """This module defines the data models for the hardware components.
 
 It includes dataclasses for representing structured information about PCI and
@@ -22,9 +25,6 @@ USB devices, as well as a comprehensive `HardwareInfo` dataclass that
 aggregates all hardware data into a single object. These models ensure a
 consistent and predictable data structure throughout the application.
 """
-
-import dataclasses
-from typing import Any, Dict
 
 
 @dataclasses.dataclass

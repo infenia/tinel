@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import re
+from typing import Any, Dict, List, Optional
+
+from tinel.hardware.models import PCIInfo
+from tinel.interfaces import SystemInterface
+from tinel.system import LinuxSystemInterface
+
 """This module provides an analyzer for PCI devices.
 
 It includes the `PCIAnalyzer` class, which is responsible for gathering and
@@ -22,13 +29,6 @@ parsing information about the system's PCI devices. The analyzer uses the
 `lspci` command to obtain the raw data and then processes it to extract
 detailed information about each device.
 """
-
-import re
-from typing import Any, Dict, List, Optional
-
-from tinel.hardware.models import PCIInfo
-from tinel.interfaces import SystemInterface
-from tinel.system import LinuxSystemInterface
 
 
 class PCIAnalyzer:

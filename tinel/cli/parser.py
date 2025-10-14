@@ -15,6 +15,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import argparse
+import sys
+from typing import List, Optional, Sequence
+
 """This module is responsible for parsing and validating command-line arguments.
 
 It defines the structure of the Tinel CLI, including all available commands,
@@ -22,10 +26,6 @@ subcommands, and options. The module uses the `argparse` library to create a
 robust and user-friendly command-line interface, and it includes functions for
 validating the provided arguments to ensure consistency and correctness.
 """
-
-import argparse
-import sys
-from typing import List, Optional, Sequence
 
 # Parser constants
 MAX_VERBOSITY_LEVEL = 3

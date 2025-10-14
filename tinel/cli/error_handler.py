@@ -15,15 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module provides a comprehensive error handling system for the Tinel CLI.
-
-It defines custom exception classes for various error scenarios, an `ExitCode`
-enum for standardized exit codes, and a `CLIErrorHandler` class to manage
-error reporting, formatting, and graceful termination of the application. The
-error handler is designed to provide informative feedback to the user and
-generate detailed reports for debugging.
-"""
-
 import json
 import logging
 import os
@@ -39,6 +30,15 @@ from enum import IntEnum
 from typing import Any, Dict, Optional
 
 from .formatters import OutputFormatter
+
+"""This module provides a comprehensive error handling system for the Tinel CLI.
+
+It defines custom exception classes for various error scenarios, an `ExitCode`
+enum for standardized exit codes, and a `CLIErrorHandler` class to manage
+error reporting, formatting, and graceful termination of the application. The
+error handler is designed to provide informative feedback to the user and
+generate detailed reports for debugging.
+"""
 
 logger = logging.getLogger(__name__)
 

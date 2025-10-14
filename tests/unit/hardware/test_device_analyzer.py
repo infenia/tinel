@@ -10,7 +10,7 @@ from unittest.mock import Mock, patch
 
 from tests.utils import unit_test
 from tinel.hardware.device_analyzer import DeviceAnalyzer
-from tinel.hardware.models import HardwareInfo, PCIInfo, USBInfo
+from tinel.hardware.models import HardwareInfo
 from tinel.interfaces import SystemInterface
 
 
@@ -71,23 +71,24 @@ class TestDeviceAnalyzer:
         mock_cpu_analyzer.get_cpu_info.assert_called_once()
 
     @unit_test
-    @patch("tinel.hardware.device_analyzer.USBAnalyzer")
-    @patch("tinel.hardware.device_analyzer.PCIAnalyzer")
     @patch("tinel.hardware.device_analyzer.CPUAnalyzer")
     @patch("tinel.hardware.device_analyzer.MemoryAnalyzer")
     @patch("tinel.hardware.device_analyzer.NetworkAnalyzer")
     @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
-    def test_get_all_hardware_info(
-        self,
-        mock_graphics_class,
-        mock_network_class,
-        mock_memory_class,
-        mock_cpu_class,
-        mock_pci_class,
-        mock_usb_class,
-    ):
+    @patch("tinel.hardware.device_analyzer.PCIAnalyzer")
+    @patch("tinel.hardware.device_analyzer.USBAnalyzer")
+    def test_get_all_hardware_info(self, *mocks):
         """Test the aggregation of all hardware information."""
         # Setup mocks for each analyzer's get_info method
+        (
+            mock_usb_class,
+            mock_pci_class,
+            mock_graphics_class,
+            mock_network_class,
+            mock_memory_class,
+            mock_cpu_class,
+        ) = mocks
+
         mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
         mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
         mock_network_class.return_value.get_network_info.return_value = {
@@ -110,9 +111,7 @@ class TestDeviceAnalyzer:
         ):
             result = analyzer.get_all_hardware_info()
 
-            from tinel.hardware import HardwareInfo as HardwareInfoFromSource
-
-            assert isinstance(result, HardwareInfoFromSource)
+            assert isinstance(result, HardwareInfo)
             assert result.cpu == {"cpu": "data"}
             assert result.memory == {"memory": "data"}
             assert result.network == {"network": "data"}

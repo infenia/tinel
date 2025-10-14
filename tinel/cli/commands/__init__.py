@@ -15,6 +15,8 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+from .router import CommandRouter
+
 """This package contains the command handlers for the Tinel CLI.
 
 Each module in this package is responsible for implementing the logic for a
@@ -22,6 +24,5 @@ specific set of commands. The `CommandRouter` class is responsible for mapping
 command-line arguments to the appropriate command handler.
 """
 
-from .router import CommandRouter
 
 __all__ = ["CommandRouter"]

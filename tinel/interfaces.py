@@ -15,6 +15,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+from abc import ABC, abstractmethod
+from dataclasses import dataclass
+from typing import Any, Dict, List, Optional
+
 """This module defines the core interfaces and data structures for Tinel.
 
 It includes abstract base classes (ABCs) for system interactions and tool
@@ -22,10 +26,6 @@ providers, as well as dataclasses for representing command results and
 hardware information. These interfaces ensure a consistent and extensible
 architecture for the entire application.
 """
-
-from abc import ABC, abstractmethod
-from dataclasses import dataclass
-from typing import Any, Dict, List, Optional
 
 
 @dataclass
@@ -128,11 +128,11 @@ class SystemInterface(ABC):
 class ToolProvider(ABC):
     """Defines an abstract interface for tool providers.
 
-    This abstract base class (ABC) outlines the contract for creating tool
-    providers that can be integrated into the Tinel framework. Each tool
-_provider
-    is responsible for defining its name, description, input schema, and
-    execution logic.
+        This abstract base class (ABC) outlines the contract for creating tool
+        providers that can be integrated into the Tinel framework. Each tool
+    _provider
+        is responsible for defining its name, description, input schema, and
+        execution logic.
     """
 
     @abstractmethod

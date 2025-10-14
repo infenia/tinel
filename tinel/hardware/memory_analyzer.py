@@ -15,14 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module provides an analyzer for system memory.
-
-It includes the `MemoryAnalyzer` class, which gathers and processes
-information about both virtual and physical memory. The analyzer uses `psutil`
-for high-level memory statistics and `dmidecode` for detailed information
-about physical memory devices.
-"""
-
 import re
 from typing import Any, Dict, List, Optional
 
@@ -30,6 +22,14 @@ import psutil
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
+
+"""This module provides an analyzer for system memory.
+
+It includes the `MemoryAnalyzer` class, which gathers and processes
+information about both virtual and physical memory. The analyzer uses `psutil`
+for high-level memory statistics and `dmidecode` for detailed information
+about physical memory devices.
+"""
 
 
 class MemoryAnalyzer:
