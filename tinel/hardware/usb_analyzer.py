@@ -102,9 +102,9 @@ class USBAnalyzer:
                     bus_num_content = self.system.read_file(busnum_path).strip()
                     dev_num_content = self.system.read_file(devnum_path).strip()
 
-                    if int(bus_num_content) == int(bus) and int(
-                        dev_num_content
-                    ) == int(dev_id):
+                    if int(bus_num_content) == int(bus) and int(dev_num_content) == int(
+                        dev_id
+                    ):
                         details: Dict[str, Any] = {
                             "vendor_id": self.system.read_file(
                                 f"{dev_path}/idVendor"

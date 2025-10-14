@@ -190,3 +190,196 @@ class TestUSBAnalyzer(unittest.TestCase):
         usb_info = analyzer.get_usb_info()
 
         self.assertEqual(usb_info.tree, {"root_hubs": []})
+
+    def test_sysfs_ioerror_fallback_to_lsusb(self):
+        """Test that IOError during sysfs read triggers lsusb fallback."""
+        mock_system_interface = Mock()
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_T_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+        ]
+        mock_system_interface.list_dir.return_value = ["2-1", "2-2"]
+        # Simulate IOError when reading sysfs files
+        mock_system_interface.read_file.side_effect = IOError("Permission denied")
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        # Verify that lsusb was called as fallback
+        self.assertEqual(mock_system_interface.run_command.call_count, 2)
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 2)
+
+    def test_sysfs_oserror_fallback_to_lsusb(self):
+        """Test that OSError during sysfs read triggers lsusb fallback."""
+        mock_system_interface = Mock()
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_T_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+        ]
+        mock_system_interface.list_dir.return_value = ["2-1", "2-2"]
+        # Simulate OSError when reading sysfs files
+        mock_system_interface.read_file.side_effect = OSError("Access denied")
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        # Verify that lsusb was called as fallback
+        self.assertEqual(mock_system_interface.run_command.call_count, 2)
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 2)
+
+    def test_lsusb_fallback_command_failure(self):
+        """Test when lsusb fallback command fails."""
+        mock_system_interface = Mock()
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(
+                success=True,
+                stdout=MOCK_LSUSB_T_OUTPUT,
+                stderr="",
+                returncode=0,
+            ),
+            CommandResult(
+                success=False, stdout="", stderr="lsusb failed", returncode=1
+            ),
+        ]
+        mock_system_interface.list_dir.return_value = []
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        # Should still return structure even if details are missing
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 2)
+
+    def test_lsusb_fallback_no_match(self):
+        """Test when lsusb fallback finds no matching device."""
+        mock_system_interface = Mock()
+        # Create lsusb -t output with different bus/device numbers
+        lsusb_t = (
+            "/:  Bus 05.Port 1: Dev 7, Class=root_hub, Driver=xhci_hcd/4p, 5000M\n"
+        )
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(success=True, stdout=lsusb_t, stderr="", returncode=0),
+            CommandResult(
+                success=True,
+                # lsusb output with different bus/device numbers
+                stdout="Bus 001 Device 001: ID 1d6b:0002 Linux Foundation 2.0 root hub\n",
+                stderr="",
+                returncode=0,
+            ),
+        ]
+        mock_system_interface.list_dir.return_value = []
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        # Should still return structure even if details are empty
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 1)
+        # Device details should be empty since no match was found
+        self.assertNotIn("vendor_id", root_hubs[0])
+
+    def test_parse_lsusb_t_with_empty_lines(self):
+        """Test parsing lsusb -t output with empty and whitespace lines."""
+        mock_system_interface = Mock()
+        lsusb_t_with_empty = """
+
+/:  Bus 02.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 5000M
+
+    |__ Port 2: Dev 2, If 0, Class=Video, Driver=uvcvideo, 480M
+
+"""
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True, stdout=lsusb_t_with_empty, stderr="", returncode=0
+        )
+        mock_system_interface.list_dir.return_value = []
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 1)
+
+    def test_parse_lsusb_t_with_malformed_root_hub(self):
+        """Test parsing lsusb -t with malformed root hub line."""
+        mock_system_interface = Mock()
+        lsusb_t_malformed = """
+/:  Bus 02 - This is malformed
+/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/10p, 480M
+"""
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True, stdout=lsusb_t_malformed, stderr="", returncode=0
+        )
+        mock_system_interface.list_dir.return_value = []
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        # Should skip malformed line and only parse valid one
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 1)
+        self.assertEqual(root_hubs[0]["bus"], "01")
+
+    def test_parse_lsusb_t_with_malformed_device_line(self):
+        """Test parsing lsusb -t with malformed device line."""
+        mock_system_interface = Mock()
+        lsusb_t_malformed_device = """
+/:  Bus 02.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 5000M
+    |__ This is a malformed device line
+    |__ Port 2: Dev 2, If 0, Class=Video, Driver=uvcvideo, 480M
+"""
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True, stdout=lsusb_t_malformed_device, stderr="", returncode=0
+        )
+        mock_system_interface.list_dir.return_value = []
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 1)
+        # Should skip malformed device and only parse valid one
+        self.assertEqual(len(root_hubs[0]["children"]), 1)
+
+    def test_device_with_empty_parent_stack(self):
+        """Test that device lines without parent stack are skipped."""
+        mock_system_interface = Mock()
+        # Create malformed output where device appears before any root hub
+        lsusb_t_orphaned = """
+    |__ Port 2: Dev 2, If 0, Class=Video, Driver=uvcvideo, 480M
+/:  Bus 02.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 5000M
+"""
+        mock_system_interface.run_command.return_value = CommandResult(
+            success=True, stdout=lsusb_t_orphaned, stderr="", returncode=0
+        )
+        mock_system_interface.list_dir.return_value = []
+
+        analyzer = USBAnalyzer(system_interface=mock_system_interface)
+        usb_info = analyzer.get_usb_info()
+
+        # Should skip orphaned device and only parse root hub
+        root_hubs = usb_info.tree.get("root_hubs", [])
+        self.assertEqual(len(root_hubs), 1)
+        # Root hub should have no children since orphaned device was skipped
+        self.assertEqual(len(root_hubs[0]["children"]), 0)
