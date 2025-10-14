@@ -146,11 +146,13 @@ class NetworkAnalyzer:
 
         This method serves as a fallback for when the `ip` command is not
         available. It gathers interface names, addresses, and states from
-        `psutil`.
+        `psutil`. It handles failures in gathering addresses and stats
+        gracefully.
 
         Returns:
             A list of dictionaries, where each dictionary represents a
-            network interface.
+            network interface. Returns an empty list if addresses cannot be
+            retrieved.
         """
         interfaces: Dict[str, Dict[str, Any]] = {}
         try:
@@ -171,17 +173,20 @@ class NetworkAnalyzer:
                             "address": snic.address,
                         }
                     )
+        except Exception as e:
+            self.logger.error("Failed to get interface addresses from psutil: %s", e)
+            return []
 
-            # Get stats for state
+        try:
+            # Get stats for state, this is non-critical
             stats = psutil.net_if_stats()
             for name, stat in stats.items():
                 if name in interfaces:
                     interfaces[name]["state"] = "UP" if stat.isup else "DOWN"
-
-            return list(interfaces.values())
         except Exception as e:
-            self.logger.error("Failed to get interface info from psutil: %s", e)
-            return []
+            self.logger.warning("Could not get interface stats from psutil: %s", e)
+
+        return list(interfaces.values())
 
     def _get_detailed_network_info(self) -> Dict[str, Any]:
         """Gathers detailed information about each network interface from sysfs.

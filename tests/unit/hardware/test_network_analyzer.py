@@ -1171,14 +1171,32 @@ class TestPsutilFallbacks:
             assert interfaces[0]["state"] == "UP"
             assert interfaces[0]["addresses"][0]["family"] == "inet"
 
-    def test_get_interfaces_from_psutil_failure(self, analyzer):
-        """Test psutil failure in _get_interfaces_from_psutil."""
+    def test_get_interfaces_from_psutil_stats_failure(self, analyzer):
+        """Test that a failure in psutil.net_if_stats is handled gracefully."""
+        snic = MagicMock()
+        snic.family = 2
+        snic.address = "127.0.0.1"
+        mock_addrs = {"lo": [snic]}
+
+        with patch("psutil.net_if_addrs", return_value=mock_addrs), patch(
+            "psutil.net_if_stats", side_effect=Exception("Stats failed")
+        ) as mock_stats, patch.object(analyzer, "logger") as mock_logger:
+            interfaces = analyzer._get_interfaces_from_psutil()
+            # Should still return address info, just without state
+            assert len(interfaces) == 1
+            assert "state" not in interfaces[0]
+            mock_logger.warning.assert_called_once()
+            mock_stats.assert_called_once()
+
+    def test_get_interfaces_from_psutil_addrs_failure(self, analyzer):
+        """Test psutil failure in _get_interfaces_from_psutil for addrs."""
         with patch(
             "psutil.net_if_addrs", side_effect=Exception("psutil error")
-        ), patch.object(analyzer, "logger") as mock_logger:
+        ) as mock_addrs, patch.object(analyzer, "logger") as mock_logger:
             interfaces = analyzer._get_interfaces_from_psutil()
             assert not interfaces
             mock_logger.error.assert_called_once()
+            mock_addrs.assert_called_once()
 
     def test_get_psutil_io_counters(self, analyzer):
         """Test the _get_psutil_io_counters helper method."""
