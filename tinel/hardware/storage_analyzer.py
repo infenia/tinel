@@ -18,176 +18,240 @@ limitations under the License.
 import json
 from typing import Any, Dict, List, Optional
 
-from ..interfaces import SystemInterface
-from ..system import LinuxSystemInterface
+import psutil
 
-"""This module provides an analyzer for storage devices.
-
-It includes the `StorageAnalyzer` class, which is responsible for gathering
-and processing information about the system's storage devices. The analyzer
-uses a combination of `lsblk`, `df`, and `smartctl` to provide a
-comprehensive overview of block devices, disk usage, and device health.
-"""
+from tinel.interfaces import SystemInterface
+from tinel.system import LinuxSystemInterface
 
 
 class StorageAnalyzer:
-    """Analyzes and retrieves information about the system's storage devices.
-
-    This class provides methods to gather data on block devices, filesystems,
-    and their health status. It uses `lsblk` for device enumeration, `df` for
-    usage statistics, and `smartctl` for health diagnostics.
-
-    Args:
-        system_interface: An optional `SystemInterface` for system interactions.
-                          If not provided, a `LinuxSystemInterface` is used.
-    """
+    """Analyzes and retrieves information about the system's storage devices."""
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """Initializes the StorageAnalyzer.
-
-        Args:
-            system_interface: An optional `SystemInterface` for system
-                              interactions.
-        """
+        """Initializes the StorageAnalyzer."""
         self.system = system_interface or LinuxSystemInterface()
 
     def get_storage_info(self) -> Dict[str, Any]:
-        """Retrieves comprehensive information about the system's storage.
-
-        This method orchestrates the collection of data from `lsblk`, `df`, and
-        `smartctl` to build a complete picture of the storage landscape,
-        including block devices, disk usage, and health status.
-
-        Returns:
-            A dictionary containing a detailed breakdown of storage information.
-        """
-        lsblk_info = self._get_lsblk_info()
-        df_info = self._get_df_info()
-
+        """Retrieves comprehensive information about the system's storage."""
         storage_info: Dict[str, Any] = {
-            "block_devices": lsblk_info,
-            "disk_usage": df_info,
+            "block_devices": self._get_lsblk_info_with_fallback(),
+            "disk_usage": self._get_df_info_with_fallback(),
+            "inode_usage": self._get_inode_info(),
         }
 
-        if lsblk_info:
-            for device in lsblk_info:
-                if device.get("type") == "disk":
-                    device_name = device.get("name")
-                    if device_name:
-                        health_info = self._get_smartctl_info(f"/dev/{device_name}")
-                        if health_info:
-                            device["health"] = health_info
+        if storage_info.get("block_devices"):
+            storage_info = self.analyze_storage_health(storage_info)
+
         return {k: v for k, v in storage_info.items() if v is not None}
 
-    def _get_lsblk_info(self) -> Optional[List[Dict[str, Any]]]:
-        """Retrieves block device information using `lsblk`.
+    def analyze_storage_health(self, info: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Analyzes the health of storage devices and extends the provided info.
 
-        This method executes `lsblk` with JSON output to get a structured list
-        of all block devices and their properties, such as name, size, type,
-        and model.
+        This method iterates through block devices, retrieves health data
+        using `smartctl`, and integrates it into the device information.
+        If `smartctl` is unavailable, it falls back to providing disk usage
+        statistics for the device's partitions using `psutil`.
+
+        Args:
+            info: A dictionary containing existing storage information,
+                  including a 'block_devices' key.
 
         Returns:
-            A list of dictionaries, where each dictionary represents a block
-            device, or None if the command fails or parsing fails.
+            The extended dictionary with health or usage information.
         """
+        block_devices = info.get("block_devices", [])
+        if not block_devices:
+            return info
+
+        for device in block_devices:
+            if device.get("type") == "disk" and device.get("name"):
+                device_path = f"/dev/{device['name']}"
+                health_info = self._get_smartctl_info(device_path)
+                detailed_health_info = self._get_detailed_smartctl_info(device_path)
+
+                if health_info or detailed_health_info:
+                    device["health"] = {
+                        **(health_info or {}),
+                        **(detailed_health_info or {}),
+                    }
+                else:  # Fallback to psutil
+                    partitions = device.get("children", [])
+                    fallback_usage = []
+                    if partitions:
+                        for part in partitions:
+                            mountpoint = part.get("mountpoint")
+                            if mountpoint:
+                                try:
+                                    usage = psutil.disk_usage(mountpoint)
+                                    fallback_usage.append(
+                                        {
+                                            "partition": part.get("name"),
+                                            "mountpoint": mountpoint,
+                                            "total": usage.total,
+                                            "used": usage.used,
+                                            "free": usage.free,
+                                            "percent": usage.percent,
+                                        }
+                                    )
+                                except (
+                                    FileNotFoundError,
+                                    PermissionError,
+                                ):
+                                    continue  # Skip partitions we can't access
+                    if fallback_usage:
+                        device["health"] = {
+                            "status": "FALLBACK_PSUTIL_USAGE",
+                            "partitions": fallback_usage,
+                        }
+        info["block_devices"] = block_devices
+        return info
+
+    def _get_lsblk_info_with_fallback(self) -> Optional[List[Dict[str, Any]]]:
+        """Tries to get block device info from `lsblk`, falls back to `psutil`."""
+        lsblk_info = self._get_lsblk_info()
+        if lsblk_info is not None:
+            return lsblk_info
+
+        try:
+            partitions = psutil.disk_partitions()
+            return [
+                {
+                    "name": part.device.split("/")[-1],
+                    "size": None,
+                    "type": "part",
+                    "mountpoint": part.mountpoint,
+                    "fstype": part.fstype,
+                    "model": "N/A (from psutil)",
+                }
+                for part in partitions
+            ]
+        except Exception:
+            return None
+
+    def _get_df_info_with_fallback(self) -> Optional[List[Dict[str, str]]]:
+        """Tries to get disk usage from `df`, falls back to `psutil`."""
+        df_info = self._get_df_info()
+        if df_info is not None:
+            return df_info
+
+        try:
+            partitions = psutil.disk_partitions()
+            usage_info = []
+            for part in partitions:
+                usage = psutil.disk_usage(part.mountpoint)
+                usage_info.append(
+                    {
+                        "filesystem": part.device,
+                        "size": f"{usage.total // (1024**3)}G",
+                        "used": f"{usage.used // (1024**3)}G",
+                        "available": f"{usage.free // (1024**3)}G",
+                        "use%": f"{usage.percent}%",
+                        "mounted_on": part.mountpoint,
+                    }
+                )
+            return usage_info
+        except Exception:
+            return None
+
+    def _get_lsblk_info(self) -> Optional[List[Dict[str, Any]]]:
+        """Retrieves block device information using `lsblk`."""
         cmd = ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL"]
         result = self.system.run_command(cmd)
 
-        if result.success and result.stdout:
-            try:
-                lsblk_data = json.loads(result.stdout)
-                block_devices = lsblk_data.get("blockdevices")
-                if isinstance(block_devices, list):
-                    return block_devices
-                return None
-            except json.JSONDecodeError:
-                return None
-        return None
+        if not result.success or not result.stdout:
+            return None
+
+        try:
+            lsblk_data = json.loads(result.stdout)
+            block_devices = lsblk_data.get("blockdevices")
+            return block_devices if isinstance(block_devices, list) else None
+        except json.JSONDecodeError:
+            return None
 
     def _get_df_info(self) -> Optional[List[Dict[str, str]]]:
-        """Retrieves disk usage information using `df`.
-
-        This method executes `df -h` to get a human-readable summary of disk
-        usage for all mounted filesystems and then parses the output.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a
-            filesystem and its usage, or None if the command fails.
-        """
+        """Retrieves disk usage information using `df`."""
         cmd = ["df", "-h"]
         result = self.system.run_command(cmd)
-
-        if result.success and result.stdout:
-            return self._parse_df_output(result.stdout)
-        return None
+        return self._parse_df_output(result.stdout) if result.success else None
 
     def _parse_df_output(self, df_output: str) -> List[Dict[str, str]]:
-        """Parses the output of the `df` command.
-
-        This method processes the raw text output from `df` and extracts
-        structured information about each mounted filesystem.
-
-        Args:
-            df_output: The raw string output from the `df` command.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a
-            filesystem and its usage statistics.
-        """
-        lines = df_output.strip().split("\n")
+        """Parses the output of the `df` command."""
+        lines = (df_output or "").strip().split("\n")
         filesystems = []
-        # Skip header line
         for line in lines[1:]:
             parts = line.split()
-            if len(parts) >= 6:  # noqa: PLR2004
-                filesystem_info = {
-                    "filesystem": parts[0],
-                    "size": parts[1],
-                    "used": parts[2],
-                    "available": parts[3],
-                    "use%": parts[4],
-                    "mounted_on": " ".join(parts[5:]),
-                }
-                filesystems.append(filesystem_info)
+            if len(parts) >= 6:
+                filesystems.append(
+                    {
+                        "filesystem": parts[0],
+                        "size": parts[1],
+                        "used": parts[2],
+                        "available": parts[3],
+                        "use%": parts[4],
+                        "mounted_on": " ".join(parts[5:]),
+                    }
+                )
         return filesystems
 
     def _get_smartctl_info(self, device: str) -> Optional[Dict[str, str]]:
-        """Retrieves health information for a device using `smartctl`.
-
-        This method executes `smartctl -H` to get the overall health
-        self-assessment for a given storage device.
-
-        Args:
-            device: The path to the device (e.g., `/dev/sda`).
-
-        Returns:
-            A dictionary containing the health status, or None if the command
-            fails.
-        """
+        """Retrieves health information for a device using `smartctl`."""
         cmd = ["smartctl", "-H", device]
         result = self.system.run_command(cmd)
-
-        if result.success and result.stdout:
-            return self._parse_smartctl_output(result.stdout)
-        return None
+        return self._parse_smartctl_output(result.stdout) if result.success else None
 
     def _parse_smartctl_output(self, smartctl_output: str) -> Dict[str, str]:
-        """Parses the output of the `smartctl -H` command.
-
-        This method processes the raw text output from `smartctl` to extract
-        the overall health self-assessment test result.
-
-        Args:
-            smartctl_output: The raw string output from the `smartctl` command.
-
-        Returns:
-            A dictionary containing the parsed health status.
-        """
+        """Parses the output of the `smartctl -H` command."""
         health_status = "UNKNOWN"
-        for line in smartctl_output.strip().split("\n"):
+        for line in (smartctl_output or "").strip().split("\n"):
             if "SMART overall-health self-assessment test result" in line:
                 status = line.split(":")[-1].strip()
                 if status:
                     health_status = status
                     break
         return {"health_status": health_status}
+
+    def _get_detailed_smartctl_info(self, device: str) -> Optional[Dict[str, Any]]:
+        """Retrieves detailed health information using `smartctl -i`."""
+        cmd = ["smartctl", "-i", device]
+        result = self.system.run_command(cmd)
+        return (
+            self._parse_detailed_smartctl_output(result.stdout)
+            if result.success
+            else None
+        )
+
+    def _parse_detailed_smartctl_output(self, output: str) -> Dict[str, Any]:
+        """Parses the output of `smartctl -i`."""
+        attributes = {}
+        for line in (output or "").strip().split("\n"):
+            if ":" in line:
+                key, value = line.split(":", 1)
+                key = key.strip().lower().replace(" ", "_").replace("-", "_")
+                attributes[key] = value.strip()
+        return attributes
+
+    def _get_inode_info(self) -> Optional[List[Dict[str, str]]]:
+        """Retrieves filesystem inode usage using `df -i`."""
+        cmd = ["df", "-i"]
+        result = self.system.run_command(cmd)
+        return self._parse_df_i_output(result.stdout) if result.success else None
+
+    def _parse_df_i_output(self, df_output: str) -> List[Dict[str, str]]:
+        """Parses the output of the `df -i` command."""
+        lines = (df_output or "").strip().split("\n")
+        filesystems = []
+        for line in lines[1:]:
+            parts = line.split()
+            if len(parts) >= 6:
+                filesystems.append(
+                    {
+                        "filesystem": parts[0],
+                        "inodes": parts[1],
+                        "iused": parts[2],
+                        "ifree": parts[3],
+                        "iuse%": parts[4],
+                        "mounted_on": " ".join(parts[5:]),
+                    }
+                )
+        return filesystems
