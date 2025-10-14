@@ -18,6 +18,10 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import dataclasses
+import logging
+from typing import Any, Dict
+
 from .cpu_analyzer import CPUAnalyzer
 from .graphics_analyzer import GraphicsAnalyzer
 from .memory_analyzer import MemoryAnalyzer
@@ -42,33 +46,43 @@ __all__ = [
 ]
 
 
-def get_all_hardware_info() -> HardwareInfo:
+def get_all_hardware_info() -> Dict[str, Any]:
     """Gathers and aggregates hardware information from all available analyzers.
 
-        This function instantiates each of the hardware analyzer classes, calls
-        their respective data-gathering methods, and compiles the results into a
-        single `HardwareInfo` object. It serves as the main entry point for
-    t
-        collecting a comprehensive overview of the system's hardware.
+    This function instantiates each hardware analyzer, calls its data-gathering
+    methods, and aggregates the results. It is designed to be resilient,
+    handling exceptions from individual analyzers gracefully by logging the
+    error and including an error message in the final report.
 
-        Returns:
-            A `HardwareInfo` dataclass instance containing detailed information
-            about all major hardware components.
+    Returns:
+        A dictionary containing aggregated hardware information from all
+        analyzers. Each key corresponds to a hardware component (e.g., 'cpu',
+        'memory'), and its value is a dictionary of the collected data.
     """
-    cpu_analyzer = CPUAnalyzer()
-    memory_analyzer = MemoryAnalyzer()
-    storage_analyzer = StorageAnalyzer()
-    graphics_analyzer = GraphicsAnalyzer()
-    network_analyzer = NetworkAnalyzer()
-    pci_analyzer = PCIAnalyzer()
-    usb_analyzer = USBAnalyzer()
+    logger = logging.getLogger(__name__)
+    info = HardwareInfo()
 
-    return HardwareInfo(
-        cpu=cpu_analyzer.get_cpu_info(),
-        memory=memory_analyzer.get_memory_info(),
-        storage=storage_analyzer.get_storage_info(),
-        graphics=graphics_analyzer.get_graphics_info(),
-        network=network_analyzer.get_network_info(),
-        pci=pci_analyzer.get_pci_info(),
-        usb=usb_analyzer.get_usb_info(),
-    )
+    # List of analyzer instances and the corresponding attribute name in HardwareInfo
+    analyzers = [
+        (CPUAnalyzer(), "cpu"),
+        (MemoryAnalyzer(), "memory"),
+        (StorageAnalyzer(), "storage"),
+        (GraphicsAnalyzer(), "graphics"),
+        (NetworkAnalyzer(), "network"),
+        (PCIAnalyzer(), "pci"),
+        (USBAnalyzer(), "usb"),
+    ]
+
+    for analyzer, component_name in analyzers:
+        try:
+            # The method name is consistently get_<component>_info
+            method_name = f"get_{component_name}_info"
+            data = getattr(analyzer, method_name)()
+            setattr(info, component_name, data)
+        except Exception as e:
+            error_msg = f"Failed to get {component_name} info: {e}"
+            logger.error(error_msg)
+            # Set an error message in the corresponding field
+            setattr(info, component_name, {"error": error_msg})
+
+    return dataclasses.asdict(info)
