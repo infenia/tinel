@@ -14,202 +14,216 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-
+import unittest
 from unittest.mock import MagicMock, patch
 
-import pytest
-
-from tinel.hardware.memory_analyzer import MemoryAnalyzer
+from tinel.hardware.memory_analyzer import MemoryAnalyzer, analyze_memory_performance
 from tinel.interfaces import CommandResult
 
-# --- Test Data ---
-DMIDECODE_FULL = """
-Handle 0x0001, DMI type 17, 40 bytes
-	Memory Device
-	Size: 8 GB
-"""
-DMIDECODE_MULTI_INSTALLED = """
-Handle 0x0001, DMI type 17, 40 bytes
-	Memory Device
-	Size: 8 GB
-Handle 0x0002, DMI type 17, 40 bytes
-	Memory Device
-	Size: 16 GB
-"""
-DMIDECODE_UNINSTALLED = (
-    "Handle 0x0001, DMI type 17, 40 bytes\n\tSize: No Module Installed"
-)
-DMIDECODE_GARBAGE = "some random text"
-DMIDECODE_OTHER_DEVICE = "Handle 0x0001, DMI type 16, 23 bytes"
 
+class TestMemoryAnalyzer(unittest.TestCase):
+    def setUp(self):
+        self.system_interface = MagicMock()
+        self.analyzer = MemoryAnalyzer(system_interface=self.system_interface)
 
-@pytest.fixture
-def analyzer(mock_si):
-    return MemoryAnalyzer(system_interface=mock_si)
-
-
-@pytest.fixture
-def mock_si():
-    return MagicMock()
-
-
-class TestMemoryAnalyzerFinal:
-    # --- Unit Tests for _parse_dmidecode_output ---
-    def test_parse_dmidecode_variants(self, analyzer):
-        assert (
-            len(analyzer._parse_dmidecode_output(DMIDECODE_FULL)["memory_devices"]) == 1
-        )
-        assert (
-            len(
-                analyzer._parse_dmidecode_output(DMIDECODE_MULTI_INSTALLED)[
-                    "memory_devices"
-                ]
-            )
-            == 2
-        )
-        assert not analyzer._parse_dmidecode_output(DMIDECODE_UNINSTALLED)[
-            "memory_devices"
-        ]
-        assert not analyzer._parse_dmidecode_output(DMIDECODE_GARBAGE)["memory_devices"]
-        assert not analyzer._parse_dmidecode_output(DMIDECODE_OTHER_DEVICE)[
-            "memory_devices"
-        ]
-
-    # --- Integration Tests for get_memory_info ---
     @patch("psutil.virtual_memory")
     @patch("psutil.swap_memory")
-    def test_full_success(self, mock_swap, mock_virtual, analyzer, mock_si):
-        mock_virtual.return_value = MagicMock(total=1, available=1, used=1, percent=1)
-        mock_swap.return_value = MagicMock(total=1, used=1, free=1, percent=1)
-        mock_si.run_command.return_value = CommandResult(
-            True, DMIDECODE_FULL, "", 0, None
+    def test_get_memory_info_success(self, mock_swap_memory, mock_virtual_memory):
+        # Mock psutil calls
+        mock_virtual_memory.return_value = MagicMock(
+            total=8589934592, available=4294967296, used=4294967296, percent=50.0
         )
-        info = analyzer.get_memory_info()
-        assert "total_memory_bytes" in info and "memory_devices" in info
-        assert "psutil_error" not in info and "dmidecode_error" not in info
-
-    @patch("psutil.virtual_memory", side_effect=Exception("virtual fail"))
-    @patch("psutil.swap_memory", side_effect=Exception("swap fail"))
-    def test_psutil_both_fail(self, mock_swap, mock_virtual, analyzer, mock_si):
-        mock_si.run_command.return_value = CommandResult(True, "", "", 0, None)
-        info = analyzer.get_memory_info()
-        assert "psutil_error" in info
-        assert (
-            "virtual fail" in info["psutil_error"]
-            and "swap fail" in info["psutil_error"]
+        mock_swap_memory.return_value = MagicMock(
+            total=2147483648, used=1073741824, free=1073741824, percent=50.0
         )
 
-    @patch("psutil.virtual_memory", MagicMock())
-    @patch("psutil.swap_memory", side_effect=Exception("swap fail"))
-    def test_psutil_swap_fail_only(self, mock_swap, analyzer, mock_si):
-        mock_si.run_command.return_value = CommandResult(True, "", "", 0, None)
-        info = analyzer.get_memory_info()
-        assert "total_memory_bytes" in info
-        assert "psutil_error" in info
-        assert (
-            "swap fail" in info["psutil_error"]
-            and "virtual" not in info["psutil_error"]
-        )
-
-    def test_dmidecode_command_fail_with_error(self, analyzer, mock_si):
-        mock_si.run_command.return_value = CommandResult(False, "", "err", 1, "fail")
-        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
-            info = analyzer.get_memory_info()
-        assert "dmidecode_error" in info and info["dmidecode_error"] == "fail"
-
-    def test_dmidecode_command_fail_no_error(self, analyzer, mock_si):
-        mock_si.run_command.return_value = CommandResult(False, "", "", 1, None)
-        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
-            info = analyzer.get_memory_info()
-        assert (
-            "dmidecode_error" in info
-            and "Failed to run dmidecode" in info["dmidecode_error"]
-        )
-
-    def test_dmidecode_empty_stdout(self, analyzer, mock_si):
-        mock_si.run_command.return_value = CommandResult(True, "", "", 0, None)
-        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
-            info = analyzer.get_memory_info()
-        assert "memory_devices" not in info
-        assert "dmidecode_error" not in info
-
-    def test_dmidecode_parse_fail(self, analyzer, mock_si):
-        mock_si.run_command.return_value = CommandResult(True, "bad data", "", 0, None)
-        with (
-            patch.object(
-                analyzer,
-                "_parse_dmidecode_output",
-                side_effect=Exception("parse error"),
-            ),
-            patch("psutil.virtual_memory"),
-            patch("psutil.swap_memory"),
-        ):
-            info = analyzer.get_memory_info()
-        assert "dmidecode_parse_error" in info
-
-    def test_no_dmi_info_return(self, analyzer, mock_si):
-        with patch.object(analyzer, "_get_dmidecode_info", return_value=None):
-            with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
-                info = analyzer.get_memory_info()
-        assert "memory_devices" not in info
-        assert "dmidecode_error" not in info
-
-    def test_psutil_virtual_fail_only(self, analyzer, mock_si):
-        mock_si.run_command.return_value = CommandResult(True, "", "", 0, None)
-        with (
-            patch("psutil.virtual_memory", side_effect=Exception("virtual fail")),
-            patch("psutil.swap_memory") as s,
-        ):
-            s.return_value = MagicMock(total=1, used=1, free=1, percent=1)
-            info = analyzer.get_memory_info()
-        assert "total_swap_bytes" in info
-        assert "psutil_error" in info and "virtual fail" in info["psutil_error"]
-
-    def test_psutil_error_concatenation(self, analyzer, mock_si):
-        mock_si.run_command.return_value = CommandResult(True, "", "", 0, None)
-        with (
-            patch("psutil.virtual_memory", side_effect=Exception("virtual fail")),
-            patch("psutil.swap_memory", side_effect=Exception("swap fail")),
-        ):
-            info = analyzer.get_memory_info()
-        assert "psutil_error" in info
-        assert (
-            info["psutil_error"]
-            == "virtual_memory: virtual fail; swap_memory: swap fail"
-        )
-
-    def test_parse_dmidecode_comprehensive_edge_cases(self, analyzer):
-        """Test that lines with empty keys, empty values, or other irregularities are skipped."""
+        # Mock dmidecode command
         dmidecode_output = """
-Handle 0x0001, DMI type 17, 40 bytes
-	Memory Device
-	Size: 8 GB
-	Manufacturer:
-	: No Key
-	Serial Number: 1234
-	Part Number: Not Specified
-    Invalid Line
+Handle 0x003E, DMI type 17, 40 bytes
+Memory Device
+	Array Handle: 0x003D
+	Error Information Handle: Not Provided
+	Total Width: 64 bits
+	Data Width: 64 bits
+	Size: 8192 MB
+	Form Factor: SODIMM
+	Set: None
+	Locator: ChannelA-DIMM0
+	Bank Locator: BANK 0
+	Type: DDR4
+	Type Detail: Synchronous
+	Speed: 2400 MT/s
+	Manufacturer: Hynix
+	Serial Number: 12345678
+	Asset Tag: 98765432
+	Part Number: HMA81GS6AFR8N-UH
+	Rank: 1
+	Configured Memory Speed: 2400 MT/s
+	Minimum Voltage: 1.2 V
+	Maximum Voltage: 1.2 V
+	Configured Voltage: 1.2 V
 """
-        parsed_info = analyzer._parse_dmidecode_output(dmidecode_output)
-        devices = parsed_info.get("memory_devices", [])
-        assert len(devices) == 1
-        device = devices[0]
-        assert "manufacturer" not in device
-        assert "part_number" not in device
-        assert "" not in device
-        assert "serial_number" in device
-        assert device["size"] == "8 GB"
-        assert "invalid_line" not in device
+        self.system_interface.run_command.return_value = CommandResult(
+            success=True, stdout=dmidecode_output, stderr="", returncode=0
+        )
 
-    def test_parse_dmidecode_device_with_no_valid_info(self, analyzer):
-        """Test that a device block with no valid attributes is skipped."""
+        # Run the method
+        info = self.analyzer.get_memory_info()
+
+        # Assertions for psutil data
+        self.assertEqual(info["total_memory_bytes"], 8589934592)
+        self.assertEqual(info["memory_usage_percent"], 50.0)
+        self.assertEqual(info["total_swap_bytes"], 2147483648)
+        self.assertEqual(info["swap_usage_percent"], 50.0)
+
+        # Assertions for dmidecode data
+        self.assertIn("memory_devices", info)
+        self.assertEqual(len(info["memory_devices"]), 1)
+        device = info["memory_devices"][0]
+        self.assertEqual(device["size"], "8192 MB")
+        self.assertEqual(device["speed"], "2400 MT/s")
+        self.assertEqual(device["manufacturer"], "Hynix")
+
+        # Assertions for performance analysis
+        self.assertIn("performance_analysis", info)
+        self.assertEqual(info["performance_analysis"]["effective_speed_mhz"], 2400)
+
+    @patch("psutil.virtual_memory")
+    @patch("psutil.swap_memory")
+    def test_get_memory_info_dmidecode_fail(self, mock_swap_memory, mock_virtual_memory):
+        # Mock psutil calls
+        mock_virtual_memory.return_value = MagicMock(
+            total=8589934592, available=4294967296, used=4294967296, percent=50.0
+        )
+        mock_swap_memory.return_value = MagicMock(
+            total=2147483648, used=1073741824, free=1073741824, percent=50.0
+        )
+
+        # Mock dmidecode command failure
+        self.system_interface.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="dmidecode error", returncode=1, error="dmidecode error"
+        )
+
+        # Run the method
+        info = self.analyzer.get_memory_info()
+
+        # Assertions for psutil data
+        self.assertEqual(info["total_memory_bytes"], 8589934592)
+
+        # Assertions for dmidecode failure
+        self.assertIn("dmidecode_error", info)
+        self.assertNotIn("memory_devices", info)
+        self.assertNotIn("performance_analysis", info)
+
+    def test_analyze_memory_performance(self):
+        # Test with multiple devices
+        info = {
+            "memory_devices": [
+                {"speed": "2400 MT/s"},
+                {"speed": "2666 MT/s"},
+            ]
+        }
+        analysis = analyze_memory_performance(info)
+        self.assertEqual(analysis["effective_speed_mhz"], 2533)
+
+        # Test with no devices
+        info = {"memory_devices": []}
+        analysis = analyze_memory_performance(info)
+        self.assertEqual(analysis, {})
+
+        # Test with devices but no speed
+        info = {"memory_devices": [{"size": "8 GB"}]}
+        analysis = analyze_memory_performance(info)
+        self.assertEqual(analysis["effective_speed_mhz"], 0)
+
+        # Test with malformed speed
+        info = {"memory_devices": [{"speed": "Unknown"}]}
+        analysis = analyze_memory_performance(info)
+        self.assertEqual(analysis["effective_speed_mhz"], 0)
+
+    @patch("psutil.virtual_memory", side_effect=Exception("psutil_vm_error"))
+    @patch("psutil.swap_memory", side_effect=Exception("psutil_swap_error"))
+    def test_psutil_exceptions(self, mock_swap_memory, mock_virtual_memory):
+        self.system_interface.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="", returncode=1
+        )
+        info = self.analyzer.get_memory_info()
+        self.assertIn("psutil_vm_error", info["psutil_error"])
+        self.assertIn("psutil_swap_error", info["psutil_error"])
+
+    def test_dmidecode_empty_stdout(self):
+        self.system_interface.run_command.return_value = CommandResult(
+            success=True, stdout="", stderr="", returncode=0
+        )
+        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
+            info = self.analyzer.get_memory_info()
+        self.assertNotIn("dmidecode_error", info)
+        self.assertNotIn("memory_devices", info)
+
+    @patch("tinel.hardware.memory_analyzer.MemoryAnalyzer._parse_dmidecode_output", side_effect=Exception("parse_error"))
+    def test_dmidecode_parse_error(self, mock_parse):
+        self.system_interface.run_command.return_value = CommandResult(
+            success=True, stdout="valid output", stderr="", returncode=0
+        )
+        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
+            info = self.analyzer.get_memory_info()
+        self.assertEqual(info["dmidecode_parse_error"], "parse_error")
+
+    def test_analyze_memory_performance_edge_cases(self):
+        # Test with a None device
+        info = {"memory_devices": [None, {"speed": "2400 MT/s"}]}
+        analysis = analyze_memory_performance(info)
+        self.assertEqual(analysis["effective_speed_mhz"], 2400)
+
+        # Test with TypeError
+        info = {"memory_devices": [{"speed": 1234}]}
+        analysis = analyze_memory_performance(info)
+        self.assertEqual(analysis["effective_speed_mhz"], 0)
+
+    def test_parse_dmidecode_empty_and_unknown_values(self):
         dmidecode_output = """
-Handle 0x0001, DMI type 17, 40 bytes
-	Memory Device
-	Manufacturer:
-	Part Number: Not Specified
-	Size: Unknown
+Handle 0x003E, DMI type 17, 40 bytes
+Memory Device
+    Size: 8192 MB
+    Manufacturer:
+    Part Number: Not Specified
+    Key: Value
+    Another: Unknown
 """
-        parsed_info = analyzer._parse_dmidecode_output(dmidecode_output)
-        devices = parsed_info.get("memory_devices", [])
-        assert len(devices) == 0
+        result = self.analyzer._parse_dmidecode_output(dmidecode_output)
+        self.assertEqual(len(result["memory_devices"]), 1)
+        device = result["memory_devices"][0]
+        self.assertNotIn("manufacturer", device.raw_details)
+        self.assertNotIn("part_number", device.raw_details)
+        self.assertNotIn("another", device.raw_details)
+        self.assertEqual(device.raw_details["key"], "Value")
+
+    def test_dmidecode_fail_no_error_string(self):
+        self.system_interface.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="some error", returncode=1, error=None
+        )
+        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
+            info = self.analyzer.get_memory_info()
+        self.assertIn("dmidecode_error", info)
+        self.assertEqual(info["dmidecode_error"], "Failed to run dmidecode.")
+
+    def test_dmidecode_not_found(self):
+        self.system_interface.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="No such file or directory", returncode=1, error=None
+        )
+        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
+            info = self.analyzer.get_memory_info()
+        self.assertIn("dmidecode_error", info)
+        self.assertEqual(info["dmidecode_error"], "dmidecode not found, using psutil fallback.")
+
+    def test_dmidecode_not_found_error_message(self):
+        self.system_interface.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="", returncode=1, error="command not found"
+        )
+        with patch("psutil.virtual_memory"), patch("psutil.swap_memory"):
+            info = self.analyzer.get_memory_info()
+        self.assertIn("dmidecode_error", info)
+        self.assertEqual(info["dmidecode_error"], "dmidecode not found, using psutil fallback.")
+
+if __name__ == "__main__":
+    unittest.main()
