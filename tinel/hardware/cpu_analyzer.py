@@ -431,7 +431,14 @@ class CPUAnalyzer:
         lscpu_flags = info.get("lscpu_flags", [])
 
         # Check for specific optimization flags
-        performance_info["avx2_supported"] = "avx2" in lscpu_flags
+        optimizations = {
+            "avx_supported": "avx" in lscpu_flags,
+            "avx2_supported": "avx2" in lscpu_flags,
+            "avx512f_supported": "avx512f" in lscpu_flags,
+            "sse4_1_supported": "sse4_1" in lscpu_flags,
+            "sse4_2_supported": "sse4_2" in lscpu_flags,
+        }
+        performance_info["optimizations"] = optimizations
 
         # Get CPU frequency using psutil as a fallback or primary source
         try:
@@ -447,6 +454,24 @@ class CPUAnalyzer:
         except Exception as e:
             # Catch any other unexpected errors from psutil
             performance_info["psutil_cpu_frequency_error"] = (
+                f"An unexpected error occurred: {e}"
+            )
+
+        # Get CPU stats using psutil
+        try:
+            stats = psutil.cpu_stats()
+            if stats:
+                performance_info["psutil_cpu_stats"] = {
+                    "context_switches": stats.ctx_switches,
+                    "interrupts": stats.interrupts,
+                    "soft_interrupts": stats.soft_interrupts,
+                    "syscalls": stats.syscalls,
+                }
+        except (AttributeError, NotImplementedError, PermissionError) as e:
+            performance_info["psutil_cpu_stats_error"] = str(e)
+        except Exception as e:
+            # Catch any other unexpected errors from psutil
+            performance_info["psutil_cpu_stats_error"] = (
                 f"An unexpected error occurred: {e}"
             )
 
