@@ -270,18 +270,16 @@ class TestDeviceAnalyzerIntegration:
     @patch("tinel.hardware.device_analyzer.GraphicsAnalyzer")
     @patch("tinel.hardware.device_analyzer.PCIAnalyzer")
     @patch("tinel.hardware.device_analyzer.USBAnalyzer")
-    def test_get_all_hardware_info(
-        self,
-        mock_usb_class,
-        mock_pci_class,
-        mock_graphics_class,
-        mock_network_class,
-        mock_memory_class,
-        mock_cpu_class,
-    ):
+    def test_get_all_hardware_info(self, *mocks):
         """Test getting all hardware information."""
-        from tinel.hardware import HardwareInfo as RealHardwareInfo
-
+        (
+            mock_usb_class,
+            mock_pci_class,
+            mock_graphics_class,
+            mock_network_class,
+            mock_memory_class,
+            mock_cpu_class,
+        ) = mocks
         # Mock data from each analyzer
         mock_cpu_class.return_value.get_cpu_info.return_value = {"cpu": "data"}
         mock_memory_class.return_value.get_memory_info.return_value = {"memory": "data"}
@@ -311,7 +309,7 @@ class TestDeviceAnalyzerIntegration:
             hardware_info = device_analyzer.get_all_hardware_info()
 
             # Verify structure and data
-            assert isinstance(hardware_info, RealHardwareInfo)
+            assert isinstance(hardware_info, HardwareInfo)
             assert hardware_info.cpu == {"cpu": "data"}
             assert hardware_info.memory == {"memory": "data"}
             assert hardware_info.network == {"network": "data"}

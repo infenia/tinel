@@ -17,31 +17,33 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
-import unittest
-from unittest.mock import patch, MagicMock
 
-from tinel.hardware import get_all_hardware_info, HardwareInfo, PCIInfo, USBInfo
+import unittest
+from unittest.mock import patch
+
+from tinel.hardware import HardwareInfo, PCIInfo, USBInfo, get_all_hardware_info
 
 
 class TestGetAllHardwareInfo(unittest.TestCase):
-    @patch('tinel.hardware.CPUAnalyzer')
-    @patch('tinel.hardware.MemoryAnalyzer')
-    @patch('tinel.hardware.StorageAnalyzer')
-    @patch('tinel.hardware.GraphicsAnalyzer')
-    @patch('tinel.hardware.NetworkAnalyzer')
-    @patch('tinel.hardware.PCIAnalyzer')
-    @patch('tinel.hardware.USBAnalyzer')
-    def test_get_all_hardware_info_assembles_correctly(
-        self,
-        MockUSBAnalyzer,
-        MockPCIAnalyzer,
-        MockNetworkAnalyzer,
-        MockGraphicsAnalyzer,
-        MockStorageAnalyzer,
-        MockMemoryAnalyzer,
-        MockCPUAnalyzer,
-    ):
+    @patch("tinel.hardware.USBAnalyzer")
+    @patch("tinel.hardware.PCIAnalyzer")
+    @patch("tinel.hardware.NetworkAnalyzer")
+    @patch("tinel.hardware.GraphicsAnalyzer")
+    @patch("tinel.hardware.StorageAnalyzer")
+    @patch("tinel.hardware.MemoryAnalyzer")
+    @patch("tinel.hardware.CPUAnalyzer")
+    def test_get_all_hardware_info_assembles_correctly(self, *mocks):
         # Arrange: Setup mock return values for each analyzer's get_*_info method
+        (
+            mock_cpu_analyzer,
+            mock_memory_analyzer,
+            mock_storage_analyzer,
+            mock_graphics_analyzer,
+            mock_network_analyzer,
+            mock_pci_analyzer,
+            mock_usb_analyzer,
+        ) = mocks
+
         mock_cpu_info = {"cores": 8}
         mock_mem_info = {"total": "16GB"}
         mock_storage_info = {"disks": ["sda"]}
@@ -50,13 +52,19 @@ class TestGetAllHardwareInfo(unittest.TestCase):
         mock_pci_info = PCIInfo(devices=[{"slot": "00:01.0"}])
         mock_usb_info = USBInfo(tree={"root_hubs": []})
 
-        MockCPUAnalyzer.return_value.get_cpu_info.return_value = mock_cpu_info
-        MockMemoryAnalyzer.return_value.get_memory_info.return_value = mock_mem_info
-        MockStorageAnalyzer.return_value.get_storage_info.return_value = mock_storage_info
-        MockGraphicsAnalyzer.return_value.get_graphics_info.return_value = mock_graphics_info
-        MockNetworkAnalyzer.return_value.get_network_info.return_value = mock_network_info
-        MockPCIAnalyzer.return_value.get_pci_info.return_value = mock_pci_info
-        MockUSBAnalyzer.return_value.get_usb_info.return_value = mock_usb_info
+        mock_cpu_analyzer.return_value.get_cpu_info.return_value = mock_cpu_info
+        mock_memory_analyzer.return_value.get_memory_info.return_value = mock_mem_info
+        mock_storage_analyzer.return_value.get_storage_info.return_value = (
+            mock_storage_info
+        )
+        mock_graphics_analyzer.return_value.get_graphics_info.return_value = (
+            mock_graphics_info
+        )
+        mock_network_analyzer.return_value.get_network_info.return_value = (
+            mock_network_info
+        )
+        mock_pci_analyzer.return_value.get_pci_info.return_value = mock_pci_info
+        mock_usb_analyzer.return_value.get_usb_info.return_value = mock_usb_info
 
         # Act: Call the function under test
         hardware_info = get_all_hardware_info()
@@ -72,33 +80,20 @@ class TestGetAllHardwareInfo(unittest.TestCase):
         self.assertEqual(hardware_info.usb, mock_usb_info)
 
         # Assert: Verify that each analyzer's get_*_info method was called once
-        MockCPUAnalyzer.return_value.get_cpu_info.assert_called_once()
-        MockMemoryAnalyzer.return_value.get_memory_info.assert_called_once()
-        MockStorageAnalyzer.return_value.get_storage_info.assert_called_once()
-        MockGraphicsAnalyzer.return_value.get_graphics_info.assert_called_once()
-        MockNetworkAnalyzer.return_value.get_network_info.assert_called_once()
-        MockPCIAnalyzer.return_value.get_pci_info.assert_called_once()
-        MockUSBAnalyzer.return_value.get_usb_info.assert_called_once()
+        mock_cpu_analyzer.return_value.get_cpu_info.assert_called_once()
+        mock_memory_analyzer.return_value.get_memory_info.assert_called_once()
+        mock_storage_analyzer.return_value.get_storage_info.assert_called_once()
+        mock_graphics_analyzer.return_value.get_graphics_info.assert_called_once()
+        mock_network_analyzer.return_value.get_network_info.assert_called_once()
+        mock_pci_analyzer.return_value.get_pci_info.assert_called_once()
+        mock_usb_analyzer.return_value.get_usb_info.assert_called_once()
 
-    @patch('tinel.hardware.CPUAnalyzer')
-    @patch('tinel.hardware.MemoryAnalyzer')
-    @patch('tinel.hardware.StorageAnalyzer')
-    @patch('tinel.hardware.GraphicsAnalyzer')
-    @patch('tinel.hardware.NetworkAnalyzer')
-    @patch('tinel.hardware.PCIAnalyzer')
-    @patch('tinel.hardware.USBAnalyzer')
-    def test_get_all_hardware_info_handles_exception(
-        self,
-        MockUSBAnalyzer,
-        MockPCIAnalyzer,
-        MockNetworkAnalyzer,
-        MockGraphicsAnalyzer,
-        MockStorageAnalyzer,
-        MockMemoryAnalyzer,
-        MockCPUAnalyzer,
-    ):
+    @patch("tinel.hardware.CPUAnalyzer")
+    def test_get_all_hardware_info_handles_exception(self, mock_cpu_analyzer):
         # Arrange: Setup one of the analyzers to raise an exception
-        MockCPUAnalyzer.return_value.get_cpu_info.side_effect = Exception("Test Exception")
+        mock_cpu_analyzer.return_value.get_cpu_info.side_effect = Exception(
+            "Test Exception"
+        )
 
         # Act & Assert: Verify that the exception is propagated
         with self.assertRaises(Exception) as context:
@@ -106,5 +101,6 @@ class TestGetAllHardwareInfo(unittest.TestCase):
 
         self.assertTrue("Test Exception" in str(context.exception))
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     unittest.main()

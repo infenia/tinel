@@ -15,14 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module provides a flexible and extensible output formatting system.
-
-It includes a variety of formatters (Text, JSON, YAML, CSV) and a color
-utility for creating user-friendly and machine-readable output. The module is
-designed to be easily extensible with new formatters and provides a
-centralized `OutputFormatter` class to manage the formatting process.
-"""
-
 import csv
 import json
 import os
@@ -31,6 +23,14 @@ from abc import ABC, abstractmethod
 from enum import Enum
 from io import StringIO
 from typing import Any, Dict, List, Optional, TextIO
+
+"""This module provides a flexible and extensible output formatting system.
+
+It includes a variety of formatters (Text, JSON, YAML, CSV) and a color
+utility for creating user-friendly and machine-readable output. The module is
+designed to be easily extensible with new formatters and provides a
+centralized `OutputFormatter` class to manage the formatting process.
+"""
 
 try:
     import yaml

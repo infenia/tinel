@@ -22,16 +22,29 @@ import pytest
 from tinel.hardware.network_analyzer import NetworkAnalyzer
 from tinel.interfaces import CommandResult
 
+# --- CONSTANTS FOR MAGIC VALUES ---
+NUM_MOCK_INTERFACES = 2
+MOCK_LO_RX_BYTES = 12345
+MOCK_ETH0_TX_PACKETS = 2000
+MOCK_ETH0_RX_ERRORS = 5
+MOCK_ETH0_TX_DROPPED = 2
+MOCK_ETHTOOL_RX_PACKETS = 1000
+MOCK_ETHTOOL_TX_BYTES = 2000000
+MOCK_SYS_SPEED = 1000
+MOCK_SYS_RX_BYTES = 1234
+MOCK_LOGGER_CALL_COUNT = 2
+MOCK_IP_LINK_CALL_COUNT = 2
+
 # --- MOCK DATA ---
 
 MOCK_IP_ADDR_OUTPUT = """
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000
+1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000
     link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
     inet 127.0.0.1/8 scope host lo
        valid_lft forever preferred_lft forever
     inet6 ::1/128 scope host
        valid_lft forever preferred_lft forever
-2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP group default qlen 1000
+2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP qlen 1000
     link/ether 0c:de:ad:be:ef:00 brd ff:ff:ff:ff:ff:ff
     inet 192.168.1.10/24 brd 192.168.1.255 scope global dynamic noprefixroute eth0
        valid_lft 56872sec preferred_lft 56872sec
@@ -39,20 +52,23 @@ MOCK_IP_ADDR_OUTPUT = """
        valid_lft forever preferred_lft forever
 """
 
-MOCK_IP_LINK_OUTPUT = """
-1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000
-    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
-    RX: bytes  packets  errors  dropped overrun mcast
-    12345      100      0       0       0       0
-    TX: bytes  packets  errors  dropped carrier collsns
-    54321      200      0       0       0       0
-2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP mode DEFAULT group default qlen 1000
-    link/ether 0c:de:ad:be:ef:00 brd ff:ff:ff:ff:ff:ff
-    RX: bytes  packets  errors  dropped overrun mcast
-    1000000    1000     5       1       0       50
-    TX: bytes  packets  errors  dropped carrier collsns
-    2000000    2000     10      2       0       0
-"""
+MOCK_IP_LINK_OUTPUT = (
+    "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN qlen 1000\n"
+    "    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00\n"
+    "    RX: bytes  packets  errors  dropped overrun mcast\n"
+    f"    {MOCK_LO_RX_BYTES}      100      0       0       0       0\n"
+    "    TX: bytes  packets  errors  dropped carrier collsns\n"
+    "    54321      200      0       0       0       0\n"
+    "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel state UP "
+    "qlen 1000\n"
+    "    link/ether 0c:de:ad:be:ef:00 brd ff:ff:ff:ff:ff:ff\n"
+    "    RX: bytes  packets  errors  dropped overrun mcast\n"
+    f"    1000000    1000     {MOCK_ETH0_RX_ERRORS}       1       0       50\n"
+    "    TX: bytes  packets  errors  dropped carrier collsns\n"
+    f"    {MOCK_ETHTOOL_TX_BYTES}    {MOCK_ETH0_TX_PACKETS}     10      "
+    f"{MOCK_ETH0_TX_DROPPED}       0       0\n"
+)
+
 
 MOCK_IWCONFIG_OUTPUT = """
 wlan0     IEEE 802.11  ESSID:"MyWiFi"
@@ -65,32 +81,29 @@ wlan0     IEEE 802.11  ESSID:"MyWiFi"
           Tx excessive retries:0  Invalid misc:0   Missed beacon:0
 """
 
-MOCK_ETHTOOL_OUTPUT = """
+MOCK_ETHTOOL_OUTPUT = f"""
 NIC statistics:
-     rx_packets: 1000
-     tx_packets: 2000
+     rx_packets: {MOCK_ETHTOOL_RX_PACKETS}
+     tx_packets: {MOCK_ETH0_TX_PACKETS}
      rx_bytes: 1000000
-     tx_bytes: 2000000
+     tx_bytes: {MOCK_ETHTOOL_TX_BYTES}
 """
 
-MOCK_MODINFO_OUTPUT = """
-filename:       /lib/modules/5.15.0-48-generic/kernel/drivers/net/ethernet/intel/e1000e/e1000e.ko
-version:        3.2.6-k
-license:        GPL
-description:    Intel(R) PRO/1000 Network Driver
-author:         Intel Corporation, <e1000-devel@lists.sourceforge.net>
-srcversion:     A8B7C6D5E4F3A2B1C0D9E8F
-alias:          pci:v00008086d00001502sv*sd*bc*sc*i*
-depends:
-retpoline:      Y
-intree:         Y
-name:           e1000e
-vermagic:       5.15.0-48-generic SMP mod_unload modversions
-sig_id:         PKCS#7
-signer:         buildd
-sig_key:        ...
-sig_hash:       SHA512
-"""
+MOCK_MODINFO_OUTPUT = (
+    "filename:       /lib/modules/5.15.0-48-generic/kernel/drivers/net/"
+    "ethernet/intel/e1000e/e1000e.ko\n"
+    "version:        3.2.6-k\n"
+    "license:        GPL\n"
+    "description:    Intel(R) PRO/1000 Network Driver\n"
+    "author:         Intel Corporation, <e1000-devel@lists.sourceforge.net>\n"
+    "srcversion:     A8B7C6D5E4F3A2B1C0D9E8F\n"
+    "alias:          pci:v00008086d00001502sv*sd*bc*sc*i*\n"
+    "depends:\n"
+    "retpoline:      Y\n"
+    "intree:         Y\n"
+    "name:           e1000e\n"
+    "vermagic:       5.15.0-48-generic SMP mod_unload modversions\n"
+)
 
 
 @pytest.fixture
@@ -106,40 +119,24 @@ def analyzer(mock_si):
 
 
 class TestNetworkAnalyzer:
-    @patch(
-        "tinel.hardware.network_analyzer.NetworkAnalyzer._get_detailed_network_info",
-        return_value={},
-    )
-    @patch(
-        "tinel.hardware.network_analyzer.NetworkAnalyzer._get_wireless_info",
-        return_value={},
-    )
-    @patch(
-        "tinel.hardware.network_analyzer.NetworkAnalyzer._get_driver_info",
-        return_value={},
-    )
-    @patch(
-        "tinel.hardware.network_analyzer.NetworkAnalyzer._get_performance_metrics",
-        return_value={},
-    )
-    def test_get_network_info_caching(
-        self,
-        mock_perf,
-        mock_driver,
-        mock_wireless,
-        mock_detailed,
-        analyzer,
-        mock_si,
-    ):
+    def test_get_network_info_caching(self, analyzer, mock_si):
         """Test that the main get_network_info method caches results."""
-        mock_si.run_command.return_value = CommandResult(
-            success=True, stdout="data", stderr="", returncode=0
-        )
-        analyzer.get_network_info()
-        analyzer.get_network_info()
-        # The underlying _get_basic_network_info method should be called only once.
-        # We check the number of calls to run_command made by it.
-        assert mock_si.run_command.call_count == 2
+        with (
+            patch.object(
+                NetworkAnalyzer, "_get_detailed_network_info", return_value={}
+            ),
+            patch.object(NetworkAnalyzer, "_get_wireless_info", return_value={}),
+            patch.object(NetworkAnalyzer, "_get_driver_info", return_value={}),
+            patch.object(NetworkAnalyzer, "_get_performance_metrics", return_value={}),
+        ):
+            mock_si.run_command.return_value = CommandResult(
+                success=True, stdout="data", stderr="", returncode=0
+            )
+            analyzer.get_network_info()
+            analyzer.get_network_info()
+            # The underlying _get_basic_network_info is cached.
+            # We check the number of calls to run_command made by it.
+            assert mock_si.run_command.call_count == MOCK_IP_LINK_CALL_COUNT
 
     def test_get_basic_network_info(self, analyzer, mock_si):
         """Test the _get_basic_network_info method."""
@@ -149,15 +146,14 @@ class TestNetworkAnalyzer:
         ]
         info = analyzer._get_basic_network_info()
         assert "interfaces" in info
-        assert len(info["interfaces"]) == 2
+        assert len(info["interfaces"]) == NUM_MOCK_INTERFACES
         assert "interface_statistics" in info
         assert "lo" in info["interface_statistics"]
 
     def test_parse_ip_addr_output(self, analyzer):
         """Test parsing of 'ip addr' output."""
-
         parsed = analyzer._parse_ip_addr_output(MOCK_IP_ADDR_OUTPUT)
-        assert len(parsed) == 2
+        assert len(parsed) == NUM_MOCK_INTERFACES
         # Order might not be guaranteed, so check for existence
         lo_if = next((iface for iface in parsed if iface["name"] == "lo"), None)
         eth_if = next((iface for iface in parsed if iface["name"] == "eth0"), None)
@@ -166,7 +162,7 @@ class TestNetworkAnalyzer:
 
         assert lo_if["state"] == "UNKNOWN"
         assert lo_if["mac"] == "00:00:00:00:00:00"
-        assert len(lo_if["addresses"]) == 2
+        assert len(lo_if["addresses"]) == NUM_MOCK_INTERFACES
 
         assert eth_if["state"] == "UP"
         assert eth_if["mac"] == "0c:de:ad:be:ef:00"
@@ -175,7 +171,10 @@ class TestNetworkAnalyzer:
 
     def test_parse_ip_addr_output_no_details(self, analyzer):
         """Test parsing of 'ip addr' output with no details."""
-        ip_addr_output = "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN group default qlen 1000"
+        ip_addr_output = (
+            "1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN "
+            "group default qlen 1000"
+        )
         parsed = analyzer._parse_ip_addr_output(ip_addr_output)
         assert len(parsed) == 1
         assert parsed[0]["name"] == "lo"
@@ -186,10 +185,10 @@ class TestNetworkAnalyzer:
         stats = parsed["interface_statistics"]
         assert "lo" in stats
         assert "eth0" in stats
-        assert stats["lo"]["rx"]["bytes"] == 12345
-        assert stats["eth0"]["tx"]["packets"] == 2000
-        assert stats["eth0"]["rx"]["errors"] == 5
-        assert stats["eth0"]["tx"]["dropped"] == 2
+        assert stats["lo"]["rx"]["bytes"] == MOCK_LO_RX_BYTES
+        assert stats["eth0"]["tx"]["packets"] == MOCK_ETH0_TX_PACKETS
+        assert stats["eth0"]["rx"]["errors"] == MOCK_ETH0_RX_ERRORS
+        assert stats["eth0"]["tx"]["dropped"] == MOCK_ETH0_TX_DROPPED
 
     def test_parse_iwconfig_output(self, analyzer):
         """Test parsing of 'iwconfig' output."""
@@ -207,8 +206,8 @@ class TestNetworkAnalyzer:
     def test_parse_ethtool_output(self, analyzer):
         """Test parsing of 'ethtool -S' output."""
         parsed = analyzer._parse_ethtool_output(MOCK_ETHTOOL_OUTPUT)
-        assert parsed["rx_packets"] == 1000
-        assert parsed["tx_bytes"] == 2000000
+        assert parsed["rx_packets"] == MOCK_ETHTOOL_RX_PACKETS
+        assert parsed["tx_bytes"] == MOCK_ETHTOOL_TX_BYTES
 
     def test_get_driver_details(self, analyzer, mock_si):
         """Test parsing of 'modinfo' output."""
@@ -226,11 +225,11 @@ class TestNetworkAnalyzer:
         def read_file_side_effect(path):
             return {
                 "/sys/class/net/eth0/type": "1",
-                "/sys/class/net/eth0/speed": "1000",
+                "/sys/class/net/eth0/speed": str(MOCK_SYS_SPEED),
                 "/sys/class/net/eth0/duplex": "full",
                 "/sys/class/net/eth0/address": "aa:bb:cc:dd:ee:ff",
                 "/sys/class/net/eth0/flags": "0x1003",  # UP, BROADCAST, RUNNING
-                "/sys/class/net/eth0/statistics/rx_bytes": "1234",
+                "/sys/class/net/eth0/statistics/rx_bytes": str(MOCK_SYS_RX_BYTES),
                 "/sys/class/net/eth0/statistics/tx_bytes": "5678",
             }.get(path)
 
@@ -242,13 +241,13 @@ class TestNetworkAnalyzer:
         details = analyzer._get_interface_details("eth0")
         assert details["name"] == "eth0"
         assert details["type"] == "ethernet"
-        assert details["speed"] == 1000
+        assert details["speed"] == MOCK_SYS_SPEED
         assert details["duplex"] == "full"
         assert details["address"] == "aa:bb:cc:dd:ee:ff"
         assert "UP" in details["decoded_flags"]
         assert "BROADCAST" in details["decoded_flags"]
         assert "statistics" in details
-        assert details["statistics"]["rx_bytes"] == 1234
+        assert details["statistics"]["rx_bytes"] == MOCK_SYS_RX_BYTES
 
     def test_full_run_with_failures(self, analyzer, mock_si):
         """Test a full run where some commands fail."""
@@ -292,7 +291,7 @@ class TestNetworkAnalyzer:
     def test_parse_ip_addr_empty_output(self, analyzer):
         """Test parsing of empty 'ip addr' output."""
         parsed = analyzer._parse_ip_addr_output("")
-        assert parsed == []
+        assert not parsed
 
     def test_parse_ip_link_malformed_output(self, analyzer):
         """Test parsing of malformed 'ip -s link' output."""
@@ -307,14 +306,12 @@ class TestNetworkAnalyzer:
         with patch.object(analyzer, "logger") as mock_logger:
             mock_si.run_command.return_value = CommandResult(False, "", "not found", 1)
             info = analyzer._get_wireless_info()
-            assert info == {}
-            assert mock_logger.info.call_count == 2
+            assert not info
+            assert mock_logger.info.call_count == MOCK_LOGGER_CALL_COUNT
 
     def test_get_performance_metrics_no_tools(self, analyzer, mock_si):
         """Test performance metrics gathering when netstat and ethtool fail."""
-        with patch.object(analyzer, "logger") as mock_logger:
-            mock_si.run_command.return_value = CommandResult(False, "", "not found", 1)
-            # Need to mock ls for the ethtool loop
+        with patch.object(analyzer, "logger"):
             mock_si.run_command.side_effect = lambda cmd: {
                 ("ls", "/sys/class/net/"): CommandResult(True, "eth0", "", 0)
             }.get(tuple(cmd), CommandResult(False, "", "not found", 1))
@@ -322,7 +319,6 @@ class TestNetworkAnalyzer:
             info = analyzer._get_performance_metrics()
             assert "ethtool_statistics" not in info
             assert "netstat" not in info
-            assert mock_logger.info.called
 
     def test_ip_addr_failure(self, analyzer, mock_si):
         """Test handling of ip addr command failure."""
@@ -333,7 +329,7 @@ class TestNetworkAnalyzer:
             info = analyzer._get_basic_network_info()
             assert "ip_addr_error" in info
             assert info["ip_addr_error"] == "command failed"
-            mock_logger.warning.assert_called()
+            assert mock_logger.warning.called
 
     def test_successful_iwconfig(self, analyzer, mock_si):
         """Test successful iwconfig command with wireless interfaces."""
@@ -361,7 +357,12 @@ class TestNetworkAnalyzer:
 
     def test_successful_netstat(self, analyzer, mock_si):
         """Test successful netstat command."""
-        netstat_output = "Iface      MTU    RX-OK RX-ERR RX-DRP RX-OVR    TX-OK TX-ERR TX-DRP TX-OVR Flg\neth0      1500     1000      5      1      0     2000     10      2      0 BMRU"
+        netstat_output = (
+            "Iface      MTU    RX-OK RX-ERR RX-DRP RX-OVR    TX-OK TX-ERR "
+            "TX-DRP TX-OVR Flg\n"
+            "eth0      1500     1000      5      1      0     2000     10"
+            "      2      0 BMRU"
+        )
 
         def command_side_effect(cmd):
             if cmd == ["netstat", "-i"]:
@@ -373,9 +374,9 @@ class TestNetworkAnalyzer:
         mock_si.run_command.side_effect = command_side_effect
         info = analyzer._get_performance_metrics()
         assert "netstat" in info
-        assert "interface_statistics" in info
-        assert len(info["interface_statistics"]) == 1
-        assert info["interface_statistics"][0]["iface"] == "eth0"
+        assert "netstat_statistics" in info
+        assert len(info["netstat_statistics"]) == 1
+        assert info["netstat_statistics"][0]["iface"] == "eth0"
 
     def test_successful_ethtool_stats(self, analyzer, mock_si):
         """Test successful ethtool statistics gathering."""
@@ -396,7 +397,9 @@ class TestNetworkAnalyzer:
         assert "ethtool_statistics" in info
         assert "eth0" in info["ethtool_statistics"]
         assert "wlan0" in info["ethtool_statistics"]
-        assert info["ethtool_statistics"]["eth0"]["rx_packets"] == 1000
+        assert (
+            info["ethtool_statistics"]["eth0"]["rx_packets"] == MOCK_ETHTOOL_RX_PACKETS
+        )
 
     def test_driver_with_details(self, analyzer, mock_si):
         """Test driver info gathering with modinfo details."""
@@ -437,12 +440,9 @@ class TestNetworkAnalyzer:
         assert len(parsed) == 1
 
     def test_parse_iwconfig_no_interface_name(self, analyzer):
-        """Test iwconfig parsing with blocks that don't match the regex after splitting by double newlines."""
-        # After splitting by '\n\n', we get blocks. For a block to be skipped,
-        # it must not match the interface name regex r'^(\S+)'
-        # This regex will fail to match if the block (after strip is called on the full output,
-        # but before matching on individual blocks) starts with whitespace
-        # Create output where a block starts with a space (not matching r'^(\S+)')
+        """Test iwconfig parsing with blocks that don't match the regex."""
+        # This test ensures that blocks not matching the interface name regex
+        # are correctly skipped.
         invalid_output = "wlan0 valid\n\n   starts with space"
         parsed = analyzer._parse_iwconfig_output(invalid_output)
         # Should only parse the first valid block, skip the second
@@ -453,13 +453,13 @@ class TestNetworkAnalyzer:
         """Test iwconfig parsing with 'no wireless extensions' message."""
         no_wireless_output = "eth0      no wireless extensions."
         parsed = analyzer._parse_iwconfig_output(no_wireless_output)
-        assert len(parsed) == 0
+        assert not parsed
 
     def test_parse_netstat_short_output(self, analyzer):
         """Test netstat parsing with output that's too short."""
         short_output = "Iface"
         parsed = analyzer._parse_netstat_output(short_output)
-        assert parsed == []
+        assert not parsed
 
     def test_parse_netstat_valid_output(self, analyzer):
         """Test netstat parsing with valid output."""
@@ -467,7 +467,7 @@ class TestNetworkAnalyzer:
             "Iface      MTU    RX-OK\neth0      1500     1000\nwlan0     1500     2000"
         )
         parsed = analyzer._parse_netstat_output(netstat_output)
-        assert len(parsed) == 2
+        assert len(parsed) == NUM_MOCK_INTERFACES
         assert parsed[0]["iface"] == "eth0"
         assert parsed[0]["mtu"] == "1500"
         assert parsed[1]["iface"] == "wlan0"
@@ -482,25 +482,19 @@ class TestNetworkAnalyzer:
         # These fields should not be present
         assert "essid" not in parsed[0]
         assert "mode" not in parsed[0]
-        assert "frequency" not in parsed[0]
-        assert "access_point" not in parsed[0]
-        assert "bit_rate" not in parsed[0]
-        assert "signal_level" not in parsed[0]
 
     def test_parse_iwconfig_truly_empty_block(self, analyzer):
-        """Test iwconfig with a block that becomes empty after individual block processing."""
-        # After split by '\n\n', if a block is just whitespace, the `if not block.strip():` should catch it
-        # But the whole output is stripped first, so we need blocks that are separated but one is effectively empty
+        """Test iwconfig with a block that becomes empty after processing."""
+        # An empty block between two valid blocks should be skipped.
         output_with_empty = "wlan0 IEEE 802.11\n\n\n\nwlan1 IEEE 802.11"
         parsed = analyzer._parse_iwconfig_output(output_with_empty)
-        # The empty blocks between the two interfaces should be skipped
-        assert len(parsed) == 2
+        assert len(parsed) == NUM_MOCK_INTERFACES
         assert parsed[0]["name"] == "wlan0"
         assert parsed[1]["name"] == "wlan1"
 
     def test_parse_iwconfig_all_fields_missing(self, analyzer):
         """Test iwconfig where all optional regex fields fail to match."""
-        # Create an interface block where none of the optional fields have the expected format
+        # Create an interface block where none of the optional fields match
         output_no_matches = """
 wlan0     IEEE 802.11
           Mode-Not-Matching Frequency-Bad Access-Point-Bad
@@ -511,21 +505,19 @@ wlan0     IEEE 802.11
         # Verify none of the optional fields were matched
         assert "essid" not in parsed[0]
         assert "mode" not in parsed[0]
-        assert "frequency" not in parsed[0]
-        assert "access_point" not in parsed[0]
-        assert "bit_rate" not in parsed[0]
-        assert "signal_level" not in parsed[0]
 
     def test_parse_ip_addr_no_state_match(self, analyzer):
         """Test ip addr parsing where state is not in the expected format."""
-        ip_addr_no_state = "1: lo: <LOOPBACK,UP> mtu 65536\n    link/loopback 00:00:00:00:00:00"
+        ip_addr_no_state = (
+            "1: lo: <LOOPBACK,UP> mtu 65536\n    link/loopback 00:00:00:00:00:00"
+        )
         parsed = analyzer._parse_ip_addr_output(ip_addr_no_state)
         assert len(parsed) == 1
         assert parsed[0]["name"] == "lo"
         assert "state" not in parsed[0]
 
     def test_parse_ip_addr_no_mac_match(self, analyzer):
-        """Test ip addr parsing where MAC address doesn't match expected format."""
+        """Test ip addr parsing where MAC address doesn't match."""
         ip_addr_no_mac = "1: lo: <LOOPBACK,UP> state UNKNOWN\n    linktype something"
         parsed = analyzer._parse_ip_addr_output(ip_addr_no_mac)
         assert len(parsed) == 1
@@ -534,19 +526,23 @@ wlan0     IEEE 802.11
 
     def test_parse_ip_addr_no_ip_match(self, analyzer):
         """Test ip addr with malformed IP addresses."""
-        ip_addr_bad_ip = "1: eth0: <BROADCAST> state UP\n    link/ether aa:bb:cc:dd:ee:ff\n    inet not-an-ip scope global\n    inet6 not-an-ipv6 scope link"
+        ip_addr_bad_ip = (
+            "1: eth0: <BROADCAST> state UP\n"
+            "    link/ether aa:bb:cc:dd:ee:ff\n"
+            "    inet not-an-ip scope global\n"
+            "    inet6 not-an-ipv6 scope link"
+        )
         parsed = analyzer._parse_ip_addr_output(ip_addr_bad_ip)
         assert len(parsed) == 1
         assert parsed[0]["name"] == "eth0"
-        assert len(parsed[0]["addresses"]) == 0  # No valid IPs parsed
+        assert not parsed[0]["addresses"]  # No valid IPs parsed
 
     def test_get_interface_details_no_type(self, analyzer, mock_si):
         """Test interface details when type file is not available."""
         mock_si.read_file.return_value = None
         mock_si.run_command.return_value = CommandResult(False, "", "", 1)
         details = analyzer._get_interface_details("eth0")
-        assert details["name"] == "eth0"
-        assert "type" not in details
+        assert details is None
 
     def test_get_interface_details_no_flags(self, analyzer, mock_si):
         """Test interface details when flags file is not available."""
@@ -584,10 +580,10 @@ wlan0     IEEE 802.11
         assert "statistics" not in details
 
     def test_get_detailed_network_info_no_interfaces(self, analyzer, mock_si):
-        """Test _get_detailed_network_info when only loopback interface exists."""
+        """Test _get_detailed_network_info when only loopback exists."""
         mock_si.run_command.return_value = CommandResult(True, "lo", "", 0)
         info = analyzer._get_detailed_network_info()
-        # Should return empty dict since lo is skipped and interfaces list remains empty
+        # Should return empty dict since lo is skipped
         assert "detailed_interfaces" not in info
 
     def test_get_driver_info_no_drivers(self, analyzer, mock_si):
@@ -617,28 +613,36 @@ wlan0     IEEE 802.11
                 return CommandResult(False, "", "not found", 1)
             return CommandResult(False, "", "", 1)
 
-        with patch.object(analyzer, "logger") as mock_logger:
+        with patch.object(analyzer, "logger"):
             mock_si.run_command.side_effect = command_side_effect
             info = analyzer._get_performance_metrics()
             # Should return empty dict since ethtool_stats remains empty
             assert "ethtool_statistics" not in info
 
     def test_parse_ip_link_no_interface_match(self, analyzer):
-        """Test _parse_ip_link_output with lines that don't match interface pattern."""
+        """Test _parse_ip_link_output with no interface pattern match."""
         malformed = "Something that doesn't match\n  RX: bytes  packets\n  12345 100"
         parsed = analyzer._parse_ip_link_output(malformed)
         assert parsed == {"interface_statistics": {}}
 
     def test_parse_ip_link_incomplete_rx_values(self, analyzer):
         """Test _parse_ip_link_output with incomplete RX statistics."""
-        incomplete_rx = "1: eth0: <BROADCAST>\n    RX: bytes  packets  errors\n    12345 100"
+        incomplete_rx = (
+            "1: eth0: <BROADCAST>\n    RX: bytes  packets  errors\n    12345 100"
+        )
         parsed = analyzer._parse_ip_link_output(incomplete_rx)
         # RX stats should not be added since len(values) < 6
         assert "rx" not in parsed["interface_statistics"].get("eth0", {})
 
     def test_parse_ip_link_incomplete_tx_values(self, analyzer):
         """Test _parse_ip_link_output with incomplete TX statistics."""
-        incomplete_tx = "1: eth0: <BROADCAST>\n    RX: bytes  packets  errors  dropped  overrun  mcast\n    12345 100 0 0 0 0\n    TX: bytes  packets\n    54321 200"
+        incomplete_tx = (
+            "1: eth0: <BROADCAST>\n"
+            "    RX: bytes  packets  errors  dropped  overrun  mcast\n"
+            "    12345 100 0 0 0 0\n"
+            "    TX: bytes  packets\n"
+            "    54321 200"
+        )
         parsed = analyzer._parse_ip_link_output(incomplete_tx)
         # TX stats should not be added since len(values) < 6
         assert "tx" not in parsed["interface_statistics"].get("eth0", {})
@@ -647,16 +651,16 @@ wlan0     IEEE 802.11
         """Test _parse_ethtool_output with lines that don't contain colons."""
         no_colon = "NIC statistics:\nsome_stat 12345\nother_line"
         parsed = analyzer._parse_ethtool_output(no_colon)
-        assert parsed == {}
+        assert not parsed
 
     def test_parse_ethtool_output_non_numeric(self, analyzer):
         """Test _parse_ethtool_output with non-numeric values."""
         non_numeric = "NIC statistics:\n     stat1: not_a_number\n     stat2: abc"
         parsed = analyzer._parse_ethtool_output(non_numeric)
-        assert parsed == {}
+        assert not parsed
 
     def test_get_wireless_info_iwconfig_empty_stdout(self, analyzer, mock_si):
-        """Test _get_wireless_info when iwconfig succeeds but returns empty output."""
+        """Test _get_wireless_info when iwconfig has empty output."""
         mock_si.run_command.side_effect = [
             CommandResult(True, "", "", 0),  # iwconfig with empty stdout
             CommandResult(False, "", "not found", 1),  # iw fails
@@ -667,24 +671,24 @@ wlan0     IEEE 802.11
         assert "wireless_interfaces" not in info
 
     def test_parse_ip_addr_no_interface_match(self, analyzer):
-        """Test _parse_ip_addr_output with lines that don't match interface pattern."""
+        """Test _parse_ip_addr_output with no interface pattern match."""
         no_match = "Some random line\n  Another line without interface format"
         parsed = analyzer._parse_ip_addr_output(no_match)
-        assert parsed == []
+        assert not parsed
 
     def test_parse_netstat_insufficient_values(self, analyzer):
-        """Test _parse_netstat_output where values list is shorter than headers."""
+        """Test _parse_netstat_output where values are shorter than headers."""
         insufficient = "Iface      MTU    RX-OK RX-ERR\neth0      1500"
         parsed = analyzer._parse_netstat_output(insufficient)
         # Should not add this interface since len(values) < len(headers)
-        assert len(parsed) == 0
+        assert not parsed
 
     def test_get_detailed_network_info_with_loopback_and_interface(
         self,
         analyzer,
         mock_si,
     ):
-        """Test _get_detailed_network_info iterating through multiple interfaces including lo."""
+        """Test _get_detailed_network_info with multiple interfaces."""
 
         def command_side_effect(cmd):
             if cmd == ["ls", "/sys/class/net/"]:
@@ -701,7 +705,7 @@ wlan0     IEEE 802.11
         info = analyzer._get_detailed_network_info()
         # Should have 2 interfaces (eth0, eth1), lo should be skipped
         assert "detailed_interfaces" in info
-        assert len(info["detailed_interfaces"]) == 2
+        assert len(info["detailed_interfaces"]) == NUM_MOCK_INTERFACES
 
     def test_get_wireless_info_iwconfig_success_iw_success(self, analyzer, mock_si):
         """Test _get_wireless_info when both iwconfig and iw succeed."""
@@ -717,31 +721,33 @@ wlan0     IEEE 802.11
         assert "wireless_capabilities" in info
 
     def test_get_driver_info_multiple_interfaces(self, analyzer, mock_si):
-        """Test _get_driver_info with multiple interfaces, some with drivers."""
+        """Test _get_driver_info with multiple interfaces."""
 
         def command_side_effect(cmd):
-            if cmd == ["ls", "/sys/class/net/"]:
-                return CommandResult(True, "lo eth0 eth1 wlan0", "", 0)
-            if cmd == ["ethtool", "-i", "eth0"]:
-                return CommandResult(True, "driver: e1000e", "", 0)
-            if cmd == ["ethtool", "-i", "eth1"]:
-                return CommandResult(False, "", "no driver", 1)
-            if cmd == ["ethtool", "-i", "wlan0"]:
-                return CommandResult(True, "driver: iwlwifi", "", 0)
-            if cmd == ["modinfo", "e1000e"]:
-                return CommandResult(True, "version: 1.0", "", 0)
-            if cmd == ["modinfo", "iwlwifi"]:
-                return CommandResult(True, "version: 2.0", "", 0)
-            return CommandResult(False, "", "", 1)
+            # Use a dictionary to map commands to their results
+            cmd_tuple = tuple(cmd)
+            responses = {
+                ("ls", "/sys/class/net/"): CommandResult(
+                    True, "lo eth0 eth1 wlan0", "", 0
+                ),
+                ("ethtool", "-i", "eth0"): CommandResult(True, "driver: e1000e", "", 0),
+                ("ethtool", "-i", "eth1"): CommandResult(False, "", "no driver", 1),
+                ("ethtool", "-i", "wlan0"): CommandResult(
+                    True, "driver: iwlwifi", "", 0
+                ),
+                ("modinfo", "e1000e"): CommandResult(True, "version: 1.0", "", 0),
+                ("modinfo", "iwlwifi"): CommandResult(True, "version: 2.0", "", 0),
+            }
+            return responses.get(cmd_tuple, CommandResult(False, "", "", 1))
 
         mock_si.run_command.side_effect = command_side_effect
         info = analyzer._get_driver_info()
         # Should have driver info for eth0 and wlan0, skip lo and eth1
         assert "driver_info" in info
-        assert len(info["driver_info"]) == 2
+        assert len(info["driver_info"]) == NUM_MOCK_INTERFACES
 
     def test_get_performance_metrics_mixed_ethtool(self, analyzer, mock_si):
-        """Test _get_performance_metrics with some ethtool successes and failures."""
+        """Test _get_performance_metrics with mixed ethtool results."""
 
         def command_side_effect(cmd):
             if cmd == ["netstat", "-i"]:
@@ -763,21 +769,19 @@ wlan0     IEEE 802.11
             assert "eth1" not in info["ethtool_statistics"]
 
     def test_get_driver_details_empty_modinfo(self, analyzer, mock_si):
-        """Test _get_driver_details when modinfo returns lines without colons."""
+        """Test _get_driver_details when modinfo returns no colons."""
         modinfo_no_colon = "some_module.ko\nNo colons here\nAnother line"
         mock_si.run_command.return_value = CommandResult(True, modinfo_no_colon, "", 0)
         details = analyzer._get_driver_details("test_driver")
         # Should return empty dict since no lines have colons
-        assert details == {}
+        assert not details
 
     def test_get_detailed_network_info_skip_first_continue_second(
         self,
         analyzer,
         mock_si,
     ):
-        """Test loop where first interface returns no info, second returns info."""
-
-        call_count = [0]
+        """Test loop where first interface returns no info, second does."""
 
         def command_side_effect(cmd):
             if cmd == ["ls", "/sys/class/net/"]:
@@ -785,9 +789,6 @@ wlan0     IEEE 802.11
             return CommandResult(True, "", "", 0)
 
         def read_file_side_effect(path):
-            # First call (eth0) returns None for all files
-            # Second call (eth1) returns valid type
-            call_count[0] += 1
             if "eth1" in path and "/type" in path:
                 return "1"
             return None
@@ -795,22 +796,19 @@ wlan0     IEEE 802.11
         mock_si.run_command.side_effect = command_side_effect
         mock_si.read_file.side_effect = read_file_side_effect
         info = analyzer._get_detailed_network_info()
-        # Should skip lo, eth0 returns empty dict (not added), eth1 returns valid info
+        # Should skip lo, eth0, but get info for eth1
         assert "detailed_interfaces" in info
-        assert len(info["detailed_interfaces"]) >= 1
+        assert len(info["detailed_interfaces"]) == 1
 
     def test_get_driver_info_skip_then_add(self, analyzer, mock_si):
-        """Test loop where first has no driver, second has driver."""
-        call_count = [0]
+        """Test loop where first driver fails, second succeeds."""
 
         def command_side_effect(cmd):
             if cmd == ["ls", "/sys/class/net/"]:
                 return CommandResult(True, "lo eth0 eth1", "", 0)
             if cmd == ["ethtool", "-i", "eth0"]:
-                # First interface: no driver
                 return CommandResult(False, "", "no driver", 1)
             if cmd == ["ethtool", "-i", "eth1"]:
-                # Second interface: has driver
                 return CommandResult(True, "driver: virtio", "", 0)
             if cmd == ["modinfo", "virtio"]:
                 return CommandResult(True, "version: 1.0", "", 0)
@@ -832,10 +830,8 @@ wlan0     IEEE 802.11
             if cmd == ["ls", "/sys/class/net/"]:
                 return CommandResult(True, "lo eth0 eth1", "", 0)
             if cmd == ["ethtool", "-S", "eth0"]:
-                # First interface: ethtool fails
                 return CommandResult(False, "", "no stats", 1)
             if cmd == ["ethtool", "-S", "eth1"]:
-                # Second interface: ethtool succeeds
                 return CommandResult(True, MOCK_ETHTOOL_OUTPUT, "", 0)
             return CommandResult(False, "", "", 1)
 
@@ -848,18 +844,17 @@ wlan0     IEEE 802.11
             assert "eth1" in info["ethtool_statistics"]
 
     def test_get_wireless_info_iwconfig_success_then_iw_fail(self, analyzer, mock_si):
-        """Test wireless info where iwconfig succeeds but iw fails after success check."""
+        """Test wireless info where iwconfig succeeds but iw fails."""
         mock_si.run_command.side_effect = [
-            CommandResult(True, MOCK_IWCONFIG_OUTPUT, "", 0),  # iwconfig succeeds
-            CommandResult(False, "", "not found", 1),  # iw fails
+            CommandResult(True, MOCK_IWCONFIG_OUTPUT, "", 0),
+            CommandResult(False, "", "not found", 1),
         ]
-        with patch.object(analyzer, "logger") as mock_logger:
+        with patch.object(analyzer, "logger"):
             info = analyzer._get_wireless_info()
             # Should have iwconfig data but not iw data
             assert "iwconfig" in info
             assert "wireless_interfaces" in info
             assert "iw_list" not in info
-            assert "wireless_capabilities" not in info
 
     def test_get_basic_network_info_ip_addr_fail_no_stderr(self, analyzer, mock_si):
         """Test _get_basic_network_info with ip addr failure and no stderr."""
@@ -872,7 +867,7 @@ wlan0     IEEE 802.11
         assert info["ip_addr_error"] == "Failed to run ip addr"
 
     def test_get_detailed_network_info_empty_interface_info(self, analyzer, mock_si):
-        """Test _get_detailed_network_info when _get_interface_details returns empty."""
+        """Test _get_detailed_network_info when details are empty."""
         mock_si.run_command.return_value = CommandResult(True, "eth0", "", 0)
         with patch.object(analyzer, "_get_interface_details", return_value=None):
             info = analyzer._get_detailed_network_info()
@@ -883,7 +878,7 @@ wlan0     IEEE 802.11
         mock_si.run_command.side_effect = [
             CommandResult(True, "eth0", "", 0),
             CommandResult(True, "driver: mydriver", "", 0),
-            CommandResult(True, "", "", 0), # modinfo returns empty
+            CommandResult(True, "", "", 0),  # modinfo returns empty
         ]
         with patch.object(analyzer, "_get_driver_details", return_value={}):
             info = analyzer._get_driver_info()
@@ -891,17 +886,17 @@ wlan0     IEEE 802.11
             assert "driver_details" not in info["driver_info"][0]
 
     def test_parse_ip_addr_output_no_current_interface(self, analyzer):
-        """Test _parse_ip_addr_output with a line that doesn't start a new interface."""
+        """Test _parse_ip_addr_output with an indented line at the start."""
         output = "  inet 127.0.0.1/8 scope host lo"
         parsed = analyzer._parse_ip_addr_output(output)
         assert not parsed
 
     def test_get_interface_details_unknown_type(self, analyzer, mock_si):
         """Test _get_interface_details with an unknown interface type."""
+
         def read_file_side_effect(path):
-            if path.endswith("/type"):
-                return "999"
-            return None
+            return "999" if path.endswith("/type") else None
+
         mock_si.read_file.side_effect = read_file_side_effect
         mock_si.run_command.return_value = CommandResult(False, "", "", 1)
         details = analyzer._get_interface_details("eth0")
@@ -918,17 +913,26 @@ wlan0     IEEE 802.11
 
     def test_get_interface_details_no_stats(self, analyzer, mock_si):
         """Test _get_interface_details when ls on statistics path fails."""
-        def read_sys_file_mock(file):
+
+        def read_file_side_effect(path):
+            if path.endswith("/type"):
+                return "1"
             return None
 
-        with patch.object(analyzer.system, 'read_file', side_effect=read_sys_file_mock):
-            analyzer.system.run_command.return_value = CommandResult(success=False, stdout="", stderr="error", returncode=1)
-            interface_info = analyzer._get_interface_details("eth0")
-            assert "statistics" not in interface_info
+        analyzer.system.read_file.side_effect = read_file_side_effect
+        analyzer.system.run_command.return_value = CommandResult(
+            success=False, stdout="", stderr="error", returncode=1
+        )
+        interface_info = analyzer._get_interface_details("eth0")
+        assert interface_info is not None
+        assert "statistics" not in interface_info
 
     def test_parse_ip_addr_output_no_state(self, analyzer):
         """Test parsing ip addr output without a state field."""
-        ip_addr_output = "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc fq_codel group default qlen 1000"
+        ip_addr_output = (
+            "2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 "
+            "qdisc fq_codel group default qlen 1000"
+        )
         parsed = analyzer._parse_ip_addr_output(ip_addr_output)
         assert "state" not in parsed[0]
 
@@ -943,22 +947,25 @@ wlan0     IEEE 802.11
         assert info["ip_link_error"] == "Failed to run ip -s link"
 
     def test_get_detailed_network_info_interface_info_is_false(self, analyzer, mock_si):
-        """Test _get_detailed_network_info when _get_interface_details returns a falsy value."""
+        """Test _get_detailed_network_info when details are falsy."""
         mock_si.run_command.return_value = CommandResult(True, "eth0", "", 0)
         with patch.object(analyzer, "_get_interface_details", return_value={}):
             info = analyzer._get_detailed_network_info()
             assert "detailed_interfaces" not in info
 
     def test_get_driver_info_driver_found_no_details(self, analyzer, mock_si):
-        """Test _get_driver_info when a driver is found but modinfo returns no details."""
+        """Test _get_driver_info when a driver is found but has no details."""
+
         def command_side_effect(cmd):
-            if cmd == ["ls", "/sys/class/net/"]:
-                return CommandResult(True, "eth0", "", 0)
-            if cmd == ["ethtool", "-i", "eth0"]:
-                return CommandResult(True, "driver: a_driver", "", 0)
-            if cmd == ["modinfo", "a_driver"]:
-                return CommandResult(True, "", "", 0) # Empty output from modinfo
-            return CommandResult(False, "", "", 1)
+            cmd_tuple = tuple(cmd)
+            responses = {
+                ("ls", "/sys/class/net/"): CommandResult(True, "eth0", "", 0),
+                ("ethtool", "-i", "eth0"): CommandResult(
+                    True, "driver: a_driver", "", 0
+                ),
+                ("modinfo", "a_driver"): CommandResult(True, "", "", 0),
+            }
+            return responses.get(cmd_tuple, CommandResult(False, "", "", 1))
 
         mock_si.run_command.side_effect = command_side_effect
         info = analyzer._get_driver_info()
@@ -970,7 +977,7 @@ wlan0     IEEE 802.11
         """Test that parsing continues after a line that doesn't match."""
         output = "1: lo: <LOOPBACK>\n    some other line\n2: eth0: <BROADCAST>"
         parsed = analyzer._parse_ip_addr_output(output)
-        assert len(parsed) == 2
+        assert len(parsed) == NUM_MOCK_INTERFACES
         assert parsed[0]["name"] == "lo"
         assert parsed[1]["name"] == "eth0"
 

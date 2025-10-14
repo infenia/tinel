@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import logging
+import re
+from typing import Any, Dict, List, Optional
+
+from ..interfaces import SystemInterface
+from ..system import LinuxSystemInterface
+
 """This module provides an analyzer for graphics hardware (GPUs).
 
 It includes the `GraphicsAnalyzer` class, which is responsible for detecting
@@ -23,14 +30,6 @@ employs a fallback mechanism, first attempting to use vendor-specific tools
 like `nvidia-smi` and `rocm-smi`, and then resorting to the generic `lspci`
 command if necessary.
 """
-
-import functools
-import logging
-import re
-from typing import Any, Dict, List, Optional
-
-from ..interfaces import SystemInterface
-from ..system import LinuxSystemInterface
 
 
 class GraphicsAnalyzer:
@@ -54,8 +53,8 @@ class GraphicsAnalyzer:
         """
         self.system = system_interface or LinuxSystemInterface()
         self.logger = logging.getLogger(__name__)
+        self._graphics_info_cache: Optional[Dict[str, Any]] = None
 
-    @functools.lru_cache(maxsize=None)
     def get_graphics_info(self) -> Dict[str, Any]:
         """Retrieves comprehensive information about the graphics hardware.
 
@@ -69,6 +68,9 @@ class GraphicsAnalyzer:
             A dictionary containing detailed graphics hardware information,
             including the source of the data (e.g., 'nvidia-smi', 'lspci').
         """
+        if self._graphics_info_cache is not None:
+            return self._graphics_info_cache
+
         info: Dict[str, Any] = {}
 
         # Try NVIDIA's tool first
@@ -76,6 +78,7 @@ class GraphicsAnalyzer:
         if nvidia_info:
             info["gpus"] = nvidia_info
             info["source"] = "nvidia-smi"
+            self._graphics_info_cache = info
             return info
 
         # Try AMD's tool next
@@ -83,6 +86,7 @@ class GraphicsAnalyzer:
         if amd_info:
             info["gpus"] = amd_info
             info["source"] = "rocm-smi"
+            self._graphics_info_cache = info
             return info
 
         # Fallback to lspci
@@ -90,9 +94,11 @@ class GraphicsAnalyzer:
         if lspci_info:
             info["gpus"] = lspci_info
             info["source"] = "lspci"
+            self._graphics_info_cache = info
             return info
 
         self.logger.warning("No GPU information could be gathered.")
+        self._graphics_info_cache = info
         return info
 
     def _get_nvidia_info(self) -> Optional[List[Dict[str, Any]]]:
@@ -108,7 +114,10 @@ class GraphicsAnalyzer:
         """
         command = [
             "nvidia-smi",
-            "--query-gpu=index,name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu",
+            (
+                "--query-gpu=index,name,driver_version,memory.total,memory.used,"
+                "memory.free,utilization.gpu,temperature.gpu"
+            ),
             "--format=csv,noheader,nounits",
         ]
         result = self.system.run_command(command)
@@ -121,7 +130,7 @@ class GraphicsAnalyzer:
         for line in result.stdout.strip().split("\n"):
             try:
                 parts = [p.strip() for p in line.split(",")]
-                if len(parts) != 8:
+                if len(parts) != 8:  # noqa: PLR2004
                     continue
                 gpus.append(
                     {
@@ -153,9 +162,9 @@ class GraphicsAnalyzer:
             A list of dictionaries, where each dictionary represents an AMD
             GPU, or None if `rocm-smi` is not available or fails.
         """
-        # rocm-smi is not installed in the test environment, so this is a placeholder.
+        # rocm-smi is not installed in the test environment.
         # In a real environment, this would parse the output of `rocm-smi`.
-        # For example, `rocm-smi --showproductname --showmeminfo vram --showdriverversion --showtemp --showuse`
+        # Example: rocm-smi --showproductname --showmeminfo vram ...
         result = self.system.run_command(
             ["rocm-smi", "--showallinfo"]
         )  # A bit generic for a placeholder
@@ -164,9 +173,9 @@ class GraphicsAnalyzer:
             self.logger.info("'rocm-smi' command failed or not found.")
             return None
 
-        # Placeholder for parsing logic
-        # Since I cannot run the command, I will assume a hypothetical output structure.
-        # This part would need to be implemented and tested on a system with an AMD GPU and rocm-smi.
+        # Placeholder for parsing logic.
+        # This part would need to be implemented and tested on a system
+        # with an AMD GPU and rocm-smi.
         gpus = [
             {
                 "model": "AMD GPU (rocm-smi placeholder)",
@@ -195,8 +204,8 @@ class GraphicsAnalyzer:
             self.logger.warning("'lspci' command failed or not found.")
             return None
 
-        gpus = []
-        current_gpu = None
+        gpus: List[Dict[str, Any]] = []
+        current_gpu: Optional[Dict[str, Any]] = None
 
         for line in result.stdout.strip().split("\n"):
             vga_match = re.search(

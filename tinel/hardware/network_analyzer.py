@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import logging
+import re
+from typing import Any, Dict, List, Optional
+
+from ..interfaces import SystemInterface
+from ..system import LinuxSystemInterface
+
 """This module provides a detailed analyzer for network hardware.
 
 It includes the `NetworkAnalyzer` class, which is responsible for gathering
@@ -23,14 +30,6 @@ analyzer uses a variety of system commands, including `ip`, `iwconfig`,
 `ethtool`, and `netstat`, as well as the `/sys/class/net` filesystem, to
 provide a complete picture of the network hardware and its configuration.
 """
-
-import functools
-import logging
-import re
-from typing import Any, Dict, List, Optional
-
-from ..interfaces import SystemInterface
-from ..system import LinuxSystemInterface
 
 
 class NetworkAnalyzer:
@@ -55,8 +54,8 @@ class NetworkAnalyzer:
         """
         self.system = system_interface or LinuxSystemInterface()
         self.logger = logging.getLogger(__name__)
+        self._network_info_cache: Optional[Dict[str, Any]] = None
 
-    @functools.lru_cache(maxsize=None)
     def get_network_info(self) -> Dict[str, Any]:
         """Retrieves comprehensive information about the network hardware.
 
@@ -69,6 +68,9 @@ class NetworkAnalyzer:
         Returns:
             A dictionary containing a detailed breakdown of network information.
         """
+        if self._network_info_cache is not None:
+            return self._network_info_cache
+
         info: Dict[str, Any] = {}
 
         # Get basic network interface info
@@ -86,6 +88,7 @@ class NetworkAnalyzer:
         # Get network performance metrics
         info.update(self._get_performance_metrics())
 
+        self._network_info_cache = info
         return info
 
     def _get_basic_network_info(self) -> Dict[str, Any]:
@@ -181,7 +184,7 @@ class NetworkAnalyzer:
         if iw_result.success:
             info["iw_list"] = iw_result.stdout
             info["wireless_capabilities"] = self._parse_iw_list_output(iw_result.stdout)
-        elif not iw_result.success: # pragma: no branch
+        elif not iw_result.success:  # pragma: no branch
             self.logger.info(
                 "'iw' command not found or failed, skipping detailed wireless info."
             )
@@ -212,7 +215,10 @@ class NetworkAnalyzer:
                 driver = self._get_interface_driver(interface_name)
                 if driver:
                     driver_details = self._get_driver_details(driver)
-                    driver_entry = {"interface": interface_name, "driver": driver}
+                    driver_entry: Dict[str, Any] = {
+                        "interface": interface_name,
+                        "driver": driver,
+                    }
                     if driver_details:
                         driver_entry["driver_details"] = driver_details
                     driver_info.append(driver_entry)
@@ -238,7 +244,7 @@ class NetworkAnalyzer:
         netstat_result = self.system.run_command(["netstat", "-i"])
         if netstat_result.success:
             info["netstat"] = netstat_result.stdout
-            info["interface_statistics"] = self._parse_netstat_output(
+            info["netstat_statistics"] = self._parse_netstat_output(
                 netstat_result.stdout
             )
         else:
@@ -250,7 +256,7 @@ class NetworkAnalyzer:
         ls_result = self.system.run_command(["ls", "/sys/class/net/"])
         if ls_result.success:
             interface_names = ls_result.stdout.strip().split()
-            ethtool_stats = {}
+            ethtool_stats: Dict[str, Dict[str, Any]] = {}
 
             for interface_name in interface_names:
                 if interface_name == "lo":
@@ -362,7 +368,7 @@ class NetworkAnalyzer:
                     section = "tx"
                 elif section:
                     values = line.strip().split()
-                    if section == "rx" and len(values) >= 6:
+                    if section == "rx" and len(values) >= 6:  # noqa: PLR2004
                         stats[current_interface]["rx"] = {
                             "bytes": int(values[0]),
                             "packets": int(values[1]),
@@ -372,7 +378,7 @@ class NetworkAnalyzer:
                             "mcast": int(values[5]),
                         }
                         section = None  # Move to next section
-                    elif section == "tx" and len(values) >= 6:
+                    elif section == "tx" and len(values) >= 6:  # noqa: PLR2004
                         stats[current_interface]["tx"] = {
                             "bytes": int(values[0]),
                             "packets": int(values[1]),
@@ -384,7 +390,7 @@ class NetworkAnalyzer:
                         section = None
         return {"interface_statistics": stats}
 
-    def _get_interface_details(self, interface_name: str) -> Dict[str, Any]:
+    def _get_interface_details(self, interface_name: str) -> Optional[Dict[str, Any]]:
         """Retrieves detailed information for a specific network interface from sysfs.
 
         This method reads various files from the `/sys/class/net/<interface>`
@@ -396,7 +402,7 @@ class NetworkAnalyzer:
 
         Returns:
             A dictionary containing the detailed information for the specified
-            interface.
+            interface, or None if the interface type cannot be determined.
         """
         interface_info: Dict[str, Any] = {"name": interface_name}
         sys_path = f"/sys/class/net/{interface_name}"
@@ -406,9 +412,11 @@ class NetworkAnalyzer:
             return content.strip() if content else None
 
         type_val = read_sys_file("type")
-        if type_val:
-            type_map = {"1": "ethernet", "772": "loopback"}
-            interface_info["type"] = type_map.get(type_val, f"unknown ({type_val})")
+        if not type_val:
+            return None  # Skip interfaces without a type
+
+        type_map = {"1": "ethernet", "772": "loopback"}
+        interface_info["type"] = type_map.get(type_val, f"unknown ({type_val})")
 
         for key in ["speed", "duplex", "mtu", "carrier", "operstate", "address"]:
             value = read_sys_file(key)
@@ -564,9 +572,9 @@ class NetworkAnalyzer:
             A list of dictionaries, where each dictionary represents the
             statistics for a network interface.
         """
-        interfaces = []
+        interfaces: List[Dict[str, Any]] = []
         lines = netstat_output.strip().split("\n")
-        if len(lines) < 2:
+        if len(lines) < 2:  # noqa: PLR2004
             return interfaces
 
         headers = re.split(r"\s+", lines[0].strip())
@@ -603,3 +611,5 @@ class NetworkAnalyzer:
                 if key and value.isdigit():
                     stats[key] = int(value)
         return stats
+
+    pass

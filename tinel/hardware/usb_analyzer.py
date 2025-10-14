@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import re
+from typing import Any, Dict, List, Optional
+
+from tinel.hardware.models import USBInfo
+from tinel.interfaces import SystemInterface
+from tinel.system import LinuxSystemInterface
+
 """This module provides an analyzer for USB devices.
 
 It includes the `USBAnalyzer` class, which is responsible for gathering and
@@ -22,13 +29,6 @@ parsing information about the system's USB devices. The analyzer uses the
 `lsusb` command to obtain the raw data and then processes it to build a
 hierarchical representation of the USB device tree.
 """
-
-import re
-from typing import Any, Dict, List, Optional
-
-from tinel.hardware.models import USBInfo
-from tinel.interfaces import SystemInterface
-from tinel.system import LinuxSystemInterface
 
 
 class USBAnalyzer:
