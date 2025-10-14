@@ -26,9 +26,6 @@ aggregates all hardware data into a single object. These models ensure a
 consistent and predictable data structure throughout the application.
 """
 
-import dataclasses
-from typing import Any, Dict, Optional
-
 
 @dataclasses.dataclass
 class MemoryDeviceDetails:

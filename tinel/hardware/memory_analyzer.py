@@ -74,6 +74,14 @@ for high-level memory statistics and `dmidecode` for detailed information
 about physical memory devices.
 """
 
+"""This module provides an analyzer for system memory.
+
+It includes the `MemoryAnalyzer` class, which gathers and processes
+information about both virtual and physical memory. The analyzer uses `psutil`
+for high-level memory statistics and `dmidecode` for detailed information
+about physical memory devices.
+"""
+
 
 class MemoryAnalyzer:
     """Analyzes and retrieves information about the system's memory.
