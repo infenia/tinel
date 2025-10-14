@@ -461,7 +461,8 @@ class TestCPUAnalyzer:
 
         assert analysis_data["optimizations"]["avx2_supported"] is True
         assert "psutil_cpu_frequency" in analysis_data
-        assert analysis_data["psutil_cpu_frequency"]["current"] == 3400
+        mock_cpu_freq = 3400
+        assert analysis_data["psutil_cpu_frequency"]["current"] == mock_cpu_freq
         assert "psutil_cpu_stats" in analysis_data
         assert analysis_data["psutil_cpu_stats"]["context_switches"] == 1
 
