@@ -447,6 +447,9 @@ class TestCPUAnalyzer:
         """Test CPU performance analysis with AVX2 support."""
         # Arrange
         mock_psutil.cpu_freq.return_value = Mock(current=3400, min=800, max=4200)
+        mock_psutil.cpu_stats.return_value = Mock(
+            ctx_switches=1, interrupts=2, soft_interrupts=3, syscalls=4
+        )
         info = {"lscpu_flags": ["fpu", "vme", "de", "pse", "avx", "avx2"]}
 
         # Act
@@ -456,9 +459,11 @@ class TestCPUAnalyzer:
         assert "performance_analysis" in performance_analysis
         analysis_data = performance_analysis["performance_analysis"]
 
-        assert analysis_data["avx2_supported"] is True
+        assert analysis_data["optimizations"]["avx2_supported"] is True
         assert "psutil_cpu_frequency" in analysis_data
         assert analysis_data["psutil_cpu_frequency"]["current"] == 3400
+        assert "psutil_cpu_stats" in analysis_data
+        assert analysis_data["psutil_cpu_stats"]["context_switches"] == 1
 
     @unit_test
     @patch("tinel.hardware.cpu_analyzer.psutil")
@@ -466,6 +471,9 @@ class TestCPUAnalyzer:
         """Test CPU performance analysis without AVX2 support."""
         # Arrange
         mock_psutil.cpu_freq.return_value = Mock(current=2500, min=800, max=3000)
+        mock_psutil.cpu_stats.return_value = Mock(
+            ctx_switches=1, interrupts=2, soft_interrupts=3, syscalls=4
+        )
         info = {"lscpu_flags": ["fpu", "vme", "de", "pse", "avx"]}
 
         # Act
@@ -473,7 +481,7 @@ class TestCPUAnalyzer:
 
         # Assert
         analysis_data = performance_analysis["performance_analysis"]
-        assert analysis_data["avx2_supported"] is False
+        assert analysis_data["optimizations"]["avx2_supported"] is False
         assert "psutil_cpu_frequency" in analysis_data
 
     @unit_test
@@ -482,6 +490,7 @@ class TestCPUAnalyzer:
         """Test CPU performance analysis handles generic psutil exceptions."""
         # Arrange
         mock_psutil.cpu_freq.side_effect = Exception("Generic Error")
+        mock_psutil.cpu_stats.side_effect = Exception("Generic Error")
         info = {"lscpu_flags": ["avx2"]}
 
         # Act
@@ -492,6 +501,9 @@ class TestCPUAnalyzer:
         assert "psutil_cpu_frequency" not in analysis_data
         assert "psutil_cpu_frequency_error" in analysis_data
         assert "Generic Error" in analysis_data["psutil_cpu_frequency_error"]
+        assert "psutil_cpu_stats" not in analysis_data
+        assert "psutil_cpu_stats_error" in analysis_data
+        assert "Generic Error" in analysis_data["psutil_cpu_stats_error"]
 
     @unit_test
     @patch("tinel.hardware.cpu_analyzer.psutil")
@@ -499,6 +511,7 @@ class TestCPUAnalyzer:
         """Test CPU performance analysis when psutil.cpu_freq() returns None."""
         # Arrange
         mock_psutil.cpu_freq.return_value = None
+        mock_psutil.cpu_stats.return_value = None
         info = {"lscpu_flags": ["avx2"]}
 
         # Act
@@ -508,6 +521,8 @@ class TestCPUAnalyzer:
         analysis_data = performance_analysis["performance_analysis"]
         assert "psutil_cpu_frequency" not in analysis_data
         assert "psutil_cpu_frequency_error" not in analysis_data
+        assert "psutil_cpu_stats" not in analysis_data
+        assert "psutil_cpu_stats_error" not in analysis_data
 
     @unit_test
     @patch("tinel.hardware.cpu_analyzer.psutil")
@@ -515,6 +530,7 @@ class TestCPUAnalyzer:
         """Test CPU performance analysis when psutil fails."""
         # Arrange
         mock_psutil.cpu_freq.side_effect = PermissionError("Permission denied")
+        mock_psutil.cpu_stats.side_effect = PermissionError("Permission denied")
         info = {"lscpu_flags": ["avx2"]}
 
         # Act
@@ -525,6 +541,9 @@ class TestCPUAnalyzer:
         assert "psutil_cpu_frequency" not in analysis_data
         assert "psutil_cpu_frequency_error" in analysis_data
         assert "Permission denied" in analysis_data["psutil_cpu_frequency_error"]
+        assert "psutil_cpu_stats" not in analysis_data
+        assert "psutil_cpu_stats_error" in analysis_data
+        assert "Permission denied" in analysis_data["psutil_cpu_stats_error"]
 
     @unit_test
     @patch("tinel.hardware.cpu_analyzer.psutil")
@@ -532,6 +551,9 @@ class TestCPUAnalyzer:
         """Test CPU performance analysis when lscpu flags are missing."""
         # Arrange
         mock_psutil.cpu_freq.return_value = Mock(current=2500, min=800, max=3000)
+        mock_psutil.cpu_stats.return_value = Mock(
+            ctx_switches=1, interrupts=2, soft_interrupts=3, syscalls=4
+        )
         info = {}  # No lscpu_flags
 
         # Act
@@ -539,7 +561,7 @@ class TestCPUAnalyzer:
 
         # Assert
         analysis_data = performance_analysis["performance_analysis"]
-        assert analysis_data["avx2_supported"] is False
+        assert analysis_data["optimizations"]["avx2_supported"] is False
         assert "psutil_cpu_frequency" in analysis_data
 
     @unit_test
