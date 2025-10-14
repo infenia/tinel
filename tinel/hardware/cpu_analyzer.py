@@ -24,7 +24,6 @@ library to provide a complete picture of the CPU's capabilities and status.
 """
 
 import re
-import threading
 import time
 from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 
@@ -57,7 +56,6 @@ class CPUAnalyzer:
         self.system = system_interface or LinuxSystemInterface()
         self._cache: Dict[str, Tuple[Any, float]] = {}
         self._cache_ttl = 60  # Cache for 60 seconds
-        self._lock = threading.Lock()
 
     def _get_cached_or_compute(self, key: str, compute_func: Callable[[], Any]) -> Any:
         """Retrieves a result from the cache or computes it if not present.
@@ -75,19 +73,18 @@ class CPUAnalyzer:
         Returns:
             The cached or newly computed result.
         """
-        with self._lock:
-            current_time = time.time()
+        current_time = time.time()
 
-            # Check if we have a valid cached result
-            if key in self._cache:
-                cached_result, timestamp = self._cache[key]
-                if current_time - timestamp < self._cache_ttl:
-                    return cached_result
+        # Check if we have a valid cached result
+        if key in self._cache:
+            cached_result, timestamp = self._cache[key]
+            if current_time - timestamp < self._cache_ttl:
+                return cached_result
 
-            # Compute new result and cache it
-            result = compute_func()
-            self._cache[key] = (result, current_time)
-            return result
+        # Compute new result and cache it
+        result = compute_func()
+        self._cache[key] = (result, current_time)
+        return result
 
     def get_cpu_info(self) -> Dict[str, Any]:
         """Retrieves comprehensive information about the CPU.
@@ -145,9 +142,6 @@ class CPUAnalyzer:
         # Get optimization analysis
         info.update(self._analyze_cpu_optimization())
 
-        # Get performance analysis (feature detection and frequency)
-        info.update(self._analyze_cpu_performance(info))
-
         return info
 
     def _process_basic_cpu_info(
@@ -178,7 +172,10 @@ class CPUAnalyzer:
         # Process lscpu data
         if lscpu_result and lscpu_result.success:
             info["lscpu"] = lscpu_result.stdout
-            info.update(self._parse_lscpu(lscpu_result.stdout))
+            lscpu_info = self._parse_lscpu(lscpu_result.stdout)
+            info.update(lscpu_info)
+            # Get performance analysis (feature detection and frequency)
+            info.update(self._analyze_cpu_performance(lscpu_info))
         else:
             error_msg = lscpu_result.error if lscpu_result else "Failed to run lscpu"
             info["lscpu_error"] = error_msg
