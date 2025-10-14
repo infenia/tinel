@@ -15,6 +15,13 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+from dataclasses import asdict, is_dataclass
+from typing import Any, Dict, cast
+
+from ..hardware.device_analyzer import DeviceAnalyzer
+from ..interfaces import SystemInterface
+from .base import BaseToolProvider
+
 """This module provides a collection of tool providers for hardware information.
 
 It includes a base class, `HardwareToolProvider`, and several concrete
@@ -22,13 +29,6 @@ implementations for gathering information about specific hardware components,
 such as the CPU, memory, and storage. These tool providers are designed to be
 used by the command handlers in the `cli` package.
 """
-
-from dataclasses import asdict, is_dataclass
-from typing import Any, Dict
-
-from ..hardware.device_analyzer import DeviceAnalyzer
-from ..interfaces import SystemInterface
-from .base import BaseToolProvider
 
 
 def _to_dict(data: Any) -> Any:
@@ -43,7 +43,7 @@ def _to_dict(data: Any) -> Any:
     Returns:
         The converted data with all dataclasses replaced by dictionaries.
     """
-    if is_dataclass(data):
+    if is_dataclass(data) and not isinstance(data, type):
         return asdict(data)
     if isinstance(data, list):
         return [_to_dict(item) for item in data]
@@ -102,7 +102,7 @@ class AllHardwareToolProvider(HardwareToolProvider):
             A dictionary containing all hardware information.
         """
         hardware_info = self.device_analyzer.get_all_hardware_info()
-        return _to_dict(hardware_info)
+        return cast(Dict[str, Any], _to_dict(hardware_info))
 
 
 class CPUInfoToolProvider(HardwareToolProvider):
@@ -131,7 +131,7 @@ class CPUInfoToolProvider(HardwareToolProvider):
             A dictionary containing the CPU information.
         """
         cpu_info = self.device_analyzer.get_cpu_info()
-        return _to_dict(cpu_info)
+        return cast(Dict[str, Any], _to_dict(cpu_info))
 
 
 class MemoryInfoToolProvider(HardwareToolProvider):
@@ -160,7 +160,7 @@ class MemoryInfoToolProvider(HardwareToolProvider):
             A dictionary containing the memory information.
         """
         memory_info = self.device_analyzer.get_memory_info()
-        return _to_dict(memory_info)
+        return cast(Dict[str, Any], _to_dict(memory_info))
 
 
 class StorageInfoToolProvider(HardwareToolProvider):
@@ -188,7 +188,7 @@ class StorageInfoToolProvider(HardwareToolProvider):
             A dictionary containing the storage information.
         """
         storage_info = self.device_analyzer.get_storage_info()
-        return _to_dict(storage_info)
+        return cast(Dict[str, Any], _to_dict(storage_info))
 
 
 class PCIDevicesToolProvider(HardwareToolProvider):
@@ -216,7 +216,7 @@ class PCIDevicesToolProvider(HardwareToolProvider):
             A dictionary containing the PCI device information.
         """
         pci_info = self.device_analyzer.get_pci_devices()
-        return _to_dict(pci_info)
+        return cast(Dict[str, Any], _to_dict(pci_info))
 
 
 class USBDevicesToolProvider(HardwareToolProvider):
@@ -244,7 +244,7 @@ class USBDevicesToolProvider(HardwareToolProvider):
             A dictionary containing the USB device information.
         """
         usb_info = self.device_analyzer.get_usb_devices()
-        return _to_dict(usb_info)
+        return cast(Dict[str, Any], _to_dict(usb_info))
 
 
 class NetworkInfoToolProvider(HardwareToolProvider):
@@ -272,7 +272,7 @@ class NetworkInfoToolProvider(HardwareToolProvider):
             A dictionary containing the network information.
         """
         network_info = self.device_analyzer.get_network_info()
-        return _to_dict(network_info)
+        return cast(Dict[str, Any], _to_dict(network_info))
 
 
 class GraphicsInfoToolProvider(HardwareToolProvider):
@@ -300,4 +300,4 @@ class GraphicsInfoToolProvider(HardwareToolProvider):
             A dictionary containing the graphics information.
         """
         graphics_info = self.device_analyzer.get_graphics_info()
-        return _to_dict(graphics_info)
+        return cast(Dict[str, Any], _to_dict(graphics_info))

@@ -15,14 +15,6 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-"""This module defines the command router for the Tinel CLI.
-
-It includes the `CommandRouter` class, which is responsible for mapping
-command-line arguments to the appropriate command handler and executing it.
-This provides a centralized and extensible way to manage all the commands
-supported by the CLI.
-"""
-
 import argparse
 import logging
 from typing import Callable, Dict
@@ -35,6 +27,14 @@ from ..error_handler import (
 )
 from ..formatters import OutputFormatter
 from .hardware import HardwareCommands
+
+"""This module defines the command router for the Tinel CLI.
+
+It includes the `CommandRouter` class, which is responsible for mapping
+command-line arguments to the appropriate command handler and executing it.
+This provides a centralized and extensible way to manage all the commands
+supported by the CLI.
+"""
 
 logger = logging.getLogger(__name__)
 
