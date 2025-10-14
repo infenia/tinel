@@ -310,6 +310,26 @@ class TestLinuxSystemInterface:
         assert not result.success
         assert "Unexpected error: generic error" in result.error
 
+    @unit_test
+    @patch("subprocess.run")
+    def test_run_command_oserror_exception(self, mock_run):
+        """Test that run_command handles OSError exceptions."""
+        mock_run.side_effect = OSError("OS error occurred")
+        result = self.system.run_command(["echo", "hello"])
+        assert not result.success
+        assert result.returncode == -1
+        assert "Command execution failed: OS error occurred" in result.error
+
+    @unit_test
+    @patch("subprocess.run")
+    def test_run_command_valueerror_exception(self, mock_run):
+        """Test that run_command handles ValueError exceptions."""
+        mock_run.side_effect = ValueError("Invalid value")
+        result = self.system.run_command(["echo", "hello"])
+        assert not result.success
+        assert result.returncode == -1
+        assert "Command execution failed: Invalid value" in result.error
+
 
 class TestCommandResultCreation:
     """Test CommandResult creation and validation."""
