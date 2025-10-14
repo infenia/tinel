@@ -61,7 +61,7 @@ class StorageAnalyzer:
             The extended dictionary with health or usage information.
         """
         block_devices = info.get("block_devices", [])
-        if not block_devices:  # pragma: no cover
+        if not block_devices:
             return info
 
         for device in block_devices:
@@ -84,20 +84,25 @@ class StorageAnalyzer:
                             if mountpoint:
                                 try:
                                     usage = psutil.disk_usage(mountpoint)
-                                    fallback_usage.append({
-                                        "partition": part.get("name"),
-                                        "mountpoint": mountpoint,
-                                        "total": usage.total,
-                                        "used": usage.used,
-                                        "free": usage.free,
-                                        "percent": usage.percent,
-                                    })
-                                except (FileNotFoundError, PermissionError):  # pragma: no cover
+                                    fallback_usage.append(
+                                        {
+                                            "partition": part.get("name"),
+                                            "mountpoint": mountpoint,
+                                            "total": usage.total,
+                                            "used": usage.used,
+                                            "free": usage.free,
+                                            "percent": usage.percent,
+                                        }
+                                    )
+                                except (
+                                    FileNotFoundError,
+                                    PermissionError,
+                                ):
                                     continue  # Skip partitions we can't access
-                    if fallback_usage: # pragma: no cover
+                    if fallback_usage:
                         device["health"] = {
                             "status": "FALLBACK_PSUTIL_USAGE",
-                            "partitions": fallback_usage
+                            "partitions": fallback_usage,
                         }
         info["block_devices"] = block_devices
         return info
@@ -121,7 +126,7 @@ class StorageAnalyzer:
                 }
                 for part in partitions
             ]
-        except Exception: # pragma: no cover
+        except Exception:
             return None
 
     def _get_df_info_with_fallback(self) -> Optional[List[Dict[str, str]]]:
@@ -146,7 +151,7 @@ class StorageAnalyzer:
                     }
                 )
             return usage_info
-        except Exception: # pragma: no cover
+        except Exception:
             return None
 
     def _get_lsblk_info(self) -> Optional[List[Dict[str, Any]]]:
@@ -160,8 +165,8 @@ class StorageAnalyzer:
         try:
             lsblk_data = json.loads(result.stdout)
             block_devices = lsblk_data.get("blockdevices")
-            return block_devices if isinstance(block_devices, list) else None # pragma: no cover
-        except json.JSONDecodeError: # pragma: no cover
+            return block_devices if isinstance(block_devices, list) else None
+        except json.JSONDecodeError:
             return None
 
     def _get_df_info(self) -> Optional[List[Dict[str, str]]]:
