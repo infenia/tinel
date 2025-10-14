@@ -673,8 +673,8 @@ class NetworkAnalyzer:
             A dictionary of the parsed capabilities.
         """
         capabilities: Dict[str, Any] = {}
-        for line in ethtool_output.strip().split("\n"):
-            line = line.strip()
+        for line_raw in ethtool_output.strip().split("\n"):
+            line = line_raw.strip()
             if ":" in line:
                 key, value = line.split(":", 1)
                 key = key.strip().lower().replace(" ", "_")
