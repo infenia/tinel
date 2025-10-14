@@ -21,6 +21,7 @@ limitations under the License.
 import unittest
 from unittest.mock import patch
 
+import dataclasses
 from tinel.hardware import HardwareInfo, PCIInfo, USBInfo, get_all_hardware_info
 
 
@@ -69,15 +70,15 @@ class TestGetAllHardwareInfo(unittest.TestCase):
         # Act: Call the function under test
         hardware_info = get_all_hardware_info()
 
-        # Assert: Verify that the HardwareInfo object is created with the mock data
-        self.assertIsInstance(hardware_info, HardwareInfo)
-        self.assertEqual(hardware_info.cpu, mock_cpu_info)
-        self.assertEqual(hardware_info.memory, mock_mem_info)
-        self.assertEqual(hardware_info.storage, mock_storage_info)
-        self.assertEqual(hardware_info.graphics, mock_graphics_info)
-        self.assertEqual(hardware_info.network, mock_network_info)
-        self.assertEqual(hardware_info.pci, mock_pci_info)
-        self.assertEqual(hardware_info.usb, mock_usb_info)
+        # Assert: Verify that the result is a dictionary with the correct data
+        self.assertIsInstance(hardware_info, dict)
+        self.assertEqual(hardware_info["cpu"], mock_cpu_info)
+        self.assertEqual(hardware_info["memory"], mock_mem_info)
+        self.assertEqual(hardware_info["storage"], mock_storage_info)
+        self.assertEqual(hardware_info["graphics"], mock_graphics_info)
+        self.assertEqual(hardware_info["network"], mock_network_info)
+        self.assertEqual(hardware_info["pci"], dataclasses.asdict(mock_pci_info))
+        self.assertEqual(hardware_info["usb"], dataclasses.asdict(mock_usb_info))
 
         # Assert: Verify that each analyzer's get_*_info method was called once
         mock_cpu_analyzer.return_value.get_cpu_info.assert_called_once()
@@ -95,11 +96,12 @@ class TestGetAllHardwareInfo(unittest.TestCase):
             "Test Exception"
         )
 
-        # Act & Assert: Verify that the exception is propagated
-        with self.assertRaises(Exception) as context:
-            get_all_hardware_info()
+        # Act: Call the function
+        hardware_info = get_all_hardware_info()
 
-        self.assertTrue("Test Exception" in str(context.exception))
+        # Assert: Verify that the 'cpu' key contains an error message
+        self.assertIn("error", hardware_info["cpu"])
+        self.assertIn("Test Exception", hardware_info["cpu"]["error"])
 
 
 if __name__ == "__main__":
