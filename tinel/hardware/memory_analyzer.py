@@ -123,16 +123,17 @@ class MemoryAnalyzer:
             info["psutil_error"] = "; ".join(psutil_errors)
 
         dmi_info = self._get_dmidecode_info()
-        if dmi_info.get("memory_devices"):
-            # Convert list of dataclasses to list of dicts for JSON serialization
-            info["memory_devices"] = [asdict(d) for d in dmi_info["memory_devices"]]
-            performance_analysis = analyze_memory_performance(info)
-            if performance_analysis:
-                info["performance_analysis"] = performance_analysis
-        elif "dmidecode_error" in dmi_info:
-            info["dmidecode_error"] = dmi_info["dmidecode_error"]
-        elif "dmidecode_parse_error" in dmi_info:
-            info["dmidecode_parse_error"] = dmi_info["dmidecode_parse_error"]
+        if dmi_info:
+            if dmi_info.get("memory_devices"):
+                # Convert list of dataclasses to list of dicts for JSON serialization
+                info["memory_devices"] = [asdict(d) for d in dmi_info["memory_devices"]]
+                performance_analysis = analyze_memory_performance(info)
+                if performance_analysis:
+                    info["performance_analysis"] = performance_analysis
+            elif "dmidecode_error" in dmi_info:
+                info["dmidecode_error"] = dmi_info["dmidecode_error"]
+            elif "dmidecode_parse_error" in dmi_info:
+                info["dmidecode_parse_error"] = dmi_info["dmidecode_parse_error"]
 
         return info
 
