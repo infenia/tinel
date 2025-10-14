@@ -142,6 +142,9 @@ class CPUAnalyzer:
         # Get optimization analysis
         info.update(self._analyze_cpu_optimization())
 
+        # Get performance analysis (feature detection and frequency)
+        info.update(self._analyze_cpu_performance(info))
+
         return info
 
     def _process_basic_cpu_info(
@@ -409,6 +412,44 @@ class CPUAnalyzer:
         info["optimization_recommendations"] = recommendations
         return info
 
+    def _analyze_cpu_performance(self, info: Dict[str, Any]) -> Dict[str, Any]:
+        """Analyzes CPU performance, including feature support and frequency.
+
+        This method checks for advanced CPU features like AVX2 and gathers
+        real-time frequency data using `psutil`. It is designed to be
+        extensible for future performance-related metrics.
+
+        Args:
+            info: A dictionary containing previously gathered CPU information,
+                  including `lscpu_flags`.
+
+        Returns:
+            A dictionary with performance-related analysis, including
+            supported optimizations and current CPU frequency.
+        """
+        performance_info: Dict[str, Any] = {}
+        lscpu_flags = info.get("lscpu_flags", [])
+
+        # Check for specific optimization flags
+        performance_info["avx2_supported"] = "avx2" in lscpu_flags
+
+        # Get CPU frequency using psutil as a fallback or primary source
+        try:
+            freq = psutil.cpu_freq()
+            if freq:
+                performance_info["psutil_cpu_frequency"] = {
+                    "current": freq.current,
+                    "min": freq.min,
+                    "max": freq.max,
+                }
+        except (AttributeError, NotImplementedError, PermissionError) as e:
+            performance_info["psutil_cpu_frequency_error"] = str(e)
+        except Exception as e:
+            # Catch any other unexpected errors from psutil
+            performance_info["psutil_cpu_frequency_error"] = f"An unexpected error occurred: {e}"
+
+        return {"performance_analysis": performance_info}
+
     def _parse_cpuinfo(self, cpuinfo_content: str) -> Dict[str, Any]:
         """Parses the content of `/proc/cpuinfo`.
 
@@ -479,6 +520,11 @@ class CPUAnalyzer:
         byte_order_match = re.search(r"Byte Order:\s*(.+)", lscpu_output)
         if byte_order_match:
             info["byte_order"] = byte_order_match.group(1).strip()
+
+        # Extract flags
+        flags_match = re.search(r"Flags:\s*(.+)", lscpu_output)
+        if flags_match:
+            info["lscpu_flags"] = flags_match.group(1).strip().split()
 
         return info
 
