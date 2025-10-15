@@ -21,21 +21,54 @@
 # FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
 # AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT of OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
 
-"""Placeholder for log pattern detection functionality."""
+"""Detects issue patterns in log entries using regular expressions."""
 
-from typing import Any, List
+import re
+from typing import Dict, List
 
-def detect_patterns(log_entries: List[Any]) -> List[Any]:  # pragma: no cover
+from .models import LogAnalysis, LogEntry
+
+# A dictionary of regex patterns to detect common issues.
+PATTERNS: Dict[str, re.Pattern] = {
+    "hardware": re.compile(r"hardware error", re.IGNORECASE),
+    "kernel": re.compile(r"kernel panic", re.IGNORECASE),
+    "oom": re.compile(r"out of memory", re.IGNORECASE),
+    "segfault": re.compile(r"segmentation fault", re.IGNORECASE),
+}
+
+
+def detect_patterns(entries: List[LogEntry]) -> List[LogAnalysis]:
     """
-    Detects patterns in a list of log entries.
+    Analyzes a list of log entries to detect predefined issue patterns.
+
+    This function iterates through a list of LogEntry objects and matches their
+    messages against a dictionary of compiled regular expression patterns.
+    When a match is found, the entry is added to a corresponding LogAnalysis
+    object, which aggregates all entries for a given issue type.
 
     Args:
-        log_entries: A list of parsed log entries.
+        entries: A list of LogEntry objects to be analyzed.
 
     Returns:
-        A list of detected patterns or issues.
+        A list of LogAnalysis objects, each representing a detected
+        issue type and containing the corresponding log entries. If no
+        patterns are matched, an empty list is returned.
     """
-    return []
+    analyses: Dict[str, LogAnalysis] = {}
+    analyses: Dict[str, LogAnalysis] = {}
+    for entry in entries:
+        for issue_type, pattern in PATTERNS.items():
+            if pattern.search(entry.message):
+                if issue_type not in analyses:
+                    analyses[issue_type] = LogAnalysis(
+                        issue_type=issue_type,
+                        summary=f"Detected {issue_type} issues.",
+                    )
+                analyses[issue_type].add_entry(entry)
+                # An entry can match multiple patterns, so we don't break here.
+                # If we wanted to assign an entry to only the first pattern it
+                # matches, we would add a `break`.
+    return list(analyses.values())
