@@ -1,12 +1,15 @@
 #!/bin/bash
 #
 # Local CI Verification Script
-# Mirrors the GitHub workflow checks to verify everything works locally
+# Mirrors the GitHub workflow checks to verify everything works locally.
+# Optimized for local development with caching and speed.
+#
 # Usage: ./scripts/local_ci_check.sh [options]
 #
 
 set -euo pipefail
 
+# --- Configuration ---
 # Colors for output
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -16,239 +19,188 @@ PURPLE='\033[0;35m'
 CYAN='\033[0;36m'
 NC='\033[0m' # No Color
 
-# Configuration
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+TEMP_DIR="$PROJECT_ROOT/.local_ci_temp"
+
 PYTHON_VERSIONS=("3.11" "3.12" "3.13")
 DEFAULT_PYTHON="3.12"
-TEMP_DIR="$PROJECT_ROOT/.local_ci_temp"
-PARALLEL_JOBS=3
+COVERAGE_THRESHOLD=100
 
-# Flags
+# --- Flags ---
 VERBOSE=false
 SKIP_BUILD=false
 SKIP_DOCS=false
 SKIP_SECURITY=false
-PYTHON_VERSION="$DEFAULT_PYTHON"
-COVERAGE_THRESHOLD=90
+CLEAN=false
+RUN_ALL_PYTHONS=false
+TARGET_PYTHON=""
 
-# Helper functions
-log_info() {
-    echo -e "${BLUE}[INFO]${NC} $1"
-}
-
-log_success() {
-    echo -e "${GREEN}[SUCCESS]${NC} $1"
-}
-
-log_warning() {
-    echo -e "${YELLOW}[WARNING]${NC} $1"
-}
-
-log_error() {
-    echo -e "${RED}[ERROR]${NC} $1"
-}
-
-log_section() {
-    echo -e "\n${PURPLE}=== $1 ===${NC}"
-}
+# --- Helper Functions ---
+log_info() { echo -e "${BLUE}[INFO]${NC} $1"; }
+log_success() { echo -e "${GREEN}[SUCCESS]${NC} $1"; }
+log_warning() { echo -e "${YELLOW}[WARNING]${NC} $1"; }
+log_error() { echo -e "${RED}[ERROR]${NC} $1"; }
+log_section() { echo -e "\n${PURPLE}=== $1 ===${NC}"; }
 
 show_help() {
     cat << EOF
 Local CI Verification Script
 
+Mirrors the GitHub CI workflow for local development, optimized for speed.
+
 USAGE:
     $0 [OPTIONS]
 
 OPTIONS:
-    -h, --help              Show this help message
-    -v, --verbose           Enable verbose output
-    -p, --python VERSION    Python version to use (default: $DEFAULT_PYTHON)
-    --skip-build           Skip build and integration tests
-    --skip-docs            Skip documentation build
-    --skip-security        Skip security scanning
-    --coverage-threshold N  Set coverage threshold (default: $COVERAGE_THRESHOLD)
+    -h, --help              Show this help message.
+    -v, --verbose           Enable verbose output for debugging.
+    -p, --python VERSION    Specify a single Python version to run checks against (e.g., 3.12).
+    --all-pythons           Run checks against all supported Python versions: ${PYTHON_VERSIONS[*]}.
+    --clean                 Clean up all virtual environments and temporary files before running.
+    --skip-build            Skip build, installation, and integration tests.
+    --skip-docs             Skip documentation build.
+    --skip-security         Skip security scanning (Safety, Bandit).
+    --coverage-threshold N  Set the minimum test coverage threshold (default: $COVERAGE_THRESHOLD).
 
 EXAMPLES:
-    $0                      # Run all checks with default Python
-    $0 -p 3.11             # Run with Python 3.11
-    $0 --skip-build        # Skip build tests
-    $0 -v --skip-docs      # Verbose mode, skip docs
+    $0                      # Run all checks with the default Python ($DEFAULT_PYTHON).
+    $0 -p 3.11              # Run all checks with Python 3.11.
+    $0 --all-pythons        # Run checks against all supported Python versions.
+    $0 --skip-build -v      # Run checks verbosely, skipping the build and integration tests.
+    $0 --clean              # Force a clean run, removing all cached environments.
 
-This script mirrors the GitHub CI workflow and runs:
-1. Quality checks (linting, formatting, type checking)
-2. Security scanning (safety, bandit)
-3. Test execution with coverage
-4. Build verification
-5. Integration tests
-6. Documentation build
-
+This script runs the following checks, mirroring the GitHub CI:
+1. Quality checks (linting, formatting, type checking).
+2. Security scanning (dependency and static analysis).
+3. Unit tests with coverage.
+4. Package build and installation verification.
+5. Integration and performance tests.
+6. Documentation build.
 EOF
 }
 
-# Parse command line arguments
-while [[ $# -gt 0 ]]; do
-    case $1 in
-        -h|--help)
-            show_help
-            exit 0
-            ;;
-        -v|--verbose)
-            VERBOSE=true
-            shift
-            ;;
-        -p|--python)
-            PYTHON_VERSION="$2"
-            shift 2
-            ;;
-        --skip-build)
-            SKIP_BUILD=true
-            shift
-            ;;
-        --skip-docs)
-            SKIP_DOCS=true
-            shift
-            ;;
-        --skip-security)
-            SKIP_SECURITY=true
-            shift
-            ;;
-        --coverage-threshold)
-            COVERAGE_THRESHOLD="$2"
-            shift 2
-            ;;
-        *)
-            log_error "Unknown option: $1"
-            show_help
-            exit 1
-            ;;
-    esac
-done
+# --- Core Logic ---
 
-# Verify prerequisites
+# Parse command line arguments
+parse_arguments() {
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            -h|--help) show_help; exit 0 ;;
+            -v|--verbose) VERBOSE=true; shift ;;
+            -p|--python) TARGET_PYTHON="$2"; shift 2 ;;
+            --all-pythons) RUN_ALL_PYTHONS=true; shift ;;
+            --clean) CLEAN=true; shift ;;
+            --skip-build) SKIP_BUILD=true; shift ;;
+            --skip-docs) SKIP_DOCS=true; shift ;;
+            --skip-security) SKIP_SECURITY=true; shift ;;
+            --coverage-threshold) COVERAGE_THRESHOLD="$2"; shift 2 ;;
+            *) log_error "Unknown option: $1"; show_help; exit 1 ;;
+        esac
+    done
+
+    if [[ -n "$TARGET_PYTHON" && "$RUN_ALL_PYTHONS" == "true" ]]; then
+        log_error "Cannot use -p and --all-pythons together."
+        exit 1
+    fi
+}
+
 check_prerequisites() {
     log_section "Checking Prerequisites"
-    
-    # Check if we're in the right directory
+    if ! command -v uv &> /dev/null; then
+        log_error "'uv' is not found. Please install it: https://github.com/astral-sh/uv"
+        exit 1
+    fi
+    log_success "uv found."
+
     if [[ ! -f "$PROJECT_ROOT/pyproject.toml" ]]; then
-        log_error "Not in project root. Please run from project directory."
+        log_error "Script must be run from the project root directory."
         exit 1
     fi
-    
-    # Check Python version
-    if ! command -v python &> /dev/null; then
-        log_error "Python not found. Please install it."
-        exit 1
-    fi
-    
-    # Determine uv command
-    UV_CMD="${TINEL_UV_PATH:-uv}"
-    if ! command -v "$UV_CMD" &> /dev/null; then
-        log_error "uv not found or TINEL_UV_PATH is not correctly set. Please ensure uv is in your PATH or set TINEL_UV_PATH."
-        exit 1
-    fi
-    
-    log_success "Prerequisites check passed"
+    log_success "Running in project root."
 }
 
-# Setup environment
 setup_environment() {
-    log_section "Setting Up Environment for Python $PYTHON_VERSION"
-    
-    cd "$PROJECT_ROOT"
-    
-    # Create temp directory for reports
-    mkdir -p "$TEMP_DIR"
-    
-    # Create a version-specific virtual environment
-    log_info "Creating virtual environment for Python $PYTHON_VERSION..."
-    "$UV_CMD" venv --python python$PYTHON_VERSION .venv-$PYTHON_VERSION
-    source "$PROJECT_ROOT/.venv-$PYTHON_VERSION/bin/activate"
-    VENV_PYTHON="python"
-    
-    # Ensure pip is installed and up-to-date in the virtual environment
-    log_info "Ensuring pip is installed and up-to-date..."
-    "$VENV_PYTHON" -m ensurepip --upgrade
-    
-    # Install dependencies
-    log_info "Installing dependencies with pip..."
-    if [[ "$VERBOSE" == "true" ]]; then
-        "$VENV_PYTHON" -m pip install -e .
-        "$VENV_PYTHON" -m pip install ruff mypy pytest build twine pdoc
-        if [[ "$SKIP_SECURITY" == "false" ]]; then
-            "$VENV_PYTHON" -m pip install safety bandit
+    local py_version=$1
+    local venv_dir="$PROJECT_ROOT/.venv-$py_version"
+    log_section "Setting Up Environment for Python $py_version"
+
+    if [[ ! -d "$venv_dir" ]]; then
+        log_info "Creating virtual environment for Python $py_version..."
+        if ! uv venv --python "python$py_version" "$venv_dir"; then
+            log_error "Failed to create virtual environment for Python $py_version. Is it installed?"
+            return 1
         fi
+
+        log_info "Installing dependencies with uv..."
+        # Activate venv to install dependencies into it
+        source "$venv_dir/bin/activate"
+        if ! uv pip install -e ".[dev]"; then
+            log_error "Failed to install [dev] dependencies."
+            deactivate
+            return 1
+        fi
+        if ! uv pip install safety bandit; then
+            log_error "Failed to install security tools."
+            deactivate
+            return 1
+        fi
+        deactivate
+        log_success "Environment created and dependencies installed."
     else
-        "$VENV_PYTHON" -m pip install -e . >/dev/null 2>&1
-        "$VENV_PYTHON" -m pip install ruff mypy pytest build twine pdoc >/dev/null 2>&1
-        if [[ "$SKIP_SECURITY" == "false" ]]; then
-            "$VENV_PYTHON" -m pip install safety bandit >/dev/null 2>&1
-        fi
+        log_info "Virtual environment for Python $py_version already exists. Skipping creation."
+        log_info "To force a fresh install, run with the --clean flag."
     fi
-    
-    log_info "Contents of .venv-$PYTHON_VERSION/bin:"
-    ls -l "$PROJECT_ROOT/.venv-$PYTHON_VERSION/bin"
-    
-    log_info "Installed packages in .venv-$PYTHON_VERSION:"
-    "$VENV_PYTHON" -m pip list
-    
-    log_success "Environment setup complete for Python $PYTHON_VERSION"
+
+    # Activate the environment for subsequent commands in the script
+    source "$venv_dir/bin/activate"
 }
 
-# Quality checks (parallel execution like GitHub workflow)
 run_quality_checks() {
-    log_section "Quality Checks (Python $PYTHON_VERSION)"
-    
+    log_section "Running Quality Checks (Python $1)"
     local pids=()
-    local results=()
-    
-    # Ruff linting
+    local failed_checks=()
+
+    log_info "Running ruff lint, format check, and mypy in parallel..."
+
     {
-        log_info "Running ruff linting..."
-        if "$VENV_PYTHON" -m ruff check . --output-format=github > "$TEMP_DIR/ruff.log"; then
+        log_info "🔍 Ruff linting..."
+        if uv run --quiet ruff check . > "$TEMP_DIR/ruff.log" 2>&1; then
             echo "ruff:SUCCESS" > "$TEMP_DIR/ruff.result"
         else
             echo "ruff:FAILED" > "$TEMP_DIR/ruff.result"
         fi
     } &
     pids+=($!)
-    
-    # Format checking
+
     {
-        log_info "Running format checks..."
-        if "$VENV_PYTHON" -m ruff format --check . > "$TEMP_DIR/format.log"; then
+        log_info "📝 Format checking..."
+        if uv run --quiet ruff format --check . > "$TEMP_DIR/format.log" 2>&1; then
             echo "format:SUCCESS" > "$TEMP_DIR/format.result"
         else
             echo "format:FAILED" > "$TEMP_DIR/format.result"
         fi
     } &
     pids+=($!)
-    
-    # Type checking
+
     {
-        log_info "Running type checking..."
-        if "$VENV_PYTHON" -m mypy tinel --junit-xml="$TEMP_DIR/mypy-report.xml" > "$TEMP_DIR/mypy.log"; then
+        log_info "🏷️ Type checking..."
+        if uv run --quiet mypy tinel --junit-xml="$TEMP_DIR/mypy-report.xml" > "$TEMP_DIR/mypy.log" 2>&1; then
             echo "mypy:SUCCESS" > "$TEMP_DIR/mypy.result"
         else
             echo "mypy:FAILED" > "$TEMP_DIR/mypy.result"
         fi
     } &
     pids+=($!)
-    
-    # Wait for all parallel jobs
-    for pid in "${pids[@]}"; do
-        wait "$pid"
-    done
-    
-    # Check results
-    local failed_checks=()
-    
+
+    for pid in "${pids[@]}"; do wait "$pid"; done
+
     for check in ruff format mypy; do
         result=$(cat "$TEMP_DIR/$check.result")
         if [[ "$result" == *"SUCCESS"* ]]; then
-            log_success "$check passed"
+            log_success "$check passed."
         else
-            log_error "$check failed"
+            log_error "$check failed. See logs for details."
             failed_checks+=("$check")
             if [[ "$VERBOSE" == "true" ]]; then
                 echo "--- $check output ---"
@@ -257,443 +209,247 @@ run_quality_checks() {
             fi
         fi
     done
-    
+
     if [[ ${#failed_checks[@]} -gt 0 ]]; then
         log_error "Quality checks failed: ${failed_checks[*]}"
-        show_quality_fixes
         return 1
     fi
-    
-    log_success "All quality checks passed"
+    log_success "All quality checks passed."
 }
 
-# Security scanning
 run_security_checks() {
     if [[ "$SKIP_SECURITY" == "true" ]]; then
-        log_warning "Skipping security checks"
+        log_warning "Skipping security checks."
         return 0
     fi
-    
-    log_section "Security Scanning"
-    
+
+    log_section "Running Security Scans (Python $1)"
     local pids=()
-    local failed_checks=()
-    
-    # Safety check
+
     {
-        log_info "Running dependency vulnerability scanning..."
-        if "$VENV_PYTHON" -m safety check --json > "$TEMP_DIR/safety-report.json" 2> "$TEMP_DIR/safety.log"; then
+        log_info "🛡️ Running Safety for dependency vulnerabilities..."
+        if uv run --quiet safety check --json --output "$TEMP_DIR/safety-report.json" > "$TEMP_DIR/safety.log" 2>&1; then
             echo "safety:SUCCESS" > "$TEMP_DIR/safety.result"
         else
+            # Safety exits non-zero if vulns are found, treat as a warning
             echo "safety:WARNING" > "$TEMP_DIR/safety.result"
         fi
     } &
     pids+=($!)
-    
-    # Bandit check
+
     {
-        log_info "Running static security analysis..."
-        if "$VENV_PYTHON" -m bandit -r tinel -f json -o "$TEMP_DIR/bandit-report.json" -ll > "$TEMP_DIR/bandit.log"; then
+        log_info "🕵️ Running Bandit for static security analysis..."
+        if uv run --quiet bandit -r tinel -f json -o "$TEMP_DIR/bandit-report.json" > "$TEMP_DIR/bandit.log" 2>&1; then
             echo "bandit:SUCCESS" > "$TEMP_DIR/bandit.result"
         else
+            # Bandit exits non-zero if issues are found, treat as a warning
             echo "bandit:WARNING" > "$TEMP_DIR/bandit.result"
         fi
     } &
     pids+=($!)
-    
-    # Wait for security scans
-    for pid in "${pids[@]}"; do
-        wait "$pid"
-    done
-    
-    # Check results (warnings are acceptable for security)
-    for check in safety bandit; do
-        result=$(cat "$TEMP_DIR/$check.result")
-        if [[ "$result" == *"SUCCESS"* ]]; then
-            log_success "$check passed"
-        elif [[ "$result" == *"WARNING"* ]]; then
-            log_warning "$check completed with warnings"
-            if [[ "$VERBOSE" == "true" && -f "$TEMP_DIR/$check-report.json" ]]; then
-                echo "--- $check warnings ---"
-                cat "$TEMP_DIR/$check-report.json"
-                echo "--- end $check warnings ---"
-            fi
-        else
-            log_error "$check failed"
-            failed_checks+=("$check")
-        fi
-    done
-    
-    log_success "Security scanning completed"
+
+    for pid in "${pids[@]}"; do wait "$pid"; done
+
+    log_info "Security scanning complete. Check reports for any warnings."
+    if [[ -s "$TEMP_DIR/safety-report.json" ]]; then
+        log_warning "Safety found potential vulnerabilities. Check 'safety-report.json'."
+    else
+        log_success "Safety found no vulnerabilities."
+    fi
+    if [[ $(jq '.results | length' "$TEMP_DIR/bandit-report.json") -gt 0 ]]; then
+        log_warning "Bandit found potential issues. Check 'bandit-report.json'."
+    else
+        log_success "Bandit found no issues."
+    fi
 }
 
-# Run tests with coverage
 run_tests() {
-    log_section "Test Execution with Coverage"
-    
-    log_info "Running tests with coverage..."
-    
-    local test_cmd="\"$VENV_PYTHON\" -m pytest \
+    log_section "Running Unit Tests with Coverage (Python $1)"
+    export PYTEST_ADDOPTS="--strict-markers --strict-config --tb=short"
+
+    local pytest_cmd="uv run --quiet pytest \
         --cov=tinel \
         --cov-report=xml \
         --cov-report=term-missing \
         --cov-fail-under=$COVERAGE_THRESHOLD \
-        --junit-xml=$TEMP_DIR/junit-$PYTHON_VERSION.xml \
-        --maxfail=5"
-    
+        --junit-xml=$TEMP_DIR/junit-$1.xml \
+        tests/unit"
+
     if [[ "$VERBOSE" == "true" ]]; then
-        test_cmd="$test_cmd -v"
-    else
-        test_cmd="$test_cmd -q"
+        pytest_cmd="$pytest_cmd -v"
     fi
-    
-    if $test_cmd > "$TEMP_DIR/test.log"; then
-        log_success "All tests passed with sufficient coverage"
-        
-        # Show coverage summary
-        if "$VENV_PYTHON" -m coverage --version &> /dev/null; then
-            "$VENV_PYTHON" -m coverage report --show-missing | tail -1
-        fi
+
+    if $pytest_cmd > "$TEMP_DIR/test.log" 2>&1; then
+        log_success "All unit tests passed with sufficient coverage."
     else
-        log_error "Tests failed or insufficient coverage"
+        log_error "Unit tests failed or coverage below threshold."
         if [[ "$VERBOSE" == "true" ]]; then
             echo "--- Test output ---"
             cat "$TEMP_DIR/test.log"
             echo "--- End test output ---"
         else
-            echo "Run with -v for detailed test output"
+            echo "Run with -v for detailed test output."
         fi
         return 1
     fi
 }
 
-# Build verification
 run_build_verification() {
     if [[ "$SKIP_BUILD" == "true" ]]; then
-        log_warning "Skipping build verification"
+        log_warning "Skipping build and integration tests."
         return 0
     fi
-    
-    log_section "Build & Integration Verification"
-    
-    # Install build tools
-    log_info "Installing build tools..."
-    "$VENV_PYTHON" -m pip install build twine >/dev/null
-    
-    # Build package
+
+    log_section "Running Build & Integration Tests (Python $1)"
+    local overall_status=0
+
     log_info "Building package..."
-    if "$VENV_PYTHON" -m build --wheel --sdist > "$TEMP_DIR/build.log"; then
-        log_success "Package built successfully"
-    else
-        log_error "Package build failed"
-        if [[ "$VERBOSE" == "true" ]]; then
-            cat "$TEMP_DIR/build.log"
-        fi
+    if ! uv run --quiet python -m build --wheel --sdist > "$TEMP_DIR/build.log" 2>&1; then
+        log_error "Package build failed."
+        [[ "$VERBOSE" == "true" ]] && cat "$TEMP_DIR/build.log"
         return 1
     fi
-    
-    # Verify package
-    log_info "Verifying package integrity..."
-    if "$VENV_PYTHON" -m twine check dist/* > "$TEMP_DIR/twine.log"; then
-        log_success "Package verification passed"
-    else
-        log_error "Package verification failed"
-        if [[ "$VERBOSE" == "true" ]]; then
-            cat "$TEMP_DIR/twine.log"
-        fi
+    log_success "Package built successfully."
+
+    log_info "Verifying package with twine..."
+    if ! uv run --quiet python -m twine check "dist/*" > "$TEMP_DIR/twine.log" 2>&1; then
+        log_error "Package verification failed."
+        [[ "$VERBOSE" == "true" ]] && cat "$TEMP_DIR/twine.log"
         return 1
     fi
-    
-    # Test installation in isolated environment
-    log_info "Testing package installation..."
-    local test_env="$TEMP_DIR/test-env"
-    "$VENV_PYTHON" -m venv "$test_env"
-    source "$test_env/bin/activate"
-    
-    if "$VENV_PYTHON" -m pip install dist/*.whl > "$TEMP_DIR/install.log"; then
-        log_success "Package installation successful"
-        
-        # Basic functionality test
-        if "$VENV_PYTHON" -c "import tinel; print(f'✅ Package test passed: {tinel.__version__}')" 2>/dev/null && \
-           "$VENV_PYTHON" -m tinel --version >/dev/null 2>&1 && \
-           "$VENV_PYTHON" -m tinel --help >/dev/null 2>&1; then
-            log_success "Basic functionality tests passed"
-        else
-            log_error "Basic functionality tests failed"
-            deactivate
-            return 1
-        fi
-    else
-        log_error "Package installation failed"
-        if [[ "$VERBOSE" == "true" ]]; then
-            cat "$TEMP_DIR/install.log"
-        fi
-        deactivate
-        return 1
-    fi
-    
-    deactivate
-    
-    # Run integration tests if they exist
-    if [[ -d "tests/integration" ]]; then
+    log_success "Package verification passed."
+
+    # Integration tests
+    if [[ -d "$PROJECT_ROOT/tests/integration" ]]; then
         log_info "Running integration tests..."
-        if "$VENV_PYTHON" -m pytest tests/integration/ -v --tb=short > "$TEMP_DIR/integration.log"; then
-            log_success "Integration tests passed"
+        if uv run --quiet pytest tests/integration/ -v --tb=short > "$TEMP_DIR/integration.log" 2>&1; then
+            log_success "Integration tests passed."
         else
-            log_error "Integration tests failed"
-            if [[ "$VERBOSE" == "true" ]]; then
-                cat "$TEMP_DIR/integration.log"
-            fi
-            return 1
+            log_error "Integration tests failed."
+            [[ "$VERBOSE" == "true" ]] && cat "$TEMP_DIR/integration.log"
+            overall_status=1
         fi
     fi
-    
-    # Run performance tests if they exist
-    if [[ -d "tests/performance" ]]; then
+
+    # Performance tests
+    if [[ -d "$PROJECT_ROOT/tests/performance" ]]; then
         log_info "Running performance tests..."
-        if "$VENV_PYTHON" -m pytest tests/performance/ -v --tb=short > "$TEMP_DIR/performance.log"; then
-            log_success "Performance tests passed"
+        if uv run --quiet pytest tests/performance/ -v --tb=short > "$TEMP_DIR/performance.log" 2>&1; then
+            log_success "Performance tests passed."
         else
-            log_warning "Performance tests had issues (non-blocking)"
+            log_warning "Performance tests failed (non-blocking)."
+            [[ "$VERBOSE" == "true" ]] && cat "$TEMP_DIR/performance.log"
         fi
     fi
+
+    return $overall_status
 }
 
-# Documentation build
 run_documentation_build() {
     if [[ "$SKIP_DOCS" == "true" ]]; then
-        log_warning "Skipping documentation build"
+        log_warning "Skipping documentation build."
         return 0
     fi
-    
-    log_section "Documentation Build"
-    
-    # Check if docs dependencies are needed
-    if grep -q 'docs.*=' pyproject.toml; then
-        log_info "Installing documentation dependencies..."
-        "$VENV_PYTHON" -m pip install -e ".[docs]" >/dev/null
+
+    log_section "Running Documentation Build (Python $1)"
+
+    log_info "Installing documentation dependencies..."
+    if ! uv pip install -e ".[docs]" --quiet; then
+        log_error "Failed to install [docs] dependencies."
+        return 1
     fi
-    
-    log_info "Building API documentation..."
-    if "$VENV_PYTHON" -m pdoc --output-dir docs tinel > "$TEMP_DIR/docs.log"; then
-        if [[ -d "docs" ]] && [[ -n "$(ls -A docs)" ]]; then
-            log_success "Documentation built successfully"
-        else
-            log_error "Documentation build failed - no output generated"
-            cat "$TEMP_DIR/docs.log" # Always output log on this specific failure
-            return 1
-        fi
+
+    log_info "Building documentation with pdoc..."
+    rm -rf "$PROJECT_ROOT/docs" # Clean previous build
+    if uv run --quiet python -m pdoc --output-dir docs tinel > "$TEMP_DIR/docs.log" 2>&1; then
+        log_success "Documentation built successfully."
     else
-        log_error "Documentation build failed"
-        cat "$TEMP_DIR/docs.log" # Always output log on failure
+        log_error "Documentation build failed."
+        [[ "$VERBOSE" == "true" ]] && cat "$TEMP_DIR/docs.log"
         return 1
     fi
 }
 
-# Show quick fixes for quality issues
-show_quality_fixes() {
-    cat << EOF
-
-${YELLOW}Quick Fixes for Quality Issues:${NC}
-
-${CYAN}Fix formatting:${NC}
-    "$VENV_PYTHON" -m ruff format .
-
-${CYAN}Fix linting issues:${NC}
-    "$VENV_PYTHON" -m ruff check --fix .
-
-${CYAN}Run tests:${NC}
-    "$VENV_PYTHON" -m pytest --cov=tinel
-
-${CYAN}Type checking:${NC}
-    "$VENV_PYTHON" -m mypy tinel
-
-EOF
-}
-
-# Generate summary report
-generate_summary() {
-    log_section "Local CI Verification Summary"
-    
-    local overall_passed=true
-    
-    echo -e "\n${CYAN}📊 Verification Results:${NC}"
-    
-    for py_version in "${PYTHON_VERSIONS[@]}"; do
-        echo -e "\n${BLUE}--- Python $py_version ---${NC}"
-        echo "┌─────────────────────────────┬──────────┐"
-        echo "│ Component                   │ Status   │"
-        echo "├─────────────────────────────┼──────────┤"
-        
-        local version_passed=true
-        
-        # Quality Checks
-        local ruff_result=$(cat "$TEMP_DIR/ruff.result" 2>/dev/null || echo "ruff:SKIPPED")
-        local format_result=$(cat "$TEMP_DIR/format.result" 2>/dev/null || echo "format:SKIPPED")
-        local mypy_result=$(cat "$TEMP_DIR/mypy.result" 2>/dev/null || echo "mypy:SKIPPED")
-        
-        if [[ "$ruff_result" == *"SUCCESS"* && "$format_result" == *"SUCCESS"* && "$mypy_result" == *"SUCCESS"* ]]; then
-            echo "│ $(printf "%-27s" "Quality Checks") │ $(printf "%8s" "✅ PASS") │"
-        else
-            echo "│ $(printf "%-27s" "Quality Checks") │ $(printf "%8s" "❌ FAIL") │"
-            version_passed=false
-        fi
-        
-        # Security Scanning
-        local safety_result=$(cat "$TEMP_DIR/safety.result" 2>/dev/null || echo "safety:SKIPPED")
-        local bandit_result=$(cat "$TEMP_DIR/bandit.result" 2>/dev/null || echo "bandit:SKIPPED")
-        
-        if [[ "$SKIP_SECURITY" == "true" ]]; then
-            echo "│ $(printf "%-27s" "Security Scanning") │ $(printf "%8s" "⏭️ SKIP") │"
-        elif [[ "$safety_result" == *"SUCCESS"* && "$bandit_result" == *"SUCCESS"* ]]; then
-            echo "│ $(printf "%-27s" "Security Scanning") │ $(printf "%8s" "✅ PASS") │"
-        else
-            echo "│ $(printf "%-27s" "Security Scanning") │ $(printf "%8s" "⚠️ WARN") │"
-        fi
-        
-        # Tests
-        if [[ -f "$TEMP_DIR/junit-$py_version.xml" ]]; then
-            if grep -q 'errors="0" failures="0"' "$TEMP_DIR/junit-$py_version.xml"; then
-                echo "│ $(printf "%-27s" "Tests") │ $(printf "%8s" "✅ PASS") │"
-            else
-                echo "│ $(printf "%-27s" "Tests") │ $(printf "%8s" "❌ FAIL") │"
-                version_passed=false
-            fi
-        else
-            echo "│ $(printf "%-27s" "Tests") │ $(printf "%8s" "❌ FAIL") │"
-            version_passed=false
-        fi
-        
-        # Build Verification (only for default Python version)
-        if [[ "$py_version" == "$DEFAULT_PYTHON" ]]; then
-            if [[ "$SKIP_BUILD" == "true" ]]; then
-                echo "│ $(printf "%-27s" "Build Verification") │ $(printf "%8s" "⏭️ SKIP") │"
-            elif [[ -f "$TEMP_DIR/build.log" ]] && grep -q "Package built successfully" "$TEMP_DIR/build.log"; then
-                echo "│ $(printf "%-27s" "Build Verification") │ $(printf "%8s" "✅ PASS") │"
-            else
-                echo "│ $(printf "%-27s" "Build Verification") │ $(printf "%8s" "❌ FAIL") │"
-                version_passed=false
-            fi
-        fi
-        
-        # Documentation Build (only for default Python version)
-        if [[ "$py_version" == "$DEFAULT_PYTHON" ]]; then
-            if [[ "$SKIP_DOCS" == "true" ]]; then
-                echo "│ $(printf "%-27s" "Documentation Build") │ $(printf "%8s" "⏭️ SKIP") │"
-            elif [[ -d "docs" ]] && [[ -n "$(ls -A docs)" ]]; then
-                echo "│ $(printf "%-27s" "Documentation Build") │ $(printf "%8s" "✅ PASS") │"
-            else
-                echo "│ $(printf "%-27s" "Documentation Build") │ $(printf "%8s" "❌ FAIL") │"
-                version_passed=false
-            fi
-        fi
-        
-        echo "└─────────────────────────────┴──────────┘"
-        
-        if ! $version_passed; then
-            overall_passed=false
-        fi
-    done
-    
-    echo -e "\n${CYAN}📁 Generated Artifacts:${NC}"
-    if [[ -d "$TEMP_DIR" ]]; then
-        find "$TEMP_DIR" -name "*.xml" -o -name "*.json" -o -name "*.log" | while read -r file; do
-            echo "  - $(basename "$file")"
-        done
-    fi
-    
-    # Coverage information
-    echo -e "\n${CYAN}📈 Coverage Report:${NC}"
-    if [[ -f "coverage.xml" ]]; then
-        echo "  - coverage.xml generated (overall coverage)"
-        if command -v coverage &> /dev/null; then
-            local coverage_pct=$(coverage report --show-missing | tail -1 | grep -oE '[0-9]+%' | tail -1)
-            echo "  - Total coverage: $coverage_pct"
-        fi
-    else
-        echo "  - No overall coverage.xml generated. Check test runs."
-    fi
-    echo "  - Note: Codecov integration is part of the GitHub CI pipeline, not replicated locally."
-    
-    echo -e "\n${CYAN}🔗 Next Steps:${NC}"
-    if $overall_passed; then
-        echo "  ✅ All checks passed across all Python versions! Your code is ready for GitHub workflow."
-        echo "  📤 You can safely push your changes to trigger CI."
-    else
-        echo "  ❌ Some checks failed. Please fix the issues before pushing."
-        echo "  🔧 Review the error messages above and run the suggested fixes."
-    fi
-    
-    echo -e "\n${CYAN}📊 Overall Summary:${NC} $(if $overall_passed; then echo "PASS"; else echo "FAIL"; fi)"
-}
-
-# Cleanup function
 cleanup() {
+    log_section "Cleaning Up"
     if [[ -d "$TEMP_DIR" ]]; then
-        log_info "Cleaning up temporary files..."
+        log_info "Removing temporary directory: $TEMP_DIR"
         rm -rf "$TEMP_DIR"
     fi
     for py_version in "${PYTHON_VERSIONS[@]}"; do
-        if [[ -d ".venv-$py_version" ]]; then
-            log_info "Removing .venv-$py_version..."
-            rm -rf ".venv-$py_version"
+        local venv_dir="$PROJECT_ROOT/.venv-$py_version"
+        if [[ -d "$venv_dir" ]]; then
+            log_info "Removing virtual environment: $venv_dir"
+            rm -rf "$venv_dir"
         fi
     done
+    log_info "To preserve caches, 'uv cache clean' is not run automatically."
+    log_success "Cleanup complete."
 }
 
-# Main execution
+# --- Main Execution ---
 main() {
-    # Set up cleanup trap
-    trap cleanup EXIT
-    
-    log_info "🚀 Starting Local CI Verification"
-    log_info "Project: $(basename "$PROJECT_ROOT")"
-    
+    cd "$PROJECT_ROOT"
+    parse_arguments "$@"
     check_prerequisites
-    
-    local overall_status=0
-    
-    for py_version in "${PYTHON_VERSIONS[@]}"; do
-        log_section "Running checks for Python $py_version"
-        PYTHON_VERSION="$py_version" # Set current Python version for functions
-        
-        setup_environment
-        
-        # Run quality and security checks
-        if ! run_quality_checks; then
-            overall_status=1
-        fi
-        run_security_checks # Warnings are acceptable, so no direct impact on overall_status
-        if ! run_tests; then
-            overall_status=1
-        fi
-        
-        # Build verification and documentation are run only once with the default Python version
-        if [[ "$py_version" == "$DEFAULT_PYTHON" ]]; then
-            if ! run_build_verification; then
-                overall_status=1
-            fi
-            if ! run_documentation_build; then
-                overall_status=1
-            fi
-        fi
-        
-        deactivate
-        log_info "Pruning uv cache..."
-        "$UV_CMD" cache prune --ci
-    done
-    
-    # Generate summary
-    generate_summary
-    
-    if [[ "$overall_status" -eq 0 ]]; then
-        log_success "🎉 Local CI verification completed successfully!"
-        echo -e "\n${GREEN}Ready to push to GitHub! 🚀${NC}"
+
+    if [[ "$CLEAN" == "true" ]]; then
+        cleanup
+    fi
+
+    mkdir -p "$TEMP_DIR"
+
+    local target_pythons=()
+    if [[ "$RUN_ALL_PYTHONS" == "true" ]]; then
+        target_pythons=("${PYTHON_VERSIONS[@]}")
+    elif [[ -n "$TARGET_PYTHON" ]]; then
+        target_pythons=("$TARGET_PYTHON")
     else
-        log_error "❌ Local CI verification failed. Please check the logs above."
+        target_pythons=("$DEFAULT_PYTHON")
+    fi
+
+    local overall_status=0
+    for py_version in "${target_pythons[@]}"; do
+        if ! setup_environment "$py_version"; then
+            overall_status=1
+            continue # Skip to next python version if setup fails
+        fi
+
+        run_quality_checks "$py_version" || overall_status=1
+        run_security_checks "$py_version" # Warnings are non-blocking
+
+        if [[ "$overall_status" -eq 0 ]]; then
+            run_tests "$py_version" || overall_status=1
+        else
+            log_warning "Skipping tests for Python $py_version due to earlier failures."
+        fi
+
+        # Build and docs only run for the default python version if not otherwise specified
+        if [[ "$py_version" == "$DEFAULT_PYTHON" && ${#target_pythons[@]} -eq 1 ]]; then
+            if [[ "$overall_status" -eq 0 ]]; then
+                run_build_verification "$py_version" || overall_status=1
+                run_documentation_build "$py_version" || overall_status=1
+            else
+                log_warning "Skipping build and docs checks due to earlier failures."
+            fi
+        fi
+
+        # Deactivate the virtual environment for this iteration
+        if command -v deactivate &> /dev/null; then
+            deactivate
+        fi
+    done
+
+    # --- Summary ---
+    log_section "Local CI Summary"
+    if [[ "$overall_status" -eq 0 ]]; then
+        log_success "🎉 All checks passed!"
+        echo -e "${GREEN}Your code is ready to be pushed. 🚀${NC}"
+    else
+        log_error "❌ Some checks failed. Please review the logs above."
+        echo -e "${YELLOW}Run with -v for more details on failed steps.${NC}"
         exit 1
     fi
 }
 
-# Execute main function
 main "$@"

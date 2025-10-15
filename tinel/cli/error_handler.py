@@ -356,7 +356,9 @@ class CLIErrorHandler:
                     )
             except Exception as e:
                 # Don't let error reporting itself cause issues
-                logger.exception("An unexpected error occurred during error reporting: %s", e)
+                logger.exception(
+                    "An unexpected error occurred during error reporting: %s", e
+                )
 
         # Exit with appropriate code
         sys.exit(exit_code)
