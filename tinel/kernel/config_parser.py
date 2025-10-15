@@ -36,14 +36,14 @@ def parse_kernel_config(path: str) -> KernelConfig:
     logger.info(f"Parsing kernel config from {path}")
 
     try:
-        if file_path.suffix == '.gz':
-            with gzip.open(file_path, 'rt', encoding='utf-8') as f:
+        if file_path.suffix == ".gz":
+            with gzip.open(file_path, "rt", encoding="utf-8") as f:
                 for line in f:
                     option = _parse_line(line)
                     if option:
                         options.append(option)
         else:
-            with open(file_path, 'r', encoding='utf-8') as f:
+            with open(file_path, "r", encoding="utf-8") as f:
                 for line in f:
                     option = _parse_line(line)
                     if option:
@@ -63,7 +63,9 @@ def parse_kernel_config(path: str) -> KernelConfig:
 
 
 def _parse_line(line: str) -> Optional[KernelConfigOption]:
-    """Parse a single line into a KernelConfigOption, skipping comments or invalid lines.
+    """
+    Parse a single line into a KernelConfigOption, skipping comments or invalid
+    lines.
 
     A valid line is in the format `CONFIG_NAME=value` where value is one of
     'y', 'm', or 'n'. Lines starting with '#' (comments) and malformed lines
@@ -77,10 +79,10 @@ def _parse_line(line: str) -> Optional[KernelConfigOption]:
     """
     line = line.strip()
 
-    if not line or line.startswith('#') or '=' not in line:
+    if not line or line.startswith("#") or "=" not in line:
         return None
 
-    name, value = line.split('=', 1)
+    name, value = line.split("=", 1)
     name, value = name.strip(), value.strip()
 
     try:

@@ -19,29 +19,35 @@ limitations under the License.
 """
 
 import logging
-from typing import Dict, List
+from typing import Dict, List, Optional
 
 from .dataclasses import KernelConfig, KernelConfigOption
 
 logger = logging.getLogger(__name__)
 
+HIGH_MEMORY_GB = 16
+
 
 def recommend_optimizations(
-    config: KernelConfig, hardware_info: Dict
+    config: KernelConfig, hardware_info: Optional[Dict]
 ) -> List[KernelConfigOption]:
     """Recommend kernel config optimizations based on hardware and current config.
 
     Examples:
         >>> from tinel.kernel.dataclasses import KernelConfig, KernelConfigOption
-        >>> config = KernelConfig(options=[
-        ...     KernelConfigOption(name='CONFIG_CPU_FREQ_GOV_PERFORMANCE', value='n'),
-        ...     KernelConfigOption(name='CONFIG_HUGETLBFS', value='n'),
-        ...     KernelConfigOption(name='CONFIG_64BIT', value='y'),
-        ... ])
-        >>> hardware = {'cpu': {'topology': {'logical_cpus': 4}, 'architecture': 'x86_64'}, 'memory': {'total_memory_bytes': 32 * 1024**3}}
+        >>> options = [
+        ...     KernelConfigOption(name="CONFIG_CPU_FREQ_GOV_PERFORMANCE", value="n"),
+        ...     KernelConfigOption(name="CONFIG_HUGETLBFS", value="n"),
+        ...     KernelConfigOption(name="CONFIG_64BIT", value="y"),
+        ... ]
+        >>> config = KernelConfig(options=options)
+        >>> hardware = {
+        ...     "cpu": {"topology": {"logical_cpus": 4}, "architecture": "x86_64"},
+        ...     "memory": {"total_memory_bytes": 32 * 1024**3},
+        ... }
         >>> recommendations = recommend_optimizations(config, hardware)
         >>> for rec in recommendations:
-        ...     print(f'{rec.name}={rec.recommended}')
+        ...     print(f"{rec.name}={rec.recommended}")
         CONFIG_CPU_FREQ_GOV_PERFORMANCE=y
         CONFIG_HUGETLBFS=y
 
@@ -69,30 +75,26 @@ def recommend_optimizations(
     memory_gb = total_memory_bytes / (1024**3)
 
     # Multi-core CPU: Enable performance governor
-    if cpu_cores > 1:
-        if config_dict.get("CONFIG_CPU_FREQ_GOV_PERFORMANCE", "n") != "y":
-            recommendations.append(
-                KernelConfigOption(
-                    name="CONFIG_CPU_FREQ_GOV_PERFORMANCE",
-                    value=config_dict.get("CONFIG_CPU_FREQ_GOV_PERFORMANCE", "n"),
-                    recommended="y",
-                )
+    if cpu_cores > 1 and config_dict.get("CONFIG_CPU_FREQ_GOV_PERFORMANCE", "n") != "y":
+        recommendations.append(
+            KernelConfigOption(
+                name="CONFIG_CPU_FREQ_GOV_PERFORMANCE",
+                value=config_dict.get("CONFIG_CPU_FREQ_GOV_PERFORMANCE", "n"),
+                recommended="y",
             )
-            logger.info(
-                "Recommended CONFIG_CPU_FREQ_GOV_PERFORMANCE=y for multi-core CPU"
-            )
+        )
+        logger.info("Recommended CONFIG_CPU_FREQ_GOV_PERFORMANCE=y for multi-core CPU")
 
     # High memory: Enable huge pages
-    if memory_gb >= 16:
-        if config_dict.get("CONFIG_HUGETLBFS", "n") != "y":
-            recommendations.append(
-                KernelConfigOption(
-                    name="CONFIG_HUGETLBFS",
-                    value=config_dict.get("CONFIG_HUGETLBFS", "n"),
-                    recommended="y",
-                )
+    if memory_gb >= HIGH_MEMORY_GB and config_dict.get("CONFIG_HUGETLBFS", "n") != "y":
+        recommendations.append(
+            KernelConfigOption(
+                name="CONFIG_HUGETLBFS",
+                value=config_dict.get("CONFIG_HUGETLBFS", "n"),
+                recommended="y",
             )
-            logger.info("Recommended CONFIG_HUGETLBFS=y for high memory")
+        )
+        logger.info("Recommended CONFIG_HUGETLBFS=y for high memory")
 
     # Architecture-specific recommendations
     if architecture == "x86_64":
@@ -124,8 +126,6 @@ def recommend_optimizations(
                     recommended="y",
                 )
             )
-            logger.info(
-                "Recommended CONFIG_ARM64_64K_PAGES=y for aarch64 architecture"
-            )
+            logger.info("Recommended CONFIG_ARM64_64K_PAGES=y for aarch64 architecture")
 
     return recommendations

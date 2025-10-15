@@ -17,12 +17,18 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+
 import unittest
 from typing import Dict
 from unittest.mock import patch
 
+from tests.utils import create_mock_config_file
+from tinel.kernel.config_parser import parse_kernel_config
 from tinel.kernel.dataclasses import KernelConfig, KernelConfigOption
 from tinel.kernel.optimization import recommend_optimizations
+
+# Constants for magic numbers
+HIGH_MEMORY_GB = 16
 
 
 class TestRecommendOptimizations(unittest.TestCase):
@@ -36,9 +42,7 @@ class TestRecommendOptimizations(unittest.TestCase):
             KernelConfigOption(name="CONFIG_64BIT", value="n"),
         ]
 
-    def _get_hardware_info(
-        self, cores=1, arch="x86_64", memory_gb=4
-    ) -> Dict:
+    def _get_hardware_info(self, cores=1, arch="x86_64", memory_gb=4) -> Dict:
         """Helper to generate hardware_info dictionary."""
         return {
             "cpu": {
@@ -53,7 +57,9 @@ class TestRecommendOptimizations(unittest.TestCase):
     def test_multicore_high_memory_x86_64(self):
         """Test recommendations for a powerful x86_64 machine."""
         config = KernelConfig(options=self.base_config_options)
-        hardware_info = self._get_hardware_info(cores=8, memory_gb=32, arch="x86_64")
+        hardware_info = self._get_hardware_info(
+            cores=8, memory_gb=HIGH_MEMORY_GB, arch="x86_64"
+        )
 
         recommendations = recommend_optimizations(config, hardware_info)
         rec_names = {rec.name for rec in recommendations}
@@ -78,7 +84,9 @@ class TestRecommendOptimizations(unittest.TestCase):
     def test_aarch64_architecture(self):
         """Test recommendations for an aarch64 machine."""
         config = KernelConfig(options=self.base_config_options)
-        hardware_info = self._get_hardware_info(cores=8, memory_gb=16, arch="aarch64")
+        hardware_info = self._get_hardware_info(
+            cores=8, memory_gb=HIGH_MEMORY_GB, arch="aarch64"
+        )
 
         recommendations = recommend_optimizations(config, hardware_info)
         rec_names = {rec.name for rec in recommendations}
@@ -98,7 +106,9 @@ class TestRecommendOptimizations(unittest.TestCase):
             KernelConfigOption(name="CONFIG_64BIT", value="y"),
         ]
         config = KernelConfig(options=optimized_options)
-        hardware_info = self._get_hardware_info(cores=8, memory_gb=32, arch="x86_64")
+        hardware_info = self._get_hardware_info(
+            cores=8, memory_gb=HIGH_MEMORY_GB, arch="x86_64"
+        )
 
         recommendations = recommend_optimizations(config, hardware_info)
         self.assertEqual(len(recommendations), 0)
@@ -113,7 +123,6 @@ class TestRecommendOptimizations(unittest.TestCase):
         rec_names_none = {rec.name for rec in recommendations_none}
         self.assertIn("CONFIG_MCORE2", rec_names_none)
         self.assertIn("CONFIG_64BIT", rec_names_none)
-
 
         # Test with empty dict
         recommendations_empty = recommend_optimizations(config, {})
@@ -135,16 +144,20 @@ class TestRecommendOptimizations(unittest.TestCase):
 
     def test_aarch64_already_optimized(self):
         """Test no page size recommendation for an optimized aarch64 config."""
-        config = KernelConfig(options=[
-            KernelConfigOption(name="CONFIG_ARM64_64K_PAGES", value="y"),
-        ])
+        config = KernelConfig(
+            options=[
+                KernelConfigOption(name="CONFIG_ARM64_64K_PAGES", value="y"),
+            ]
+        )
         hardware_info = self._get_hardware_info(arch="aarch64")
         recommendations = recommend_optimizations(config, hardware_info)
         rec_names = {rec.name for rec in recommendations}
         self.assertNotIn("CONFIG_ARM64_64K_PAGES", rec_names)
 
     def test_other_architecture(self):
-        """Test that no arch-specific recommendations are made for other architectures."""
+        """
+        Test that no arch-specific recommendations are made for other architectures.
+        """
         config = KernelConfig(options=self.base_config_options)
         hardware_info = self._get_hardware_info(arch="riscv64")
         recommendations = recommend_optimizations(config, hardware_info)
@@ -153,12 +166,13 @@ class TestRecommendOptimizations(unittest.TestCase):
         self.assertNotIn("CONFIG_64BIT", rec_names)
         self.assertNotIn("CONFIG_ARM64_64K_PAGES", rec_names)
 
-
     @patch("tinel.kernel.optimization.logger")
     def test_logging(self, mock_logger):
         """Test that recommendations are logged."""
         config = KernelConfig(options=self.base_config_options)
-        hardware_info = self._get_hardware_info(cores=2, memory_gb=16, arch="x86_64")
+        hardware_info = self._get_hardware_info(
+            cores=2, memory_gb=HIGH_MEMORY_GB, arch="x86_64"
+        )
 
         recommend_optimizations(config, hardware_info)
 
@@ -170,3 +184,13 @@ class TestRecommendOptimizations(unittest.TestCase):
         mock_logger.info.assert_any_call(
             "Recommended CONFIG_CPU_FREQ_GOV_PERFORMANCE=y for multi-core CPU"
         )
+
+
+def test_get_recommendations_from_file():
+    content = "CONFIG_HUGETLBFS=n"
+    path = create_mock_config_file(content)
+    config = parse_kernel_config(path)
+    hardware_info = {"memory": {"total_memory_bytes": 32 * 1024**3}}
+    recommendations = recommend_optimizations(config, hardware_info)
+    assert len(recommendations) > 0
+    assert "CONFIG_HUGETLBFS" in recommendations[0].name

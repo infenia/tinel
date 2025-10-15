@@ -76,3 +76,37 @@ def test_kernel_config_instantiation_with_valid_options():
     config = KernelConfig(options=options)
 
     assert config.options == options
+
+
+def test_kernel_config_get_option_not_found():
+    """
+    Tests that KernelConfig.get_option returns None when the option is not found.
+    """
+    config = KernelConfig(options=[])
+    assert config.get_option("CONFIG_NON_EXISTENT") is None
+
+
+def test_kernel_config_get_option_found():
+    """
+    Tests that KernelConfig.get_option returns the correct option when it is found.
+    """
+    option = KernelConfigOption(name="CONFIG_TEST", value="y")
+    config = KernelConfig(options=[option])
+    assert config.get_option("CONFIG_TEST") == option
+
+
+def test_kernel_config_get_option_found_in_middle():
+    """
+    Tests that KernelConfig.get_option returns the correct option when it is
+    in the middle of the list.
+    """
+    option1 = KernelConfigOption(name="CONFIG_TEST1", value="y")
+    option2 = KernelConfigOption(name="CONFIG_TEST2", value="y")
+    option3 = KernelConfigOption(name="CONFIG_TEST3", value="y")
+    config = KernelConfig(options=[option1, option2, option3])
+    assert config.get_option("CONFIG_TEST2") == option2
+
+
+def test_kernel_config_option_validation():
+    with pytest.raises(ValueError):
+        KernelConfigOption(name="CONFIG_TEST", value="invalid")

@@ -3,6 +3,7 @@
 This module provides functionality to analyze kernel configurations for security
 and performance best practices.
 """
+
 import logging
 from types import MappingProxyType
 from typing import List, Mapping, Tuple
@@ -11,16 +12,25 @@ from .dataclasses import KernelConfig
 
 logger = logging.getLogger(__name__)
 
-# An immutable dictionary of best practices for kernel configuration.
-# Format: {CONFIG_OPTION: (recommended_value, explanation)}
-BEST_PRACTICES: Mapping[str, Tuple[str, str]] = MappingProxyType({
-    'CONFIG_SECURITY_SELINUX': ('y', 'Enables mandatory access control for enhanced security'),
-    'CONFIG_SECURITY_APPARMOR': ('y', 'Enables application-level security controls'),
-    'CONFIG_STRICT_KERNEL_RWX': ('y', 'Ensures kernel memory is non-writable and non-executable'),
-    'CONFIG_IKCONFIG': ('y', 'Embeds kernel config in the kernel image'),
-    'CONFIG_IKCONFIG_PROC': ('y', 'Exposes kernel config via /proc/config.gz'),
-    'CONFIG_DEBUG_KERNEL': ('n', 'Disables debug symbols to reduce kernel size')
-})
+BEST_PRACTICES: Mapping[str, Tuple[str, str]] = MappingProxyType(
+    {
+        "CONFIG_SECURITY_SELINUX": (
+            "y",
+            "Enables mandatory access control for enhanced security",
+        ),
+        "CONFIG_SECURITY_APPARMOR": (
+            "y",
+            "Enables application-level security controls",
+        ),
+        "CONFIG_STRICT_KERNEL_RWX": (
+            "y",
+            "Ensures kernel memory is non-writable and non-executable",
+        ),
+        "CONFIG_IKCONFIG": ("y", "Embeds kernel config in the kernel image"),
+        "CONFIG_IKCONFIG_PROC": ("y", "Exposes kernel config via /proc/config.gz"),
+        "CONFIG_DEBUG_KERNEL": ("n", "Disables debug symbols to reduce kernel size"),
+    }
+)
 
 
 def analyze_config(config: KernelConfig) -> List[str]:
@@ -39,21 +49,25 @@ def analyze_config(config: KernelConfig) -> List[str]:
 
     Example:
         >>> from tinel.kernel.dataclasses import KernelConfig, KernelConfigOption
-        >>> perfect_config = KernelConfig(options=[
-        ...     KernelConfigOption(name='CONFIG_SECURITY_SELINUX', value='y'),
-        ...     KernelConfigOption(name='CONFIG_SECURITY_APPARMOR', value='y'),
-        ...     KernelConfigOption(name='CONFIG_STRICT_KERNEL_RWX', value='y'),
-        ...     KernelConfigOption(name='CONFIG_IKCONFIG', value='y'),
-        ...     KernelConfigOption(name='CONFIG_IKCONFIG_PROC', value='y'),
-        ...     KernelConfigOption(name='CONFIG_DEBUG_KERNEL', value='n'),
-        ... ])
+        >>> perfect_config = KernelConfig(
+        ...     options=[
+        ...         KernelConfigOption(name="CONFIG_SECURITY_SELINUX", value="y"),
+        ...         KernelConfigOption(name="CONFIG_SECURITY_APPARMOR", value="y"),
+        ...         KernelConfigOption(name="CONFIG_STRICT_KERNEL_RWX", value="y"),
+        ...         KernelConfigOption(name="CONFIG_IKCONFIG", value="y"),
+        ...         KernelConfigOption(name="CONFIG_IKCONFIG_PROC", value="y"),
+        ...         KernelConfigOption(name="CONFIG_DEBUG_KERNEL", value="n"),
+        ...     ]
+        ... )
         >>> analyze_config(perfect_config)
         []
 
-        >>> bad_config = KernelConfig(options=[
-        ...     KernelConfigOption(name='CONFIG_SECURITY_SELINUX', value='n'),
-        ...     # CONFIG_SECURITY_APPARMOR is missing
-        ... ])
+        >>> bad_config = KernelConfig(
+        ...     options=[
+        ...         KernelConfigOption(name="CONFIG_SECURITY_SELINUX", value="n"),
+        ...         # CONFIG_SECURITY_APPARMOR is missing
+        ...     ]
+        ... )
         >>> issues = analyze_config(bad_config)
         >>> len(issues)
         5

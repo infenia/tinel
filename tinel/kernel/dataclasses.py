@@ -33,3 +33,10 @@ class KernelConfig:
     """Represents a collection of kernel configuration options."""
 
     options: List[KernelConfigOption]
+
+    def get_option(self, name: str) -> Optional[KernelConfigOption]:
+        """Get a specific option by name."""
+        for option in self.options:
+            if option.name == name:
+                return option
+        return None
