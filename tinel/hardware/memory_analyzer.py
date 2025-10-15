@@ -15,6 +15,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import re
+from dataclasses import asdict
+from typing import Any, Dict, List, Optional
+
+import psutil
+
+from ..interfaces import SystemInterface
+from ..system import LinuxSystemInterface
+from .models import MemoryDeviceDetails
+
 """Analyzes system memory, including virtual, swap, and physical devices.
 
 This module provides the `MemoryAnalyzer` class, which gathers comprehensive
@@ -26,16 +36,6 @@ memory module (e.g., DIMM, SODIMM).
 The module also includes a helper function to analyze memory performance based
 on the data collected from `dmidecode`.
 """
-
-import re
-from dataclasses import asdict
-from typing import Any, Dict, List, Optional
-
-import psutil
-
-from ..interfaces import SystemInterface
-from ..system import LinuxSystemInterface
-from .models import MemoryDeviceDetails
 
 
 def analyze_memory_performance(info: Dict[str, Any]) -> Dict[str, Any]:
