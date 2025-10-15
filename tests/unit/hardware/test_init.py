@@ -18,14 +18,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import dataclasses
 import unittest
 from unittest.mock import patch
 
-import dataclasses
-from tinel.hardware import HardwareInfo, PCIInfo, USBInfo, get_all_hardware_info
+from tinel.hardware import PCIInfo, USBInfo, get_all_hardware_info
 
 
 class TestGetAllHardwareInfo(unittest.TestCase):
+    """Unit tests for the get_all_hardware_info function."""
+
     @patch("tinel.hardware.USBAnalyzer")
     @patch("tinel.hardware.PCIAnalyzer")
     @patch("tinel.hardware.NetworkAnalyzer")
@@ -34,7 +36,8 @@ class TestGetAllHardwareInfo(unittest.TestCase):
     @patch("tinel.hardware.MemoryAnalyzer")
     @patch("tinel.hardware.CPUAnalyzer")
     def test_get_all_hardware_info_assembles_correctly(self, *mocks):
-        # Arrange: Setup mock return values for each analyzer's get_*_info method
+        """Verify that hardware info is assembled correctly from all analyzers."""
+        # Arrange: Setup mock return values for each analyzer
         (
             mock_cpu_analyzer,
             mock_memory_analyzer,
@@ -80,7 +83,7 @@ class TestGetAllHardwareInfo(unittest.TestCase):
         self.assertEqual(hardware_info["pci"], dataclasses.asdict(mock_pci_info))
         self.assertEqual(hardware_info["usb"], dataclasses.asdict(mock_usb_info))
 
-        # Assert: Verify that each analyzer's get_*_info method was called once
+        # Assert: Verify that each analyzer's get method was called once
         mock_cpu_analyzer.return_value.get_cpu_info.assert_called_once()
         mock_memory_analyzer.return_value.get_memory_info.assert_called_once()
         mock_storage_analyzer.return_value.get_storage_info.assert_called_once()
@@ -89,19 +92,27 @@ class TestGetAllHardwareInfo(unittest.TestCase):
         mock_pci_analyzer.return_value.get_pci_info.assert_called_once()
         mock_usb_analyzer.return_value.get_usb_info.assert_called_once()
 
+    @patch("tinel.hardware.MemoryAnalyzer")
     @patch("tinel.hardware.CPUAnalyzer")
-    def test_get_all_hardware_info_handles_exception(self, mock_cpu_analyzer):
-        # Arrange: Setup one of the analyzers to raise an exception
-        mock_cpu_analyzer.return_value.get_cpu_info.side_effect = Exception(
-            "Test Exception"
+    def test_handles_analyzer_exception_gracefully(
+        self, mock_cpu_analyzer, mock_memory_analyzer
+    ):
+        """Verify that an exception in one analyzer does not affect others."""
+        # Arrange: Setup one analyzer to raise an exception
+        mock_cpu_analyzer.return_value.get_cpu_info.return_value = {"cores": 4}
+        mock_memory_analyzer.return_value.get_memory_info.side_effect = Exception(
+            "Memory Read Error"
         )
 
         # Act: Call the function
-        hardware_info = get_all_hardware_info()
+        result = get_all_hardware_info()
 
-        # Assert: Verify that the 'cpu' key contains an error message
-        self.assertIn("error", hardware_info["cpu"])
-        self.assertIn("Test Exception", hardware_info["cpu"]["error"])
+        # Assert: Verify that the error is handled gracefully
+        self.assertIn("cpu", result)
+        self.assertEqual(result["cpu"], {"cores": 4})
+        self.assertIn("memory", result)
+        self.assertIn("error", result["memory"])
+        self.assertIn("Memory Read Error", result["memory"]["error"])
 
 
 if __name__ == "__main__":
