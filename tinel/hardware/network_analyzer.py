@@ -134,9 +134,7 @@ class NetworkAnalyzer:
                 "Failed to run 'ip -s link', skipping statistics: %s",
                 ip_link_result.stderr,
             )
-            info["ip_link_error"] = (
-                ip_link_result.stderr or "Failed to run ip -s link"
-            )
+            info["ip_link_error"] = ip_link_result.stderr or "Failed to run ip -s link"
 
         return info
 

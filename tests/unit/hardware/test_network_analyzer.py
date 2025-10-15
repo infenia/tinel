@@ -35,6 +35,8 @@ MOCK_SYS_SPEED = 1000
 MOCK_SYS_RX_BYTES = 1234
 MOCK_LOGGER_CALL_COUNT = 2
 MOCK_IP_LINK_CALL_COUNT = 2
+MOCK_PSUTIL_IO_BYTES = 123
+MOCK_PSUTIL_BYTES_SENT = 1024
 
 # --- MOCK DATA ---
 
@@ -876,7 +878,9 @@ wlan0     IEEE 802.11
         with patch.object(analyzer, "_get_interfaces_from_psutil", return_value=[]):
             info = analyzer._get_basic_network_info()
             assert "ip_addr_error" in info
-            assert info["ip_addr_error"] == "Failed to run ip addr, using psutil fallback"
+            assert (
+                info["ip_addr_error"] == "Failed to run ip addr, using psutil fallback"
+            )
 
     def test_get_detailed_network_info_empty_interface_info(self, analyzer, mock_si):
         """Test _get_detailed_network_info when details are empty."""
@@ -1151,7 +1155,7 @@ class TestPsutilFallbacks:
         ) as mock_psutil_getter:
             info = analyzer._get_performance_metrics()
             mock_psutil_getter.assert_called_once()
-            assert info["psutil_io_counters"]["eth0"]["bytes"] == 123
+            assert info["psutil_io_counters"]["eth0"]["bytes"] == MOCK_PSUTIL_IO_BYTES
             assert "netstat_error" in info
 
     def test_get_interfaces_from_psutil(self, analyzer):
@@ -1162,8 +1166,9 @@ class TestPsutilFallbacks:
         mock_addrs = {"lo": [snic]}
         mock_stats = {"lo": MagicMock(isup=True)}
 
-        with patch("psutil.net_if_addrs", return_value=mock_addrs), patch(
-            "psutil.net_if_stats", return_value=mock_stats
+        with (
+            patch("psutil.net_if_addrs", return_value=mock_addrs),
+            patch("psutil.net_if_stats", return_value=mock_stats),
         ):
             interfaces = analyzer._get_interfaces_from_psutil()
             assert len(interfaces) == 1
@@ -1178,9 +1183,13 @@ class TestPsutilFallbacks:
         snic.address = "127.0.0.1"
         mock_addrs = {"lo": [snic]}
 
-        with patch("psutil.net_if_addrs", return_value=mock_addrs), patch(
-            "psutil.net_if_stats", side_effect=Exception("Stats failed")
-        ) as mock_stats, patch.object(analyzer, "logger") as mock_logger:
+        with (
+            patch("psutil.net_if_addrs", return_value=mock_addrs),
+            patch(
+                "psutil.net_if_stats", side_effect=Exception("Stats failed")
+            ) as mock_stats,
+            patch.object(analyzer, "logger") as mock_logger,
+        ):
             interfaces = analyzer._get_interfaces_from_psutil()
             # Should still return address info, just without state
             assert len(interfaces) == 1
@@ -1190,9 +1199,12 @@ class TestPsutilFallbacks:
 
     def test_get_interfaces_from_psutil_addrs_failure(self, analyzer):
         """Test psutil failure in _get_interfaces_from_psutil for addrs."""
-        with patch(
-            "psutil.net_if_addrs", side_effect=Exception("psutil error")
-        ) as mock_addrs, patch.object(analyzer, "logger") as mock_logger:
+        with (
+            patch(
+                "psutil.net_if_addrs", side_effect=Exception("psutil error")
+            ) as mock_addrs,
+            patch.object(analyzer, "logger") as mock_logger,
+        ):
             interfaces = analyzer._get_interfaces_from_psutil()
             assert not interfaces
             mock_logger.error.assert_called_once()
@@ -1214,14 +1226,15 @@ class TestPsutilFallbacks:
         with patch("psutil.net_io_counters", return_value=mock_counters):
             counters = analyzer._get_psutil_io_counters()
             assert "eth0" in counters
-            assert counters["eth0"]["bytes_sent"] == 1024
+            assert counters["eth0"]["bytes_sent"] == MOCK_PSUTIL_BYTES_SENT
             assert counters["eth0"]["errin"] == 1
 
     def test_get_psutil_io_counters_failure(self, analyzer):
         """Test psutil failure in _get_psutil_io_counters."""
-        with patch(
-            "psutil.net_io_counters", side_effect=Exception("psutil error")
-        ), patch.object(analyzer, "logger") as mock_logger:
+        with (
+            patch("psutil.net_io_counters", side_effect=Exception("psutil error")),
+            patch.object(analyzer, "logger") as mock_logger,
+        ):
             counters = analyzer._get_psutil_io_counters()
             assert not counters
             mock_logger.error.assert_called_once()
@@ -1238,8 +1251,9 @@ class TestPsutilFallbacks:
         # But 'eth0' has stats
         mock_stats = {"lo": MagicMock(isup=True), "eth0": MagicMock(isup=False)}
 
-        with patch("psutil.net_if_addrs", return_value=mock_addrs), patch(
-            "psutil.net_if_stats", return_value=mock_stats
+        with (
+            patch("psutil.net_if_addrs", return_value=mock_addrs),
+            patch("psutil.net_if_stats", return_value=mock_stats),
         ):
             interfaces = analyzer._get_interfaces_from_psutil()
             # The result should only contain 'lo' because 'eth0' was not in addrs

@@ -17,7 +17,7 @@ limitations under the License.
 
 import os
 import re
-import subprocess
+import subprocess  # nosec B404: Subprocess use is intentional and handled securely
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -75,7 +75,7 @@ class LinuxSystemInterface(SystemInterface):
                 text=True,
                 timeout=timeout,
                 check=False,
-                shell=False,  # Security: Never use shell=True
+                shell=False,  # nosec B603: shell=False is explicitly set for security
                 env=self._get_safe_environment(),  # Security: Controlled environment
             )
             return CommandResult(
