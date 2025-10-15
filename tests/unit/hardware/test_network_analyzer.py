@@ -36,6 +36,9 @@ MOCK_SYS_RX_BYTES = 1234
 MOCK_LOGGER_CALL_COUNT = 2
 MOCK_IP_LINK_CALL_COUNT = 2
 
+MOCK_PSUTIL_BYTES = 123
+MOCK_PSUTIL_BYTES_SENT = 1024
+
 # --- MOCK DATA ---
 
 MOCK_IP_ADDR_OUTPUT = """
@@ -876,7 +879,9 @@ wlan0     IEEE 802.11
         with patch.object(analyzer, "_get_interfaces_from_psutil", return_value=[]):
             info = analyzer._get_basic_network_info()
             assert "ip_addr_error" in info
-            assert info["ip_addr_error"] == "Failed to run ip addr, using psutil fallback"
+            assert info["ip_addr_error"] == (
+                "Failed to run ip addr, using psutil fallback"
+            )
 
     def test_get_detailed_network_info_empty_interface_info(self, analyzer, mock_si):
         """Test _get_detailed_network_info when details are empty."""
@@ -1151,7 +1156,7 @@ class TestPsutilFallbacks:
         ) as mock_psutil_getter:
             info = analyzer._get_performance_metrics()
             mock_psutil_getter.assert_called_once()
-            assert info["psutil_io_counters"]["eth0"]["bytes"] == 123
+            assert info["psutil_io_counters"]["eth0"]["bytes"] == MOCK_PSUTIL_BYTES
             assert "netstat_error" in info
 
     def test_get_interfaces_from_psutil(self, analyzer):
@@ -1214,7 +1219,7 @@ class TestPsutilFallbacks:
         with patch("psutil.net_io_counters", return_value=mock_counters):
             counters = analyzer._get_psutil_io_counters()
             assert "eth0" in counters
-            assert counters["eth0"]["bytes_sent"] == 1024
+            assert counters["eth0"]["bytes_sent"] == MOCK_PSUTIL_BYTES_SENT
             assert counters["eth0"]["errin"] == 1
 
     def test_get_psutil_io_counters_failure(self, analyzer):
