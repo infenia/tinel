@@ -1,6 +1,8 @@
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
+
 from tinel.hardware import get_all_hardware_info
+
 
 class TestUpdatedGetAllHardwareInfo(unittest.TestCase):
 

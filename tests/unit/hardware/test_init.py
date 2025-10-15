@@ -18,11 +18,11 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import dataclasses
 import unittest
 from unittest.mock import patch
 
-import dataclasses
-from tinel.hardware import HardwareInfo, PCIInfo, USBInfo, get_all_hardware_info
+from tinel.hardware import PCIInfo, USBInfo, get_all_hardware_info
 
 
 class TestGetAllHardwareInfo(unittest.TestCase):
