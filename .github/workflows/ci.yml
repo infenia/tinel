@@ -262,7 +262,7 @@ jobs:
         uv pip install -e ".[docs]"
 
         # Build API documentation
-        uv run pdoc --html --output-dir docs tinel
+        uv run python -m pdoc --output-dir docs tinel
 
         # Validate documentation
         if [ ! -d "docs" ] || [ -z "$(ls -A docs)" ]; then
