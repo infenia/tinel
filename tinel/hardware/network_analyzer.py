@@ -97,11 +97,12 @@ class NetworkAnalyzer:
         return info
 
     def _get_basic_network_info(self) -> Dict[str, Any]:
-        """Gathers basic network interface information using the `ip` command.
+        """Gathers basic network interface information using `ip` or `psutil`.
 
-        This method uses `ip addr` and `ip -s link` to collect fundamental
-        details about each network interface, including IP addresses, MAC
-        addresses, and basic statistics.
+        This method first attempts to use `ip addr` and `ip -s link` to
+        collect fundamental details about each network interface. If these
+        commands fail, it falls back to using `psutil` to gather similar
+        information.
 
         Returns:
             A dictionary containing the basic network information.
@@ -114,8 +115,14 @@ class NetworkAnalyzer:
             info["ip_addr"] = ip_addr_result.stdout
             info["interfaces"] = self._parse_ip_addr_output(ip_addr_result.stdout)
         else:
-            self.logger.warning("Failed to run 'ip addr': %s", ip_addr_result.stderr)
-            info["ip_addr_error"] = ip_addr_result.stderr or "Failed to run ip addr"
+            self.logger.warning(
+                "Failed to run 'ip addr', falling back to psutil: %s",
+                ip_addr_result.stderr,
+            )
+            info["ip_addr_error"] = (
+                ip_addr_result.stderr or "Failed to run ip addr, using psutil fallback"
+            )
+            info["interfaces"] = self._get_interfaces_from_psutil()
 
         # Get network interface statistics using ip -s link
         ip_link_result = self.system.run_command(["ip", "-s", "link"])
@@ -123,10 +130,62 @@ class NetworkAnalyzer:
             info["ip_link"] = ip_link_result.stdout
             info.update(self._parse_ip_link_output(ip_link_result.stdout))
         else:
-            self.logger.warning("Failed to run 'ip -s link': %s", ip_link_result.stderr)
-            info["ip_link_error"] = ip_link_result.stderr or "Failed to run ip -s link"
+            self.logger.warning(
+                "Failed to run 'ip -s link', skipping statistics: %s",
+                ip_link_result.stderr,
+            )
+            info["ip_link_error"] = (
+                ip_link_result.stderr or "Failed to run ip -s link"
+            )
 
         return info
+
+    def _get_interfaces_from_psutil(self) -> List[Dict[str, Any]]:
+        """
+        Retrieves network interface information using `psutil`.
+
+        This method serves as a fallback for when the `ip` command is not
+        available. It gathers interface names, addresses, and states from
+        `psutil`. It handles failures in gathering addresses and stats
+        gracefully.
+
+        Returns:
+            A list of dictionaries, where each dictionary represents a
+            network interface. Returns an empty list if addresses cannot be
+            retrieved.
+        """
+        interfaces: Dict[str, Dict[str, Any]] = {}
+        try:
+            # Get addresses
+            addrs = psutil.net_if_addrs()
+            for name, snics in addrs.items():
+                interfaces[name] = {"name": name, "addresses": []}
+                for snic in snics:
+                    family_map = {
+                        psutil.AF_LINK: "link",
+                        2: "inet",  # AF_INET
+                        10: "inet6",  # AF_INET6
+                    }
+                    interfaces[name]["addresses"].append(
+                        {
+                            "family": family_map.get(snic.family, "unknown"),
+                            "address": snic.address,
+                        }
+                    )
+        except Exception as e:
+            self.logger.error("Failed to get interface addresses from psutil: %s", e)
+            return []
+
+        try:
+            # Get stats for state, this is non-critical
+            stats = psutil.net_if_stats()
+            for name, stat in stats.items():
+                if name in interfaces:
+                    interfaces[name]["state"] = "UP" if stat.isup else "DOWN"
+        except Exception as e:
+            self.logger.warning("Could not get interface stats from psutil: %s", e)
+
+        return list(interfaces.values())
 
     def _get_detailed_network_info(self) -> Dict[str, Any]:
         """Gathers detailed information about each network interface from sysfs.
@@ -234,11 +293,12 @@ class NetworkAnalyzer:
         return info
 
     def _get_performance_metrics(self) -> Dict[str, Any]:
-        """Gathers network performance metrics and statistics.
+        """Gathers network performance metrics using `netstat` or `psutil`.
 
-        This method uses `netstat` and `ethtool` to collect a wide range of
-        performance data, including packet counts, errors, and other detailed
-        statistics for each network interface.
+        This method first attempts to use `netstat` to collect a wide range of
+        performance data. If `netstat` fails, it falls back to `psutil` to
+        gather I/O statistics. It also tries to get detailed driver-specific
+        statistics using `ethtool`.
 
         Returns:
             A dictionary containing network performance metrics.
@@ -254,10 +314,15 @@ class NetworkAnalyzer:
             )
         else:
             self.logger.info(
-                "'netstat' command not found or failed, skipping netstat info."
+                "'netstat' command failed, falling back to psutil: %s",
+                netstat_result.stderr,
             )
+            info["netstat_error"] = (
+                netstat_result.stderr or "Failed to run netstat, using psutil fallback"
+            )
+            info["psutil_io_counters"] = self._get_psutil_io_counters()
 
-        # Get detailed network statistics using ethtool
+        # Get detailed network statistics using ethtool (no psutil fallback for this)
         ls_result = self.system.run_command(["ls", "/sys/class/net/"])
         if ls_result.success:
             interface_names = ls_result.stdout.strip().split()
@@ -283,6 +348,37 @@ class NetworkAnalyzer:
                 info["ethtool_statistics"] = ethtool_stats
 
         return info
+
+    def _get_psutil_io_counters(self) -> Dict[str, Dict[str, Any]]:
+        """
+        Retrieves network I/O counters using `psutil`.
+
+        This method serves as a fallback for when `netstat` is not available.
+        It gathers byte and packet counts, as well as errors and dropped
+        packets for all network interfaces.
+
+        Returns:
+            A dictionary where keys are interface names and values are their
+            I/O statistics.
+        """
+        try:
+            io_counters = psutil.net_io_counters(pernic=True)
+            return {
+                iface: {
+                    "bytes_sent": stats.bytes_sent,
+                    "bytes_recv": stats.bytes_recv,
+                    "packets_sent": stats.packets_sent,
+                    "packets_recv": stats.packets_recv,
+                    "errin": stats.errin,
+                    "errout": stats.errout,
+                    "dropin": stats.dropin,
+                    "dropout": stats.dropout,
+                }
+                for iface, stats in io_counters.items()
+            }
+        except Exception as e:
+            self.logger.error("Failed to get I/O counters from psutil: %s", e)
+            return {}
 
     def _parse_ip_addr_output(self, ip_addr_output: str) -> List[Dict[str, Any]]:
         """Parses the output of the `ip addr` command.
