@@ -159,8 +159,7 @@ class NetworkAnalyzer:
             # Get addresses
             addrs = psutil.net_if_addrs()
             for name, snics in addrs.items():
-                if name not in interfaces:
-                    interfaces[name] = {"name": name, "addresses": []}
+                interfaces[name] = {"name": name, "addresses": []}
                 for snic in snics:
                     family_map = {
                         psutil.AF_LINK: "link",

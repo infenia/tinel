@@ -1225,3 +1225,26 @@ class TestPsutilFallbacks:
             counters = analyzer._get_psutil_io_counters()
             assert not counters
             mock_logger.error.assert_called_once()
+
+    def test_get_interfaces_from_psutil_mismatched_interfaces(self, analyzer):
+        """
+        Test case where net_if_stats returns an interface not in net_if_addrs.
+        """
+        snic = MagicMock()
+        snic.family = 2
+        snic.address = "127.0.0.1"
+        # Only 'lo' has addresses
+        mock_addrs = {"lo": [snic]}
+        # But 'eth0' has stats
+        mock_stats = {"lo": MagicMock(isup=True), "eth0": MagicMock(isup=False)}
+
+        with patch("psutil.net_if_addrs", return_value=mock_addrs), patch(
+            "psutil.net_if_stats", return_value=mock_stats
+        ):
+            interfaces = analyzer._get_interfaces_from_psutil()
+            # The result should only contain 'lo' because 'eth0' was not in addrs
+            assert len(interfaces) == 1
+            assert interfaces[0]["name"] == "lo"
+            assert interfaces[0]["state"] == "UP"
+            # Ensure 'eth0' was not added
+            assert not any(iface["name"] == "eth0" for iface in interfaces)
