@@ -162,3 +162,50 @@ def test_syslog_parsing_performance():
     duration = end_time - start_time
     print(f"Parsed {num_lines} syslog lines in {duration:.4f} seconds.")
     assert duration < 1.0
+
+def test_parse_syslog_timestamp_value_error(tmp_path, caplog):
+    """Tests that a ValueError during timestamp parsing is handled."""
+    log_file = tmp_path / "syslog"
+    # This timestamp is invalid because it's not a real date
+    log_file.write_text("Feb 30 10:00:00 h k: m")
+
+    entries = parse_syslog(str(log_file))
+    assert len(entries) == 0
+    assert "Could not parse timestamp" in caplog.text
+
+@patch("subprocess.run", side_effect=FileNotFoundError("journalctl not found"))
+def test_parse_journald_command_not_found(mock_run, caplog):
+    """Tests that a FileNotFoundError for journalctl is handled."""
+    entries = parse_journald()
+    assert len(entries) == 0
+    assert "journalctl command not found" in caplog.text
+
+def test_parse_logs_syslog_no_path(caplog):
+    """Tests calling parse_logs for syslog with no file_path."""
+    entries = parse_logs(None, "syslog")
+    assert len(entries) == 0
+    assert "File path is required for syslog format" in caplog.text
+
+def test_infer_log_level_coverage():
+    """Ensures all branches of _infer_log_level are covered."""
+    from tinel.logs.log_parser import _infer_log_level
+    assert _infer_log_level("this is a notice") == "NOTICE"
+    assert _infer_log_level("this is some info") == "INFO"
+
+@patch("builtins.open", side_effect=Exception("Unexpected error"))
+def test_parse_syslog_generic_exception(mock_open, caplog):
+    """Tests handling of a generic exception during file processing."""
+    entries = parse_syslog("any/path")
+    assert len(entries) == 0
+    assert "An unexpected error occurred" in caplog.text
+
+@patch("subprocess.run")
+@patch("json.loads", side_effect=Exception("Unexpected JSON error"))
+def test_parse_journald_generic_exception(mock_loads, mock_run, caplog):
+    """Tests handling of a generic exception during journald log processing."""
+    mock_run.return_value = MagicMock(
+        stdout='{"__REALTIME_TIMESTAMP": "123"}', stderr="", returncode=0
+    )
+    entries = parse_journald()
+    assert len(entries) == 0
+    assert "An unexpected error occurred while parsing journald logs" in caplog.text
