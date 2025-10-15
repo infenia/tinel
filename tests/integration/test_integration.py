@@ -13,3 +13,9 @@ CONFIG_HUGETLBFS=n
     assert len(result["issues"]) > 0
     assert len(result["recommendations"]) > 0
     assert result["error"] is None
+
+
+def test_run_kernel_config_check_error():
+    path = "non_existent_file"
+    result = run_kernel_config_check(path)
+    assert result["error"] is not None
