@@ -5,18 +5,18 @@
 
 set -e
 
+UV_CMD="${TINEL_UV_PATH:-uv}"
+
 # Check if uv is installed
-if ! command -v uv &> /dev/null; then
-    echo "uv is not installed. Installing uv..."
-    curl -LsSf https://astral.sh/uv/install.sh | sh
-    # Add uv to PATH for the current session
-    export PATH="$HOME/.cargo/bin:$PATH"
+if ! command -v "$UV_CMD" &> /dev/null; then
+    echo "uv not found or TINEL_UV_PATH is not correctly set. Please ensure uv is in your PATH or set TINEL_UV_PATH."
+    exit 1
 fi
 
 # Create virtual environment if it doesn't exist
 if [ ! -d ".venv" ]; then
     echo "Creating virtual environment..."
-    uv venv
+    "$UV_CMD" venv
 fi
 
 # Activate virtual environment
@@ -25,7 +25,7 @@ source .venv/bin/activate
 
 # Install dependencies
 echo "Installing dependencies..."
-uv pip install -e ".[dev,docs]"
+"$UV_CMD" pip install -e ".[dev,docs]"
 
 echo "Development environment setup complete!"
 echo "To activate the virtual environment in the future, run: source .venv/bin/activate"

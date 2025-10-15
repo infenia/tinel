@@ -354,9 +354,11 @@ class CLIErrorHandler:
                     print(
                         f"Error report saved to: {error_report_path}", file=sys.stderr
                     )
-            except Exception:
+            except Exception as e:
                 # Don't let error reporting itself cause issues
-                pass
+                logger.exception(
+                    "An unexpected error occurred during error reporting: %s", e
+                )
 
         # Exit with appropriate code
         sys.exit(exit_code)

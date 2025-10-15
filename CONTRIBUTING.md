@@ -43,7 +43,19 @@ Before creating an issue, please:
     python --version
     ```
 
-3. Install dependencies:
+3. Configure `uv` executable (Optional):
+
+    If you have `uv` installed in a non-standard location or prefer to use a specific `uv` executable, you can set the `TINEL_UV_PATH` environment variable:
+
+    ```bash
+    export TINEL_UV_PATH="/path/to/your/uv"
+    # For example, if uv is in /media/arun/Infenia/utils/uv
+    # export TINEL_UV_PATH="/media/arun/Infenia/utils/uv"
+    ```
+
+    If `TINEL_UV_PATH` is not set, the system will look for `uv` in your system's PATH.
+
+4. Install dependencies:
 
     ```bash
     uv pip install -e ".[dev]"

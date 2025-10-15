@@ -18,6 +18,8 @@ NC='\033[0m'
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
 
+UV_CMD="${TINEL_UV_PATH:-uv}"
+
 cd "$PROJECT_ROOT"
 
 # Helper functions
@@ -65,45 +67,45 @@ EOF
 # Commands
 cmd_setup() {
     log_info "Setting up development environment..."
-    uv pip install -e ".[dev]"
-    uv pip install safety bandit
+    "$UV_CMD" pip install -e ".[dev]"
+    "$UV_CMD" pip install safety bandit
     log_success "Development environment ready!"
 }
 
 cmd_lint() {
     log_info "Running linting checks..."
-    uv run ruff check .
+    "$UV_CMD" run ruff check .
     log_success "Linting passed!"
 }
 
 cmd_format() {
     log_info "Formatting code..."
-    uv run ruff format .
+    "$UV_CMD" run ruff format .
     log_success "Code formatted!"
 }
 
 cmd_fix() {
     log_info "Auto-fixing linting issues and formatting..."
-    uv run ruff check --fix .
-    uv run ruff format .
+    "$UV_CMD" run ruff check --fix .
+    "$UV_CMD" run ruff format .
     log_success "Code fixed and formatted!"
 }
 
 cmd_test() {
     log_info "Running tests..."
-    uv run pytest
+    "$UV_CMD" run pytest
     log_success "Tests passed!"
 }
 
 cmd_test_cov() {
     log_info "Running tests with coverage..."
-    uv run pytest --cov=tinel --cov-report=term-missing
+    "$UV_CMD" run pytest --cov=tinel --cov-report=term-missing
     log_success "Tests with coverage completed!"
 }
 
 cmd_coverage() {
     log_info "Generating detailed coverage report..."
-    uv run pytest --cov=tinel --cov-report=term-missing --cov-report=html --cov-report=xml
+    "$UV_CMD" run pytest --cov=tinel --cov-report=term-missing --cov-report=html --cov-report=xml
     log_success "Coverage reports generated!"
     echo "HTML report: htmlcov/index.html"
     echo "XML report: coverage.xml"
@@ -111,14 +113,14 @@ cmd_coverage() {
 
 cmd_typecheck() {
     log_info "Running type checking..."
-    uv run mypy tinel
+    "$UV_CMD" run mypy tinel
     log_success "Type checking passed!"
 }
 
 cmd_security() {
     log_info "Running security scans..."
-    uv run safety check || log_error "Safety warnings detected"
-    uv run bandit -r tinel -ll || log_error "Bandit warnings detected"
+    "$UV_CMD" run safety scan --target . --stage development || log_error "Safety warnings detected"
+    "$UV_CMD" run bandit -r tinel -ll || log_error "Bandit warnings detected"
     log_success "Security scans completed!"
 }
 
@@ -131,7 +133,7 @@ cmd_build() {
 
 cmd_docs() {
     log_info "Building documentation..."
-    python -m pdoc --html --output-dir docs tinel
+    python -m pdoc --output-dir docs tinel
     log_success "Documentation built!"
 }
 
