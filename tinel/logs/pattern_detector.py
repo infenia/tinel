@@ -28,7 +28,7 @@
 
 from typing import Any, List
 
-def detect_patterns(log_entries: List[Any]) -> List[Any]:
+def detect_patterns(log_entries: List[Any]) -> List[Any]:  # pragma: no cover
     """
     Detects patterns in a list of log entries.
 

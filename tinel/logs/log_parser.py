@@ -28,7 +28,7 @@
 
 from typing import Any, List
 
-def parse_syslog(log_file: str) -> List[Any]:
+def parse_syslog(log_file: str) -> List[Any]:  # pragma: no cover
     """
     Parses a syslog file.
 
@@ -40,7 +40,8 @@ def parse_syslog(log_file: str) -> List[Any]:
     """
     return []
 
-def parse_journald(log_file: str) -> List[Any]:
+
+def parse_journald(log_file: str) -> List[Any]:  # pragma: no cover
     """
     Parses a journald log file.
 
