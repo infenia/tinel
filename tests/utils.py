@@ -7,6 +7,7 @@ Licensed under the Apache License, Version 2.0
 """
 
 import contextlib
+import gzip
 import os
 import tempfile
 import threading
@@ -17,6 +18,19 @@ from typing import Any, Dict, Generator, List, Optional, Union
 import pytest
 
 from tinel.interfaces import CommandResult, HardwareInfo
+
+
+def create_mock_config_file(content: str, gzipped: bool = False) -> str:
+    """Create a temporary kernel config file (gzipped or plain) for testing."""
+    with tempfile.NamedTemporaryFile(
+        delete=False, suffix=".gz" if gzipped else ".txt"
+    ) as f:
+        if gzipped:
+            with gzip.GzipFile(fileobj=f, mode="wb") as gz:
+                gz.write(content.encode("utf-8"))
+        else:
+            f.write(content.encode("utf-8"))
+        return f.name
 
 
 class TestDataBuilder:
