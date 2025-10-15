@@ -117,7 +117,7 @@ jobs:
       uses: pyupio/safety-action@v1
       with:
         api-key: ${{ secrets.SAFETY_API_KEY }}
-        args: --json --output=safety-report.json
+        args: --save-json safety-report.json
 
     - name: Run tests with coverage
       env:
