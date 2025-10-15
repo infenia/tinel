@@ -14,6 +14,17 @@ WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 See the License for the specific language governing permissions and
 limitations under the License.
 """
+"""Analyzes system memory, including virtual, swap, and physical devices.
+
+This module provides the `MemoryAnalyzer` class, which gathers comprehensive
+information about the system's memory configuration and usage. It uses `psutil`
+to get high-level statistics about virtual and swap memory, and the `dmidecode`
+command-line tool to retrieve detailed hardware information for each physical
+memory module (e.g., DIMM, SODIMM).
+
+The module also includes a helper function to analyze memory performance based
+on the data collected from `dmidecode`.
+"""
 
 import re
 from dataclasses import asdict
@@ -74,9 +85,13 @@ class MemoryAnalyzer:
     statistics and `dmidecode` for detailed hardware information about memory
     modules.
 
-    Args:
-        system_interface: An optional `SystemInterface` for system interactions.
-                          If not provided, a `LinuxSystemInterface` is used.
+    The primary public method, `get_memory_info()`, returns a dictionary
+    containing both high-level usage statistics and a detailed list of
+    physical memory devices.
+
+    Attributes:
+        system: An instance of a `SystemInterface` for interacting with the
+                underlying operating system. Defaults to `LinuxSystemInterface`.
     """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
@@ -84,19 +99,30 @@ class MemoryAnalyzer:
 
         Args:
             system_interface: An optional `SystemInterface` for system
-                              interactions.
+                              interactions. If not provided, a default
+                              `LinuxSystemInterface` is instantiated.
         """
         self.system = system_interface or LinuxSystemInterface()
 
     def get_memory_info(self) -> Dict[str, Any]:
         """Retrieves comprehensive information about the system's memory.
 
-        This method gathers statistics about virtual memory and swap space
-        using `psutil`, and detailed information about physical memory devices
-        using `dmidecode`.
+        This method aggregates memory data from two primary sources:
+        1.  `psutil`: For high-level statistics on virtual memory (RAM) and
+            swap space, including total, used, and available amounts.
+        2.  `dmidecode`: For detailed hardware information about each physical
+            memory module (DIMM), such as size, type, speed, and manufacturer.
+
+        If `dmidecode` is unavailable or fails, the method will still return
+        the `psutil` data and include an error message in the 'dmidecode_error'
+        field.
 
         Returns:
             A dictionary containing a detailed breakdown of memory information.
+            Keys include 'total_memory_bytes', 'memory_usage_percent',
+            'total_swap_bytes', 'swap_usage_percent', and 'memory_devices'.
+            The 'memory_devices' key holds a list of dictionaries, each
+            representing a physical memory module.
         """
         info: Dict[str, Any] = {}
         psutil_errors: List[str] = []

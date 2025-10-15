@@ -24,26 +24,42 @@ import psutil
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
 
-"""This module provides a detailed analysis of the CPU.
+"""Provides a detailed analysis of the host system's CPU.
 
-It includes the `CPUAnalyzer` class, which gathers comprehensive information
-about the CPU, such as model, vendor, features, topology, and vulnerabilities.
-The analyzer uses a combination of system files, commands, and the `psutil`
-library to provide a complete picture of the CPU's capabilities and status.
+This module contains the `CPUAnalyzer` class, which is responsible for
+gathering a comprehensive set of information about the CPU. This includes,
+but is not limited to:
+
+- Basic identification (model, vendor, architecture).
+- Core and thread topology (physical cores, logical processors).
+- CPU features and instruction set extensions (e.g., AVX, SSE, AES).
+- Security feature analysis and vulnerability status (e.g., Spectre, Meltdown).
+- Real-time performance metrics (frequency, governor).
+- Cache hierarchy details (L1, L2, L3 cache sizes).
+- Actionable optimization recommendations.
+
+The analyzer employs a caching mechanism to minimize performance impact from
+repeated queries to system files and commands like `lscpu` and `nproc`.
+It primarily sources information from the `/proc/cpuinfo` file and the sysfs
+filesystem (`/sys`), with `psutil` used as a robust fallback and for
+cross-verification.
 """
 
 
 class CPUAnalyzer:
     """Analyzes and retrieves detailed information about the system's CPU.
 
-    This class provides a comprehensive analysis of the CPU, including its
-    model, features, performance characteristics, and security vulnerabilities.
-    It uses a caching mechanism to improve performance for repeated queries.
+    This class orchestrates the collection of CPU data from various system
+    sources. It uses a caching mechanism with a configurable time-to-live (TTL)
+    to avoid redundant, expensive system calls for data that changes
+    infrequently.
 
-    Args:
-        system_interface: An optional `SystemInterface` implementation for
-                          executing commands and reading files. If not provided,
-                          a `LinuxSystemInterface` instance is created.
+    The primary public method is `get_cpu_info()`, which returns a
+    comprehensive dictionary of CPU attributes.
+
+    Attributes:
+        system: An instance of a `SystemInterface` for interacting with the
+                underlying operating system. Defaults to `LinuxSystemInterface`.
     """
 
     def __init__(self, system_interface: Optional[SystemInterface] = None):
@@ -51,7 +67,8 @@ class CPUAnalyzer:
 
         Args:
             system_interface: An optional `SystemInterface` for system
-                              interactions.
+                              interactions. If not provided, a default
+                              `LinuxSystemInterface` is instantiated.
         """
         self.system = system_interface or LinuxSystemInterface()
         self._cache: Dict[str, Tuple[Any, float]] = {}
@@ -96,6 +113,11 @@ class CPUAnalyzer:
 
         Returns:
             A dictionary containing a detailed breakdown of CPU information.
+            The structure includes keys such as 'model_name', 'vendor_id',
+            'architecture', 'cpu_flags', 'security_features',
+            'performance_features', 'virtualization_features',
+            'vulnerabilities', 'topology', 'cache', and
+            'optimization_recommendations'.
         """
         return cast(
             Dict[str, Any],
