@@ -2,6 +2,7 @@
 """
 This module defines the data structures for representing kernel configurations.
 """
+
 from dataclasses import dataclass
 from typing import List, Optional
 
@@ -9,11 +10,12 @@ from typing import List, Optional
 @dataclass
 class KernelConfigOption:
     """Represents a single kernel configuration option."""
+
     name: str
     value: str
     recommended: Optional[str] = None
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """
         Validates the KernelConfigOption fields after initialization.
 
@@ -22,11 +24,12 @@ class KernelConfigOption:
         """
         if not self.name:
             raise ValueError("KernelConfigOption name cannot be empty")
-        if self.value not in ('y', 'n', 'm'):
+        if self.value not in ("y", "n", "m"):
             raise ValueError(f"Invalid value for {self.name}: {self.value}")
 
 
 @dataclass
 class KernelConfig:
     """Represents a collection of kernel configuration options."""
+
     options: List[KernelConfigOption]
