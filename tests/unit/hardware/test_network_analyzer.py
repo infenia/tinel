@@ -879,9 +879,13 @@ wlan0     IEEE 802.11
         with patch.object(analyzer, "_get_interfaces_from_psutil", return_value=[]):
             info = analyzer._get_basic_network_info()
             assert "ip_addr_error" in info
+<<<<<<< HEAD
             assert info["ip_addr_error"] == (
                 "Failed to run ip addr, using psutil fallback"
             )
+=======
+            assert info["ip_addr_error"] == "Failed to run ip addr, using psutil fallback"
+>>>>>>> develop
 
     def test_get_detailed_network_info_empty_interface_info(self, analyzer, mock_si):
         """Test _get_detailed_network_info when details are empty."""
