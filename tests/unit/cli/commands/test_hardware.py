@@ -124,3 +124,40 @@ def test_execute_main_exception_no_raise(hardware_cmd):
     result = hardware_cmd.execute(args)
     assert result == 1
     hardware_cmd._handle_tool_error.assert_called()
+
+
+class TestLSHWFormatters:
+    """Tests for lshw formatters."""
+
+    @pytest.mark.parametrize(
+        "output_format, formatter_class",
+        [
+            ("output_lshw_text", "LSHWTextFormatter"),
+            ("output_lshw_json", "LSHWJsonFormatter"),
+            ("output_lshw_xml", "LSHWXmlFormatter"),
+        ],
+    )
+    def test_lshw_formatters(
+        self, hardware_cmd, mock_formatter, output_format, formatter_class
+    ):
+        """Test that the correct lshw formatter is called."""
+        args = argparse.Namespace(
+            hardware_command="all",
+            detailed=False,
+            summary=False,
+            output_lshw_text=False,
+            output_lshw_json=False,
+            output_lshw_xml=False,
+        )
+        setattr(args, output_format, True)
+
+        mock_data = {"id": "core", "class": "system"}
+        hardware_cmd._execute_tool = MagicMock(return_value=mock_data)
+
+        with patch(f"tinel.cli.commands.hardware.{formatter_class}") as mock_lshw_formatter:
+            instance = mock_lshw_formatter.return_value
+            instance.format.return_value = "formatted_output"
+            rc = hardware_cmd.execute(args)
+            assert rc == 0
+            instance.format.assert_called_once_with(mock_data)
+            mock_formatter.print_output.assert_called_once_with("formatted_output")

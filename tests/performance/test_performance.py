@@ -21,6 +21,7 @@ from tests.utils import (
     TestDataBuilder,
     performance_test,
 )
+import dataclasses
 from tinel.cli.formatters import OutputFormatter
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.system import LinuxSystemInterface
@@ -192,10 +193,12 @@ class TestCPUAnalyzerPerformance:
         elapsed = end_time - start_time
 
         # All results should be identical (cached), except for the performance data
+        first_result_dict = dataclasses.asdict(results[0])
+        first_result_dict.pop("performance_analysis", None)
         for result in results[1:]:
-            result.pop("performance_analysis", None)
-            results[0].pop("performance_analysis", None)
-            assert result == results[0]
+            result_dict = dataclasses.asdict(result)
+            result_dict.pop("performance_analysis", None)
+            assert result_dict == first_result_dict
 
         # Should complete quickly due to caching
         AssertionHelpers.assert_performance_within_bounds(

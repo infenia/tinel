@@ -17,23 +17,60 @@ limitations under the License.
 
 import unittest
 from unittest.mock import MagicMock
+import json
 
 from tinel.hardware.pci_analyzer import PCIAnalyzer
 from tinel.interfaces import CommandResult
 
 
 class TestPCIAnalyzer(unittest.TestCase):
-    def test_get_pci_info_success(self):
+    def test_get_pci_info_lshw_success(self):
+        """Test successful parsing of lshw JSON output."""
         mock_system_interface = MagicMock()
+        lshw_output = {
+            "id": "computer",
+            "children": [
+                {
+                    "id": "core",
+                    "children": [
+                        {
+                            "id": "pci",
+                            "children": [
+                                {
+                                    "id": "pci:0",
+                                    "businfo": "pci@0000:00:00.0",
+                                    "slot": "00:00.0",
+                                    "class": "bridge",
+                                    "vendor": "Intel Corporation [8086]",
+                                    "product": "Host Bridge [3ec4]",
+                                    "description": "Host bridge",
+                                    "configuration": {"driver": "skl_uncore"},
+                                    "width": 64,
+                                    "capabilities": {"pci": "PCI Express"},
+                                    "resources": {"memory": "f0000000-ffffffff"},
+                                },
+                                {
+                                    "id": "pci:1",
+                                    "businfo": "pci@0000:01:00.0",
+                                    "slot": "01:00.0",
+                                    "class": "display",
+                                    "vendor": "NVIDIA Corporation [10de]",
+                                    "product": "VGA Controller [1c8c]",
+                                    "description": "VGA compatible controller",
+                                    "configuration": {"driver": "nvidia"},
+                                    "width": 64,
+                                    "capabilities": {"vga_controller": "VGA controller"},
+                                    "resources": {"memory": "a0000000-afffffff"},
+                                },
+                            ],
+                        }
+                    ],
+                }
+            ],
+        }
         mock_system_interface.run_command.return_value = CommandResult(
             success=True,
-            stdout="""00:00.0 Host bridge: Intel [8086:3ec4] (rev 07)
-	Subsystem: Dell Inc. Device [1028:085b]
-	Kernel driver in use: skl_uncore
-01:00.0 VGA compatible controller: NVIDIA [10de:1c8c] (rev a1)
-	Subsystem: Dell Inc. Device [1028:085b]
-	Kernel driver in use: nvidia
-""",
+            stdout=json.dumps(lshw_output),
             stderr="",
             returncode=0,
         )
@@ -42,158 +79,132 @@ class TestPCIAnalyzer(unittest.TestCase):
         pci_info = analyzer.get_pci_info()
 
         self.assertEqual(len(pci_info.devices), 2)
-        self.assertEqual(pci_info.devices[0]["slot"], "00:00.0")
-        self.assertEqual(pci_info.devices[0]["vendor_id"], "8086")
-        self.assertEqual(pci_info.devices[0]["device_id"], "3ec4")
-        self.assertEqual(pci_info.devices[0]["driver"], "skl_uncore")
-        self.assertEqual(pci_info.devices[1]["slot"], "01:00.0")
-        self.assertEqual(pci_info.devices[1]["vendor_id"], "10de")
-        self.assertEqual(pci_info.devices[1]["device_id"], "1c8c")
-        self.assertEqual(pci_info.devices[1]["driver"], "nvidia")
+        device1 = pci_info.devices[0]
+        self.assertEqual(device1.slot, "00:00.0")
+        self.assertEqual(device1.vendor_id, "8086")
+        self.assertEqual(device1.device_id, "3ec4")
+        self.assertEqual(device1.driver, "skl_uncore")
+        self.assertEqual(device1.details["vendor"], "Intel Corporation")
+        self.assertEqual(device1.details["device"], "Host Bridge")
 
-    def test_get_pci_info_lspci_fail_fallback_to_sysfs(self):
+        device2 = pci_info.devices[1]
+        self.assertEqual(device2.slot, "01:00.0")
+        self.assertEqual(device2.vendor_id, "10de")
+        self.assertEqual(device2.device_id, "1c8c")
+        self.assertEqual(device2.driver, "nvidia")
+
+    def test_get_pci_info_lshw_fail_fallback_to_lspci(self):
+        """Test fallback to lspci when lshw fails."""
         mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=False, stdout="", stderr="lspci not found", returncode=127
-        )
+        # First call for lshw fails
+        # Second call for lspci succeeds
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(success=False, stdout="", stderr="lshw not found", returncode=127),
+            CommandResult(
+                success=True,
+                stdout="""Slot:\t00:00.0
+Class:\tHost bridge
+Vendor:\tIntel Corporation [8086]
+Device:\tDevice [3ec4]
+Driver:\tskl_uncore
 
-        mock_system_interface.list_dir.return_value = ["0000:00:00.0", "0000:01:00.0"]
-        mock_system_interface.read_file.side_effect = [
-            "0x8086",
-            "0x3ec4",
-            "0x060000",
-            "0x10de",
-            "0x1c8c",
-            "0x030000",
-        ]
-        mock_system_interface.readlink.side_effect = [
-            "/sys/bus/pci/drivers/skl_uncore",
-            "/sys/bus/pci/drivers/nvidia",
+Slot:\t01:00.0
+Class:\tVGA compatible controller
+Vendor:\tNVIDIA Corporation [10de]
+Device:\tDevice [1c8c]
+Driver:\tnvidia
+""",
+                stderr="",
+                returncode=0,
+            ),
         ]
 
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
         pci_info = analyzer.get_pci_info()
 
         self.assertEqual(len(pci_info.devices), 2)
-        self.assertEqual(pci_info.devices[0]["slot"], "0000:00:00.0")
-        self.assertEqual(pci_info.devices[0]["vendor_id"], "0x8086")
-        self.assertEqual(pci_info.devices[0]["device_id"], "0x3ec4")
-        self.assertEqual(pci_info.devices[0]["driver"], "skl_uncore")
-        self.assertEqual(pci_info.devices[1]["slot"], "0000:01:00.0")
-        self.assertEqual(pci_info.devices[1]["vendor_id"], "0x10de")
-        self.assertEqual(pci_info.devices[1]["device_id"], "0x1c8c")
-        self.assertEqual(pci_info.devices[1]["driver"], "nvidia")
+        self.assertEqual(pci_info.devices[0].slot, "00:00.0")
+        self.assertEqual(pci_info.devices[0].vendor_id, "8086")
+        self.assertEqual(pci_info.devices[0].device_id, "3ec4")
+        self.assertEqual(pci_info.devices[0].driver, "skl_uncore")
+        self.assertEqual(pci_info.devices[1].slot, "01:00.0")
+        self.assertEqual(pci_info.devices[1].vendor_id, "10de")
+        self.assertEqual(pci_info.devices[1].device_id, "1c8c")
+        self.assertEqual(pci_info.devices[1].driver, "nvidia")
 
-    def test_get_pci_info_sysfs_fallback_missing_files(self):
+    def test_get_pci_info_all_tools_fail(self):
+        """Test that an empty list is returned when both lshw and lspci fail."""
         mock_system_interface = MagicMock()
         mock_system_interface.run_command.return_value = CommandResult(
-            success=False, stdout="", stderr="lspci not found", returncode=127
+            success=False, stdout="", stderr="command not found", returncode=127
         )
-
-        mock_system_interface.list_dir.return_value = ["0000:00:00.0"]
-        # Simulate missing device file
-        mock_system_interface.read_file.side_effect = ["0x8086", None, "0x060000"]
-        mock_system_interface.readlink.return_value = ""
 
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
         pci_info = analyzer.get_pci_info()
 
         self.assertEqual(len(pci_info.devices), 0)
 
-    def test_get_pci_info_sysfs_fallback_no_devices(self):
+    def test_parse_lspci_correctly_populates_details(self):
+        """Test that lspci output correctly populates the details dictionary."""
         mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=False, stdout="", stderr="lspci not found", returncode=127
-        )
-        # Simulate no devices found in sysfs
-        mock_system_interface.list_dir.return_value = []
-        analyzer = PCIAnalyzer(system_interface=mock_system_interface)
-        pci_info = analyzer.get_pci_info()
-        self.assertEqual(len(pci_info.devices), 0)
-
-    def test_get_pci_info_sysfs_fallback_device_permission_error(self):
-        mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=False, stdout="", stderr="lspci not found", returncode=127
-        )
-        mock_system_interface.list_dir.return_value = ["0000:00:00.0"]
-        mock_system_interface.read_file.side_effect = PermissionError("Denied")
-        analyzer = PCIAnalyzer(system_interface=mock_system_interface)
-        pci_info = analyzer.get_pci_info()
-        self.assertEqual(len(pci_info.devices), 0)
-
-    def test_get_pci_info_sysfs_fallback_no_driver(self):
-        mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=False, stdout="", stderr="lspci not found", returncode=127
-        )
-
-        mock_system_interface.list_dir.return_value = ["0000:00:00.0"]
-        mock_system_interface.read_file.side_effect = ["0x8086", "0x3ec4", "0x060000"]
-        # Simulate no driver link
-        mock_system_interface.readlink.return_value = ""
-
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(success=False, stdout="", stderr="", returncode=1),
+            CommandResult(
+                success=True,
+                stdout="""Slot:\t00:02.0
+Class:\tVGA compatible controller
+Vendor:\tIntel Corporation [8086]
+Device:\tHD Graphics [1916]
+SVendor:\tDell Inc.
+SDevice:\tDevice [06e2]
+Driver:\ti915
+""",
+                stderr="",
+                returncode=0,
+            ),
+        ]
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
         pci_info = analyzer.get_pci_info()
 
         self.assertEqual(len(pci_info.devices), 1)
-        self.assertEqual(pci_info.devices[0]["driver"], "N/A")
-
-    def test_parse_lspci_with_details_line(self):
-        mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout="""00:02.0 VGA compatible controller: Intel HD Graphics [8086:1916]
-	Subsystem: Dell Inc. Device [1028:06e2]
-	Kernel driver in use: i915
-	some detail line
-""",
-            stderr="",
-            returncode=0,
-        )
-        analyzer = PCIAnalyzer(system_interface=mock_system_interface)
-        pci_info = analyzer.get_pci_info()
-        self.assertIn("details", pci_info.devices[0])
-        self.assertIn("some detail line", pci_info.devices[0]["details"])
-
-    def test_parse_lspci_with_multiple_details_lines(self):
-        mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout="""00:02.0 VGA compatible controller: Intel HD Graphics [8086:1916]
-	Subsystem: Dell Inc. Device [1028:06e2]
-	detail 1
-	detail 2
-""",
-            stderr="",
-            returncode=0,
-        )
-        analyzer = PCIAnalyzer(system_interface=mock_system_interface)
-        pci_info = analyzer.get_pci_info()
-        self.assertIn("details", pci_info.devices[0])
-        self.assertEqual(pci_info.devices[0]["details"], ["detail 1", "detail 2"])
+        device = pci_info.devices[0]
+        self.assertIsNotNone(device.details)
+        self.assertEqual(device.details.get("vendor"), "Intel Corporation")
+        self.assertEqual(device.details.get("device"), "HD Graphics")
+        self.assertEqual(device.details.get("class"), "VGA compatible controller")
+        self.assertEqual(device.subsystem, "Dell Inc. Device 06e2")
 
     def test_parse_lspci_with_leading_junk(self):
+        """Test that the lspci parser skips leading junk lines."""
         mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout="""
-Junk line
-00:00.0 Host bridge: Intel Corporation Device [8086:1234] (rev 01)
+        mock_system_interface.run_command.side_effect = [
+             CommandResult(success=False, stdout="", stderr="", returncode=1),
+             CommandResult(
+                success=True,
+                stdout="""
+Junk line that should be skipped because it doesn't contain a tab
+Slot:\t00:00.0
+Class:\tHost bridge
+Vendor:\tIntel Corporation [8086]
+Device:\tDevice [1234]
+Rev:\t01
 """,
-            stderr="",
-            returncode=0,
-        )
+                stderr="",
+                returncode=0,
+            )
+        ]
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
         pci_info = analyzer.get_pci_info()
         self.assertEqual(len(pci_info.devices), 1)
-        self.assertEqual(pci_info.devices[0]["slot"], "00:00.0")
+        self.assertEqual(pci_info.devices[0].slot, "00:00.0")
 
     def test_get_pci_info_no_devices_found(self):
+        """Test handling of empty output from lspci."""
         mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True, stdout="", stderr="", returncode=0
-        )
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(success=False, stdout="", stderr="", returncode=1),
+            CommandResult(success=True, stdout="", stderr="", returncode=0)
+        ]
 
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
         pci_info = analyzer.get_pci_info()
@@ -203,21 +214,14 @@ Junk line
     def test_parse_lspci_no_device_at_end(self):
         """Test parsing when output ends with no current_device (empty lines only)."""
         mock_system_interface = MagicMock()
-        # Output with only whitespace/empty lines, no device header
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout="""
-
-
-""",
-            stderr="",
-            returncode=0,
-        )
+        mock_system_interface.run_command.side_effect = [
+            CommandResult(success=False, stdout="", stderr="", returncode=1),
+            CommandResult(success=True, stdout="\n\n", stderr="", returncode=0)
+        ]
 
         analyzer = PCIAnalyzer(system_interface=mock_system_interface)
         pci_info = analyzer.get_pci_info()
 
-        # Should handle gracefully with no devices
         self.assertEqual(len(pci_info.devices), 0)
 
 

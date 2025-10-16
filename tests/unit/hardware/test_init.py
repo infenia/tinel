@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
-Unit tests for the hardware __init__ module.
-
 Copyright 2025 Infenia Private Limited
 
 Licensed under the Apache License, Version 2.0 (the "License");
@@ -18,102 +15,150 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
-import dataclasses
 import unittest
-from unittest.mock import patch
-
-from tinel.hardware import PCIInfo, USBInfo, get_all_hardware_info
-
+from unittest.mock import patch, MagicMock
+from tinel.hardware import get_all_hardware_info
+from tinel.hardware.models import (
+    CPUInfo, BIOSInfo, MemoryInfo, PCIInfo, GraphicsInfo, StorageInfo,
+    NetworkInfo, USBInfo, SystemInfo, MotherboardInfo, BlockDevice,
+    NetworkInterface, USBDevice, PCIDevice, GPU
+)
 
 class TestGetAllHardwareInfo(unittest.TestCase):
-    """Unit tests for the get_all_hardware_info function."""
 
-    @patch("tinel.hardware.USBAnalyzer")
-    @patch("tinel.hardware.PCIAnalyzer")
-    @patch("tinel.hardware.NetworkAnalyzer")
-    @patch("tinel.hardware.GraphicsAnalyzer")
-    @patch("tinel.hardware.StorageAnalyzer")
-    @patch("tinel.hardware.MemoryAnalyzer")
-    @patch("tinel.hardware.CPUAnalyzer")
-    def test_get_all_hardware_info_assembles_correctly(self, *mocks):
-        """Verify that hardware info is assembled correctly from all analyzers."""
-        # Arrange: Setup mock return values for each analyzer
-        (
-            mock_cpu_analyzer,
-            mock_memory_analyzer,
-            mock_storage_analyzer,
-            mock_graphics_analyzer,
-            mock_network_analyzer,
-            mock_pci_analyzer,
-            mock_usb_analyzer,
-        ) = mocks
+    @patch('tinel.hardware.LinuxSystemInterface')
+    @patch('tinel.hardware.CPUAnalyzer')
+    @patch('tinel.hardware.BIOSAnalyzer')
+    @patch('tinel.hardware.MemoryAnalyzer')
+    @patch('tinel.hardware.PCIAnalyzer')
+    @patch('tinel.hardware.GraphicsAnalyzer')
+    @patch('tinel.hardware.StorageAnalyzer')
+    @patch('tinel.hardware.NetworkAnalyzer')
+    @patch('tinel.hardware.USBAnalyzer')
+    @patch('tinel.hardware.SystemAnalyzer')
+    @patch('tinel.hardware.MotherboardAnalyzer')
+    def test_get_all_hardware_info_assembles_correctly(
+        self, MockMotherboardAnalyzer, MockSystemAnalyzer, MockUSBAnalyzer,
+        MockNetworkAnalyzer, MockStorageAnalyzer, MockGraphicsAnalyzer,
+        MockPCIAnalyzer, MockMemoryAnalyzer, MockBIOSAnalyzer,
+        MockCPUAnalyzer, MockLinuxSystemInterface
+    ):
+        # Setup mock return values for each analyzer
+        MockCPUAnalyzer.return_value.get_cpu_info.return_value = CPUInfo()
+        MockBIOSAnalyzer.return_value.get_bios_info.return_value = BIOSInfo()
+        MockMemoryAnalyzer.return_value.get_memory_info.return_value = MemoryInfo()
+        MockPCIAnalyzer.return_value.get_pci_info.return_value = PCIInfo(devices=[PCIDevice()])
+        MockGraphicsAnalyzer.return_value.get_graphics_info.return_value = GraphicsInfo(gpus=[GPU()])
+        MockStorageAnalyzer.return_value.get_storage_info.return_value = StorageInfo(block_devices=[BlockDevice(name="sda")])
+        MockNetworkAnalyzer.return_value.get_network_info.return_value = NetworkInfo(interfaces=[NetworkInterface(name="eth0")])
+        MockUSBAnalyzer.return_value.get_usb_info.return_value = USBInfo(devices=[USBDevice()])
+        MockSystemAnalyzer.return_value.get_system_info.return_value = SystemInfo(product="MyPC")
+        MockMotherboardAnalyzer.return_value.get_motherboard_info.return_value = MotherboardInfo(product="Z390")
 
-        mock_cpu_info = {"cores": 8}
-        mock_mem_info = {"total": "16GB"}
-        mock_storage_info = {"disks": ["sda"]}
-        mock_graphics_info = {"gpu": "NVIDIA"}
-        mock_network_info = {"interfaces": ["eth0"]}
-        mock_pci_info = PCIInfo(devices=[{"slot": "00:01.0"}])
-        mock_usb_info = USBInfo(tree={"root_hubs": []})
-
-        mock_cpu_analyzer.return_value.get_cpu_info.return_value = mock_cpu_info
-        mock_memory_analyzer.return_value.get_memory_info.return_value = mock_mem_info
-        mock_storage_analyzer.return_value.get_storage_info.return_value = (
-            mock_storage_info
-        )
-        mock_graphics_analyzer.return_value.get_graphics_info.return_value = (
-            mock_graphics_info
-        )
-        mock_network_analyzer.return_value.get_network_info.return_value = (
-            mock_network_info
-        )
-        mock_pci_analyzer.return_value.get_pci_info.return_value = mock_pci_info
-        mock_usb_analyzer.return_value.get_usb_info.return_value = mock_usb_info
-
-        # Act: Call the function under test
+        # Call the function
         hardware_info = get_all_hardware_info()
 
-        # Assert: Verify that the result is a dictionary with the correct data
-        self.assertIsInstance(hardware_info, dict)
-        self.assertEqual(hardware_info["cpu"], mock_cpu_info)
-        self.assertEqual(hardware_info["memory"], mock_mem_info)
-        self.assertEqual(hardware_info["storage"], mock_storage_info)
-        self.assertEqual(hardware_info["graphics"], mock_graphics_info)
-        self.assertEqual(hardware_info["network"], mock_network_info)
-        self.assertEqual(hardware_info["pci"], dataclasses.asdict(mock_pci_info))
-        self.assertEqual(hardware_info["usb"], dataclasses.asdict(mock_usb_info))
+        # Assertions to ensure the dictionary is built as expected
+        self.assertEqual(hardware_info['id'], 'MyPC')
+        core = hardware_info['children'][0]['children']
 
-        # Assert: Verify that each analyzer's get method was called once
-        mock_cpu_analyzer.return_value.get_cpu_info.assert_called_once()
-        mock_memory_analyzer.return_value.get_memory_info.assert_called_once()
-        mock_storage_analyzer.return_value.get_storage_info.assert_called_once()
-        mock_graphics_analyzer.return_value.get_graphics_info.assert_called_once()
-        mock_network_analyzer.return_value.get_network_info.assert_called_once()
-        mock_pci_analyzer.return_value.get_pci_info.assert_called_once()
-        mock_usb_analyzer.return_value.get_usb_info.assert_called_once()
+        # Check for presence of each component
+        self.assertTrue(any(c.get('id') == 'cpu' for c in core))
+        self.assertTrue(any(c.get('id') == 'firmware' for c in core))
+        self.assertTrue(any(c.get('id') == 'memory' for c in core))
+        self.assertTrue(any(c.get('id') == 'pci' for c in core))
+        self.assertTrue(any(c.get('id') == 'usb' for c in core))
+        self.assertTrue(any("disk" in c.get('id') for c in core))
+        self.assertTrue(any("network" in c.get('id') for c in core))
 
-    @patch("tinel.hardware.MemoryAnalyzer")
-    @patch("tinel.hardware.CPUAnalyzer")
+        # Check that graphics card is under PCI
+        pci_bus = next(c for c in core if c.get('id') == 'pci')
+        self.assertTrue(any(d.get('gpus') for d in pci_bus['children']))
+
+    @patch('tinel.hardware.LinuxSystemInterface')
+    @patch('tinel.hardware.CPUAnalyzer')
+    @patch('tinel.hardware.BIOSAnalyzer')
+    @patch('tinel.hardware.MemoryAnalyzer')
+    @patch('tinel.hardware.PCIAnalyzer')
+    @patch('tinel.hardware.GraphicsAnalyzer')
+    @patch('tinel.hardware.StorageAnalyzer')
+    @patch('tinel.hardware.NetworkAnalyzer')
+    @patch('tinel.hardware.USBAnalyzer')
+    @patch('tinel.hardware.SystemAnalyzer')
+    @patch('tinel.hardware.MotherboardAnalyzer')
     def test_handles_analyzer_exception_gracefully(
-        self, mock_cpu_analyzer, mock_memory_analyzer
+        self, MockMotherboardAnalyzer, MockSystemAnalyzer, MockUSBAnalyzer,
+        MockNetworkAnalyzer, MockStorageAnalyzer, MockGraphicsAnalyzer,
+        MockPCIAnalyzer, MockMemoryAnalyzer, MockBIOSAnalyzer,
+        MockCPUAnalyzer, MockLinuxSystemInterface
     ):
-        """Verify that an exception in one analyzer does not affect others."""
-        # Arrange: Setup one analyzer to raise an exception
-        mock_cpu_analyzer.return_value.get_cpu_info.return_value = {"cores": 4}
-        mock_memory_analyzer.return_value.get_memory_info.side_effect = Exception(
-            "Memory Read Error"
-        )
+        # Setup one analyzer to fail
+        MockCPUAnalyzer.return_value.get_cpu_info.side_effect = Exception("CPU Failure")
+        MockBIOSAnalyzer.return_value.get_bios_info.side_effect = Exception("BIOS Failure")
+        MockMemoryAnalyzer.return_value.get_memory_info.side_effect = Exception("Memory Failure")
+        MockPCIAnalyzer.return_value.get_pci_info.side_effect = Exception("PCI Failure")
+        MockGraphicsAnalyzer.return_value.get_graphics_info.side_effect = Exception("Graphics Failure")
+        MockStorageAnalyzer.return_value.get_storage_info.side_effect = Exception("Storage Failure")
+        MockNetworkAnalyzer.return_value.get_network_info.side_effect = Exception("Network Failure")
+        MockUSBAnalyzer.return_value.get_usb_info.side_effect = Exception("USB Failure")
 
-        # Act: Call the function
-        result = get_all_hardware_info()
+        # Mock the rest to succeed
+        MockSystemAnalyzer.return_value.get_system_info.return_value = SystemInfo(product="MyPC")
+        MockMotherboardAnalyzer.return_value.get_motherboard_info.return_value = MotherboardInfo(product="Z390")
 
-        # Assert: Verify that the error is handled gracefully
-        self.assertIn("cpu", result)
-        self.assertEqual(result["cpu"], {"cores": 4})
-        self.assertIn("memory", result)
-        self.assertIn("error", result["memory"])
-        self.assertIn("Memory Read Error", result["memory"]["error"])
+        # Call the function
+        hardware_info = get_all_hardware_info()
 
+        # Assert that the main structure is still present
+        self.assertEqual(hardware_info['id'], 'MyPC')
+        core = hardware_info['children'][0]['children']
 
-if __name__ == "__main__":
+        # Assert that the failed components are not present
+        self.assertFalse(any(c.get('id') == 'cpu' for c in core))
+        self.assertFalse(any(c.get('id') == 'firmware' for c in core))
+        self.assertFalse(any(c.get('id') == 'memory' for c in core))
+        self.assertFalse(any(c.get('id') == 'pci' for c in core))
+        self.assertFalse(any(c.get('id') == 'usb' for c in core))
+        self.assertFalse(any("disk" in c.get('id') for c in core))
+        self.assertFalse(any("network" in c.get('id') for c in core))
+
+    @patch('tinel.hardware.LinuxSystemInterface')
+    @patch('tinel.hardware.CPUAnalyzer')
+    @patch('tinel.hardware.BIOSAnalyzer')
+    @patch('tinel.hardware.MemoryAnalyzer')
+    @patch('tinel.hardware.PCIAnalyzer')
+    @patch('tinel.hardware.GraphicsAnalyzer')
+    @patch('tinel.hardware.StorageAnalyzer')
+    @patch('tinel.hardware.NetworkAnalyzer')
+    @patch('tinel.hardware.USBAnalyzer')
+    @patch('tinel.hardware.SystemAnalyzer')
+    @patch('tinel.hardware.MotherboardAnalyzer')
+    def test_get_all_hardware_info_with_empty_lists(
+        self, MockMotherboardAnalyzer, MockSystemAnalyzer, MockUSBAnalyzer,
+        MockNetworkAnalyzer, MockStorageAnalyzer, MockGraphicsAnalyzer,
+        MockPCIAnalyzer, MockMemoryAnalyzer, MockBIOSAnalyzer,
+        MockCPUAnalyzer, MockLinuxSystemInterface
+    ):
+        # Setup mock return values for each analyzer to return empty lists
+        MockCPUAnalyzer.return_value.get_cpu_info.return_value = CPUInfo()
+        MockBIOSAnalyzer.return_value.get_bios_info.return_value = BIOSInfo()
+        MockMemoryAnalyzer.return_value.get_memory_info.return_value = MemoryInfo()
+        MockPCIAnalyzer.return_value.get_pci_info.return_value = PCIInfo(devices=[])
+        MockGraphicsAnalyzer.return_value.get_graphics_info.return_value = GraphicsInfo(gpus=[])
+        MockStorageAnalyzer.return_value.get_storage_info.return_value = StorageInfo(block_devices=[])
+        MockNetworkAnalyzer.return_value.get_network_info.return_value = NetworkInfo(interfaces=[])
+        MockUSBAnalyzer.return_value.get_usb_info.return_value = USBInfo(devices=[])
+        MockSystemAnalyzer.return_value.get_system_info.return_value = SystemInfo(product="MyPC")
+        MockMotherboardAnalyzer.return_value.get_motherboard_info.return_value = MotherboardInfo(product="Z390")
+
+        hardware_info = get_all_hardware_info()
+        core = hardware_info['children'][0]['children']
+
+        # Assert that components that can be empty are not present
+        self.assertFalse(any(c.get('id') == 'pci' for c in core))
+        self.assertFalse(any(c.get('id') == 'usb' for c in core))
+        self.assertFalse(any("disk" in c.get('id') for c in core))
+        self.assertFalse(any("network" in c.get('id') for c in core))
+
+if __name__ == '__main__':
     unittest.main()
