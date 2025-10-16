@@ -345,14 +345,13 @@ class NetworkAnalyzer:
         iface_type = type_map.get(type_val, f"unknown ({type_val})")
         interface_info = NetworkInterface(name=interface_name, type=iface_type)
 
-        for key in ["speed", "duplex", "mtu", "carrier", "operstate"]:
+        for key in ["speed", "duplex", "mtu", "carrier", "operstate", "address"]:
             value = read_sys_file(key)
             if value:
                 setattr(
                     interface_info, key, int(value) if value.isdigit() else value
                 )
 
-        interface_info.address = read_sys_file("address")
         businfo_path = self.system.readlink(f"{sys_path}/device")
         if businfo_path:
             interface_info.businfo = businfo_path.split("/")[-1]
@@ -363,19 +362,23 @@ class NetworkAnalyzer:
 
         flags_val = read_sys_file("flags")
         if flags_val and isinstance(flags_val, str):
-            flags = int(flags_val, 16)
-            interface_info.flags = flags
-            flag_map = {
-                0x1: "UP",
-                0x2: "BROADCAST",
-                0x8: "LOOPBACK",
-                0x40: "RUNNING",
-                0x1000: "MULTICAST",
-                0x10000: "LOWER_UP",
-            }
-            interface_info.decoded_flags = [
-                name for val, name in flag_map.items() if flags & val
-            ]
+            try:
+                flags = int(flags_val, 16)
+                interface_info.flags = flags
+                flag_map = {
+                    0x1: "UP",
+                    0x2: "BROADCAST",
+                    0x8: "LOOPBACK",
+                    0x40: "RUNNING",
+                    0x1000: "MULTICAST",
+                    0x10000: "LOWER_UP",
+                }
+                interface_info.decoded_flags = [
+                    name for val, name in flag_map.items() if flags & val
+                ]
+            except ValueError:
+                self.logger.warning("Could not parse flags value: %s", flags_val)
+
 
         stats: Dict[str, Any] = {}
         stats_path = f"{sys_path}/statistics"
@@ -431,7 +434,8 @@ class NetworkAnalyzer:
             if signal_match:
                 interface_info.signal_level = signal_match.group(1)
 
-            interfaces.append(interface_info)
+            if any([interface_info.essid, interface_info.mode, interface_info.frequency, interface_info.access_point, interface_info.bit_rate, interface_info.signal_level]):
+                interfaces.append(interface_info)
         return interfaces
 
     def _parse_iw_list_output(self, iw_list_output: str) -> Dict[str, Any]:
@@ -468,9 +472,9 @@ class NetworkAnalyzer:
         if len(lines) < 2:
             return interfaces
 
-        headers = re.split(r"\s+", lines[0].strip())
+        headers = re.split(r"\s+", lines[1].strip())
 
-        for line in lines[1:]:
+        for line in lines[2:]:
             values = re.split(r"\s+", line.strip())
             if len(values) >= len(headers):
                 interface_stats = {
@@ -483,13 +487,15 @@ class NetworkAnalyzer:
     def _parse_ethtool_output(self, ethtool_output: str) -> Dict[str, Any]:
         """Parses the output of the `ethtool -S` command."""
         stats = {}
-        for line in ethtool_output.strip().split("\n")[1:]:
+        for line in ethtool_output.strip().split("\n"):
             if ":" in line:
-                key, value = line.split(":", 1)
-                key = key.strip()
-                value = value.strip()
-                if key and value.isdigit():
-                    stats[key] = int(value)
+                parts = line.split(":", 1)
+                if len(parts) == 2:
+                    key, value = parts
+                    key = key.strip()
+                    value = value.strip()
+                    if key and value.isdigit():
+                        stats[key] = int(value)
         return stats
 
     def analyze_network_performance(self) -> Dict[str, Any]:

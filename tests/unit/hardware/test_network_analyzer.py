@@ -16,7 +16,7 @@ limitations under the License.
 """
 
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, ANY
 
 import psutil
 from tinel.hardware.network_analyzer import NetworkAnalyzer
@@ -26,7 +26,14 @@ from tinel.interfaces import CommandResult
 class TestNetworkAnalyzer(unittest.TestCase):
     def setUp(self):
         self.mock_system_interface = MagicMock()
+        # Patch the logger to prevent log messages from interfering with test output
+        self.patcher = patch('tinel.hardware.network_analyzer.logging.getLogger')
+        self.mock_logger = self.patcher.start()
         self.analyzer = NetworkAnalyzer(self.mock_system_interface)
+        self.analyzer.logger = self.mock_logger.return_value
+
+    def tearDown(self):
+        self.patcher.stop()
 
     def test_get_network_info_caching(self):
         self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
@@ -65,7 +72,7 @@ class TestNetworkAnalyzer(unittest.TestCase):
         self.assertEqual(len(interfaces), 1)
 
     def test_parse_ethtool_output(self):
-        output = "     rx_bytes: 1234\n     tx_bytes: 5678"
+        output = "NIC statistics:\n     rx_bytes: 1234\n     tx_bytes: 5678"
         stats = self.analyzer._parse_ethtool_output(output)
         self.assertEqual(stats["rx_bytes"], 1234)
 
@@ -75,7 +82,7 @@ class TestNetworkAnalyzer(unittest.TestCase):
         self.assertIn("filename", details)
 
     def test_get_interface_details(self):
-        self.mock_system_interface.read_file.side_effect = ["1", "eth0", "00:11:22:33:44:55", "1500", "up", "1000", "full", "0x1003"]
+        self.mock_system_interface.read_file.side_effect = ["1", "1500", "up", "1000", "full", "0x1003", "00:11:22:33:44:55", "1.0", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1.0", "1.0"]
         self.mock_system_interface.readlink.return_value = "../../../devices/pci0000:00/0000:00:1f.6"
         self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="rx_bytes\ntx_bytes", stderr="", returncode=0)
         interface = self.analyzer._get_interface_details("eth0")
@@ -116,7 +123,7 @@ class TestNetworkAnalyzer(unittest.TestCase):
             self.assertEqual(self.analyzer._get_basic_network_info(), [])
 
     def test_successful_iwconfig(self):
-        self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="wlan0     IEEE 802.11", stderr="", returncode=0)
+        self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="wlan0     IEEE 802.11 ESSID:\"test\"", stderr="", returncode=0)
         self.assertNotEqual(self.analyzer._get_wireless_info(), [])
 
     def test_successful_iw_list(self):
@@ -132,7 +139,7 @@ class TestNetworkAnalyzer(unittest.TestCase):
         self.mock_system_interface.run_command.side_effect = [
             CommandResult(success=False, stdout="", stderr="", returncode=1), # netstat
             CommandResult(success=True, stdout="eth0", stderr="", returncode=0), # ls
-            CommandResult(success=True, stdout="rx_bytes: 100", stderr="", returncode=0) # ethtool
+            CommandResult(success=True, stdout="NIC statistics:\nrx_bytes: 100", stderr="", returncode=0) # ethtool
         ]
         with patch.object(self.analyzer, '_get_psutil_io_counters', return_value={}):
             metrics = self.analyzer._get_performance_metrics()
@@ -155,7 +162,7 @@ class TestNetworkAnalyzer(unittest.TestCase):
         self.assertEqual(self.analyzer._parse_iwconfig_output("\n\n"), [])
 
     def test_parse_iwconfig_no_interface_name(self):
-        self.assertEqual(self.analyzer._parse_iwconfig_output("  no name"), [])
+        self.assertEqual(self.analyzer._parse_iwconfig_output("  no wireless extensions."), [])
 
     def test_parse_iwconfig_no_wireless_extensions(self):
         self.assertEqual(self.analyzer._parse_iwconfig_output("eth0      no wireless extensions."), [])
@@ -171,10 +178,10 @@ class TestNetworkAnalyzer(unittest.TestCase):
         self.assertEqual(len(self.analyzer._parse_iwconfig_output("wlan0     ESSID:\"test\"")), 1)
 
     def test_parse_iwconfig_truly_empty_block(self):
-        self.assertEqual(self.analyzer._parse_iwconfig_output("wlan0\n\neth0"), 1)
+        self.assertEqual(self.analyzer._parse_iwconfig_output("wlan0\n\neth0"), [])
 
     def test_parse_iwconfig_all_fields_missing(self):
-        self.assertEqual(len(self.analyzer._parse_iwconfig_output("wlan0")), 1)
+        self.assertEqual(self.analyzer._parse_iwconfig_output("wlan0"), [])
 
     def test_parse_ip_addr_no_state_match(self):
         interfaces = self.analyzer._parse_ip_addr_output("1: lo: <>")
@@ -193,11 +200,11 @@ class TestNetworkAnalyzer(unittest.TestCase):
         self.assertIsNone(self.analyzer._get_interface_details("eth0"))
 
     def test_get_interface_details_no_flags(self):
-        self.mock_system_interface.read_file.side_effect = ["1", None] # type, then no flags
+        self.mock_system_interface.read_file.side_effect = ["1", "1500", "up", "1000", "full", None, "00:11:22:33:44:55", "1.0", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1"]
         self.assertIsNotNone(self.analyzer._get_interface_details("eth0"))
 
     def test_get_interface_details_no_statistics(self):
-        self.mock_system_interface.read_file.side_effect = ["1", "0x1003"]
+        self.mock_system_interface.read_file.side_effect = ["1", "1500", "up", "1000", "full", "0x1003", "00:11:22:33:44:55", "1.0", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1"]
         self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
         self.assertIsNotNone(self.analyzer._get_interface_details("eth0"))
 
@@ -254,7 +261,7 @@ class TestNetworkAnalyzer(unittest.TestCase):
             self.assertEqual(len(self.analyzer._get_detailed_network_info()), 1)
 
     def test_get_wireless_info_iwconfig_success_iw_success(self):
-        self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="wlan0", stderr="", returncode=0)
+        self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="wlan0 ESSID:\"test\"", stderr="", returncode=0)
         self.assertNotEqual(self.analyzer._get_wireless_info(), [])
 
     def test_get_driver_info_multiple_interfaces(self):
@@ -267,7 +274,7 @@ class TestNetworkAnalyzer(unittest.TestCase):
         self.mock_system_interface.run_command.side_effect = [
             CommandResult(success=True, stdout="Iface\neth0\neth1", stderr="", returncode=0), # netstat
             CommandResult(success=True, stdout="eth0 eth1", stderr="", returncode=0), # ls
-            CommandResult(success=True, stdout="rx: 1", stderr="", returncode=0), # ethtool eth0
+            CommandResult(success=True, stdout="NIC statistics:\nrx: 1", stderr="", returncode=0), # ethtool eth0
             CommandResult(success=False, stdout="", stderr="", returncode=1), # ethtool eth1
         ]
         metrics = self.analyzer._get_performance_metrics()
@@ -300,14 +307,14 @@ class TestNetworkAnalyzer(unittest.TestCase):
             CommandResult(success=True, stdout="Iface\neth0\neth1", stderr="", returncode=0), # netstat
             CommandResult(success=True, stdout="eth0 eth1", stderr="", returncode=0), # ls
             CommandResult(success=False, stdout="", stderr="", returncode=1), # ethtool eth0
-            CommandResult(success=True, stdout="rx: 1", stderr="", returncode=0), # ethtool eth1
+            CommandResult(success=True, stdout="NIC statistics:\nrx: 1", stderr="", returncode=0), # ethtool eth1
         ]
         metrics = self.analyzer._get_performance_metrics()
         self.assertIn("eth1", metrics.ethtool_statistics)
 
     def test_get_wireless_info_iwconfig_success_then_iw_fail(self):
         self.mock_system_interface.run_command.side_effect = [
-            CommandResult(success=True, stdout="wlan0", stderr="", returncode=0),
+            CommandResult(success=True, stdout="wlan0 ESSID:\"test\"", stderr="", returncode=0),
             CommandResult(success=False, stdout="", stderr="", returncode=1)
         ]
         self.assertNotEqual(self.analyzer._get_wireless_info(), [])
@@ -346,10 +353,10 @@ class TestNetworkAnalyzer(unittest.TestCase):
         self.assertEqual(self.analyzer._get_driver_info(), [])
 
     def test_get_interface_details_no_stats(self):
-        self.mock_system_interface.read_file.side_effect = ["1"]
+        self.mock_system_interface.read_file.side_effect = ["1", "1500", "up", "1000", "full", "0x1003", "00:11:22:33:44:55", "1.0", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1", "1"]
         self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
         iface = self.analyzer._get_interface_details("eth0")
-        self.assertIsNone(iface.statistics)
+        self.assertEqual(iface.statistics, {})
 
     def test_parse_ip_addr_output_no_state(self):
         iface = self.analyzer._parse_ip_addr_output("1: lo: <>")[0]
