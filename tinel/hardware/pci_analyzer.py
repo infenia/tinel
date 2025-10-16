@@ -151,9 +151,18 @@ class PCIAnalyzer:
         vendor_id, _ = self._parse_id(data.get("vendor", ""), is_vendor=True)
         _, device_id = self._parse_id(data.get("device", ""), is_vendor=False)
 
+        svendor = self._clean_name(data.get("svendor", ""))
+        sdevice_full = data.get("sdevice", "")
+        sdevice_clean = self._clean_name(sdevice_full)
+        _, sdevice_id = self._parse_id(sdevice_full, is_vendor=False)
+
+        subsystem = f"{svendor} {sdevice_clean}".strip()
+        if sdevice_id:
+            subsystem = f"{subsystem} {sdevice_id}".strip()
+
         return PCIDevice(
             slot=data.get("slot"),
-            subsystem=self._clean_name(data.get("subsystem", "")),
+            subsystem=subsystem,
             driver=data.get("driver"),
             vendor_id=vendor_id,
             device_id=device_id,
@@ -161,5 +170,5 @@ class PCIAnalyzer:
                 "vendor": self._clean_name(data.get("vendor", "")),
                 "device": self._clean_name(data.get("device", "")),
                 "class": self._clean_name(data.get("class", "")),
-            }
+            },
         )
