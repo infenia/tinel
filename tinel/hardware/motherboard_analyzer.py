@@ -29,7 +29,7 @@ class MotherboardAnalyzer:
     """
 
     def __init__(self, system_interface: SystemInterface):
-        self.system_interface = system_interface
+        self.system = system_interface
 
     def get_motherboard_info(self) -> MotherboardInfo:
         """
@@ -41,14 +41,17 @@ class MotherboardAnalyzer:
         info.physid = "0"
 
         try:
-            if self.system_interface.file_exists(dmi_path):
-                info.product = self._read_dmi_file("board_name")
-                info.vendor = self._read_dmi_file("board_vendor")
-                info.version = self._read_dmi_file("board_version")
-                info.serial = self._read_dmi_file("board_serial")
-                info.asset_tag = self._read_dmi_file("board_asset_tag")
+            if not self.system.file_exists(dmi_path):
+                return info
         except Exception as e:
-            log.error(f"Failed to gather motherboard info: {e}")
+            log.error(f"Failed to check for motherboard info: {e}")
+            return info
+
+        info.product = self._read_dmi_file("board_name")
+        info.vendor = self._read_dmi_file("board_vendor")
+        info.version = self._read_dmi_file("board_version")
+        info.serial = self._read_dmi_file("board_serial")
+        info.asset_tag = self._read_dmi_file("board_asset_tag")
 
         return info
 
@@ -58,15 +61,8 @@ class MotherboardAnalyzer:
         """
         path = f"/sys/class/dmi/id/{filename}"
         try:
-            content = self.system_interface.read_file(path)
-            if content:
-                stripped = content.strip()
-                if stripped:
-                    return stripped
-            return None
-        except FileNotFoundError:
-            log.debug(f"DMI file not found: {path}")
-            return None
-        except Exception as e:
+            content = self.system.read_file(path)
+            return content.strip() if content and content.strip() else None
+        except (FileNotFoundError, IOError, OSError) as e:
             log.warning(f"Could not read DMI file {path}: {e}")
             return None

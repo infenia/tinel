@@ -54,7 +54,7 @@ class TestMotherboardAnalyzer(unittest.TestCase):
 
     def test_get_motherboard_info_file_not_found(self):
         # Mock the DMI path to exist, but files to be missing
-        self.mock_system_interface.path_exists.return_value = True
+        self.mock_system_interface.file_exists.return_value = True
         self.mock_system_interface.read_file.side_effect = FileNotFoundError
 
         # Call the method under test
@@ -66,6 +66,46 @@ class TestMotherboardAnalyzer(unittest.TestCase):
         self.assertIsNone(motherboard_info.version)
         self.assertIsNone(motherboard_info.serial)
         self.assertIsNone(motherboard_info.asset_tag)
+
+    def test_read_dmi_file_returns_none(self):
+        # Mock the DMI path to exist and file reads to return None
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.return_value = None
+
+        # Call the method under test
+        motherboard_info = self.analyzer.get_motherboard_info()
+
+        # Assert that all fields are None
+        self.assertIsNone(motherboard_info.product)
+        self.assertIsNone(motherboard_info.vendor)
+        self.assertIsNone(motherboard_info.version)
+        self.assertIsNone(motherboard_info.serial)
+        self.assertIsNone(motherboard_info.asset_tag)
+
+    def test_read_dmi_file_returns_whitespace(self):
+        # Mock the DMI path to exist and file reads to return whitespace
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.return_value = "   "
+
+        # Call the method under test
+        motherboard_info = self.analyzer.get_motherboard_info()
+
+        # Assert that all fields are None
+        self.assertIsNone(motherboard_info.product)
+        self.assertIsNone(motherboard_info.vendor)
+        self.assertIsNone(motherboard_info.version)
+        self.assertIsNone(motherboard_info.serial)
+        self.assertIsNone(motherboard_info.asset_tag)
+
+    def test_get_motherboard_info_exception_on_check(self):
+        # Mock path_exists to raise an exception
+        self.mock_system_interface.file_exists.side_effect = Exception("Test Exception")
+
+        # Call the method under test
+        motherboard_info = self.analyzer.get_motherboard_info()
+
+        # Assert that the info is empty
+        self.assertIsNone(motherboard_info.product)
 
     def _mock_read_file(self, path):
         if path.endswith("board_name"):

@@ -158,10 +158,13 @@ class GraphicsAnalyzer:
             self.logger.warning("'lspci' command failed or not found.")
             return None
 
+        return self._parse_lspci_output(result.stdout)
+
+    def _parse_lspci_output(self, lspci_output: str) -> List[GPU]:
         gpus: List[GPU] = []
         current_gpu: Optional[GPU] = None
 
-        for line in result.stdout.strip().split("\n"):
+        for line in lspci_output.strip().split("\n"):
             vga_match = re.search(
                 r"VGA compatible controller.*\[(\w{4}):(\w{4})\]", line
             )
@@ -169,8 +172,10 @@ class GraphicsAnalyzer:
                 if current_gpu:
                     gpus.append(current_gpu)
 
-                model_match = re.search(r"controller:\s*(.*)", line)
-                model = model_match.group(1).strip() if model_match else "Unknown"
+                model_match = re.search(r"controller:\s*(.*(?=\s\[))|:\s(.*)(?=\s\[)", line)
+                model = "Unknown"
+                if model_match:
+                    model = (model_match.group(1) or model_match.group(2) or "Unknown").strip()
 
                 current_gpu = GPU(
                     model=model,
@@ -185,8 +190,10 @@ class GraphicsAnalyzer:
                     value = key_value_match.group(2).strip()
                     if current_gpu.details is not None:
                         current_gpu.details[key] = value
+                elif current_gpu.details is not None:
+                    current_gpu.details.setdefault("misc", []).append(line.strip())
 
         if current_gpu:
             gpus.append(current_gpu)
 
-        return gpus if gpus else None
+        return gpus

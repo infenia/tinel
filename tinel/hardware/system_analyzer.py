@@ -51,9 +51,10 @@ class SystemAnalyzer:
                 info.family = self._read_dmi_file("product_family")
 
             # Get hostname
-            hostname_result = self.system_interface.run_command(["hostname"])
-            if hostname_result.success:
-                info.product = hostname_result.stdout.strip()
+            if not info.product:
+                hostname_result = self.system_interface.run_command(["hostname"])
+                if hostname_result.success:
+                    info.product = hostname_result.stdout.strip()
 
             # Get width and capabilities from lscpu
             lscpu_result = self.system_interface.run_command(["lscpu"])

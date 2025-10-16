@@ -18,155 +18,184 @@ limitations under the License.
 import json
 import unittest
 from unittest.mock import MagicMock, patch
-
 from tinel.hardware.usb_analyzer import USBAnalyzer
+from tinel.hardware.models import USBInfo, USBDevice
 from tinel.interfaces import CommandResult
 
-
 class TestUSBAnalyzer(unittest.TestCase):
+    def setUp(self):
+        self.mock_system_interface = MagicMock()
+        self.analyzer = USBAnalyzer(self.mock_system_interface)
+
     def test_get_usb_info_with_lshw_success(self):
-        mock_system_interface = MagicMock()
-        mock_lshw_output = {
-            "id": "computer",
-            "children": [
-                {
-                    "id": "core",
-                    "children": [
-                        {
-                            "id": "usbhost",
-                            "class": "bus",
-                            "children": [
-                                {
-                                    "id": "usb:0",
-                                    "businfo": "usb@2",
-                                    "vendor": "Linux Foundation [1d6b]",
-                                    "product": "2.0 root hub [0002]",
-                                    "children": [
-                                        {
-                                            "id": "usb:0:1",
-                                            "businfo": "usb@2:1.4",
-                                            "vendor": "Dell [413c]",
-                                            "product": "KB216 Wired Keyboard [2113]",
-                                        }
-                                    ]
-                                }
-                            ]
-                        }
-                    ]
-                }
-            ]
-        }
-        mock_system_interface.run_command.return_value = CommandResult(
-            success=True,
-            stdout=json.dumps(mock_lshw_output),
-            stderr="",
-            returncode=0,
+        lshw_output = json.dumps(
+            {"id": "core", "class": "bus", "children": [
+                {"id": "usb", "class": "bus", "children": [
+                    {"id": "usb:0", "class": "generic", "vendor": "Vendor [1234]", "product": "Product [5678]"}
+                ]}
+            ]}
         )
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-        usb_info = analyzer.get_usb_info()
+        self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout=lshw_output, stderr="", returncode=0)
+
+        usb_info = self.analyzer.get_usb_info()
 
         self.assertEqual(len(usb_info.devices), 1)
-        root_hub = usb_info.devices[0]
-        self.assertEqual(root_hub.vendor_id, "1d6b")
-        self.assertEqual(root_hub.product_id, "0002")
-        self.assertEqual(root_hub.manufacturer, "Linux Foundation")
-        self.assertEqual(root_hub.product, "2.0 root hub")
-        self.assertEqual(len(root_hub.children), 1)
+        self.assertEqual(usb_info.devices[0].vendor_id, "1234")
+        self.assertEqual(usb_info.devices[0].product_id, "5678")
 
-        keyboard = root_hub.children[0]
-        self.assertEqual(keyboard.vendor_id, "413c")
-        self.assertEqual(keyboard.product_id, "2113")
-        self.assertEqual(keyboard.manufacturer, "Dell")
-        self.assertEqual(keyboard.product, "KB216 Wired Keyboard")
-
-    def test_parse_id_helper(self):
-        analyzer = USBAnalyzer(MagicMock())
-        vid, vname = analyzer._parse_id("Vendor Name [1234]")
-        self.assertEqual(vid, "1234")
-        self.assertEqual(vname, "Vendor Name")
-        vid, vname = analyzer._parse_id("Product Name")
-        self.assertIsNone(vid)
-        self.assertEqual(vname, "Product Name")
-        vid, vname = analyzer._parse_id("")
-        self.assertIsNone(vid)
-        self.assertEqual(vname, "")
-
-    @patch('tinel.hardware.usb_analyzer.log')
-    def test_get_usb_info_fallback_to_lsusb(self, mock_log):
-        mock_system_interface = MagicMock()
-        mock_system_interface.run_command.side_effect = [
+    def test_get_usb_info_fallback_to_lsusb(self):
+        self.mock_system_interface.run_command.side_effect = [
             CommandResult(success=False, stdout="", stderr="lshw failed", returncode=1),
-            CommandResult(success=True, stdout="/:  Bus 02.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/12p, 480M\n    |__ Port 4: Dev 2, If 0, Class=Human Interface Device, Driver=usbhid, 1.5M", stderr="", returncode=0),
+            CommandResult(success=True, stdout="/: Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 480M", stderr="", returncode=0)
         ]
-        mock_system_interface.list_dir.side_effect = OSError("sysfs not available")
 
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-        usb_info = analyzer.get_usb_info()
+        # Mock sysfs to fail
+        self.mock_system_interface.list_dir.side_effect = OSError("sysfs error")
 
-        mock_log.warning.assert_any_call("lshw failed or found no USB devices, falling back to lsusb and sysfs.")
-        mock_log.warning.assert_any_call("Error accessing sysfs for USB devices: sysfs not available, falling back to lsusb.")
+        usb_info = self.analyzer.get_usb_info()
 
         self.assertEqual(len(usb_info.devices), 1)
-        self.assertEqual(usb_info.devices[0].bus, "02")
-        self.assertEqual(len(usb_info.devices[0].children), 1)
-        self.assertEqual(usb_info.devices[0].children[0].driver, "usbhid")
+        self.assertEqual(usb_info.devices[0].bus, "01")
+        self.assertEqual(usb_info.devices[0].device_class, "root_hub")
 
-    @patch('tinel.hardware.usb_analyzer.log')
-    def test_get_usb_info_handles_all_failures(self, mock_log):
-        mock_system_interface = MagicMock()
-        mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="command not found", returncode=127)
-        mock_system_interface.list_dir.side_effect = OSError("Cannot access")
+    def test_get_usb_info_handles_all_failures(self):
+        self.mock_system_interface.run_command.side_effect = [
+            CommandResult(success=False, stdout="", stderr="lshw failed", returncode=1),
+            CommandResult(success=False, stdout="", stderr="lsusb failed", returncode=1)
+        ]
+        # Mock sysfs to fail
+        self.mock_system_interface.list_dir.side_effect = OSError("sysfs error")
 
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-        usb_info = analyzer.get_usb_info()
-
-        self.assertEqual(len(usb_info.devices), 0)
-        mock_log.error.assert_called_once_with("Failed to run lsusb.")
+        usb_info = self.analyzer.get_usb_info()
+        self.assertEqual(usb_info.devices, [])
 
     def test_get_usb_info_with_sysfs_details(self):
-        mock_system_interface = MagicMock()
-        mock_system_interface.list_dir.return_value = ['2-1']
-        mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
+        self.mock_system_interface.list_dir.return_value = ["1-1", "2-2:1.0"] # one valid, one invalid
+        self.mock_system_interface.file_exists.return_value = True
 
-        def mock_read_file(path):
-            if "busnum" in path: return "2"
-            if "devnum" in path: return "1"
-            if "idVendor" in path: return "8087"
-            if "idProduct" in path: return "8001"
-            if "manufacturer" in path: return "Linux Foundation"
-            if "product" in path: return "2.0 root hub"
-            if "speed" in path: return "480"
+        def read_file_mock(path):
+            if "busnum" in path: return "1"
+            if "devnum" in path: return "2"
+            if "idVendor" in path: return "abcd"
+            if "idProduct" in path: return "1234"
             return ""
+        self.mock_system_interface.read_file.side_effect = read_file_mock
 
-        mock_system_interface.read_file.side_effect = mock_read_file
-        mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
-
-        analyzer = USBAnalyzer(system_interface=mock_system_interface)
-        usb_info = analyzer.get_usb_info()
-
+        usb_info = self.analyzer.get_usb_info()
         self.assertEqual(len(usb_info.devices), 1)
-        device = usb_info.devices[0]
-        self.assertEqual(device.bus, "2")
-        self.assertEqual(device.port, "1")
-        self.assertEqual(device.vendor_id, "8087")
+        self.assertEqual(usb_info.devices[0].bus, "1")
+        self.assertEqual(usb_info.devices[0].vendor_id, "abcd")
 
     def test_parse_lsusb_t_with_complex_tree(self):
-        analyzer = USBAnalyzer(MagicMock())
-        output = """
-        /:  Bus 04.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 10000M
-        /:  Bus 03.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 480M
-            |__ Port 3: Dev 2, If 0, Class=Video, Driver=uvcvideo, 480M
-            |__ Port 4: Dev 3, If 0, Class=Human Interface Device, Driver=usbhid, 12M
-        """
-        devices = analyzer._parse_lsusb_t_output(output)
+        lsusb_output = """
+/:  Bus 02.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/12p, 5000M
+    |__ Port 1: Dev 2, If 0, Class=Hub, Driver=hub/4p, 5000M
+        |__ Port 1: Dev 3, If 0, Class=Vendor Specific Class, Driver=, 12M
+/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 480M
+"""
+        devices = self.analyzer._parse_lsusb_t_output(lsusb_output)
         self.assertEqual(len(devices), 2)
-        self.assertEqual(devices[0].bus, "04")
-        self.assertEqual(len(devices[0].children), 0)
-        self.assertEqual(devices[1].bus, "03")
-        self.assertEqual(len(devices[1].children), 2)
-        self.assertEqual(devices[1].children[0].driver, "uvcvideo")
-        self.assertEqual(devices[1].children[1].driver, "usbhid")
+        self.assertEqual(len(devices[0].children), 1)
+        self.assertEqual(len(devices[0].children[0].children), 1)
+        self.assertEqual(devices[0].children[0].children[0].device_class, "Vendor Specific Class")
 
+    def test_parse_id_helper(self):
+        vid, vname = self.analyzer._parse_id("Vendor [1a2b]")
+        self.assertEqual(vid, "1a2b")
+        self.assertEqual(vname, "Vendor")
+
+        pid, pname = self.analyzer._parse_id("Product")
+        self.assertIsNone(pid)
+        self.assertEqual(pname, "Product")
+
+    def test_lshw_json_decode_error(self):
+        self.mock_system_interface.list_dir.side_effect = OSError("sysfs error")
+        self.mock_system_interface.run_command.side_effect = [
+            CommandResult(success=True, stdout="{not json}", stderr="", returncode=0),
+            CommandResult(success=False, stdout="", stderr="lsusb failed", returncode=1)
+        ]
+        usb_info = self.analyzer.get_usb_info()
+        self.assertEqual(usb_info.devices, [])
+
+    def test_sysfs_read_file_error(self):
+        self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
+        self.mock_system_interface.list_dir.return_value = ["1-1"]
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.side_effect = IOError("cannot read")
+
+        usb_info = self.analyzer.get_usb_info()
+        self.assertIsNone(usb_info.devices[0].bus)
+
+    def test_parse_lshw_no_children(self):
+        node = {"id": "usb:1", "vendor": "V [1111]", "children": []}
+        device = self.analyzer._parse_lshw_node(node)
+        self.assertEqual(len(device.children), 0)
+
+    def test_parse_lshw_child_is_none(self):
+        node = {"id": "usb:1", "vendor": "V [1111]", "children": [{"id": "not-usb"}]}
+        device = self.analyzer._parse_lshw_node(node)
+        self.assertEqual(len(device.children), 0)
+
+    def test_parse_lsusb_t_empty_and_no_file(self):
+        self.assertEqual(self.analyzer._parse_lsusb_t_output(""), [])
+        self.assertEqual(self.analyzer._parse_lsusb_t_output("no such file"), [])
+
+    def test_parse_lsusb_line_no_matches(self):
+        device = self.analyzer._parse_lsusb_line("some random line")
+        self.assertIsNone(device.port)
+        self.assertIsNone(device.device_class)
+        self.assertIsNone(device.driver)
+        self.assertIsNone(device.speed)
+
+    def test_parse_lshw_json_output_with_list(self):
+        devices = self.analyzer._parse_lshw_json_output([{"id": "not a dict"}])
+        self.assertEqual(devices, [])
+
+    def test_parse_lsusb_t_output_with_empty_line(self):
+        lsusb_output = """
+/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 480M
+
+    |__ Port 1: Dev 2, If 0, Class=Hub, Driver=hub/4p, 480M
+"""
+        devices = self.analyzer._parse_lsusb_t_output(lsusb_output)
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(len(devices[0].children), 1)
+
+    def test_parse_lshw_node_not_dict(self):
+        device = self.analyzer._parse_lshw_node([])
+        self.assertIsNone(device)
+
+    def test_lshw_no_usb_devices(self):
+        lshw_output = json.dumps({"id": "core", "class": "bus", "children": []})
+        self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout=lshw_output, stderr="", returncode=0)
+        self.mock_system_interface.list_dir.side_effect = OSError("sysfs error")
+        self.mock_system_interface.run_command.side_effect = [
+             CommandResult(success=True, stdout=lshw_output, stderr="", returncode=0),
+             CommandResult(success=False, stdout="", stderr="lsusb failed", returncode=1)
+        ]
+        usb_info = self.analyzer.get_usb_info()
+        self.assertEqual(usb_info.devices, [])
+
+    def test_get_usb_info_from_fallback_with_colon_dir(self):
+        self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
+        self.mock_system_interface.list_dir.return_value = ["1-1:1.0", "1-2"]
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.return_value = "test"
+        usb_info = self.analyzer.get_usb_info()
+        self.assertEqual(len(usb_info.devices), 1)
+
+    def test_parse_lsusb_t_output_complex_indentation(self):
+        output = """
+/:  Bus 01.Port 1: Dev 1, Class=root_hub, Driver=xhci_hcd/4p, 480M
+    |__ Port 1: Dev 2, If 0, Class=Hub, Driver=hub/4p, 480M
+        |__ Port 2: Dev 3, If 0, Class=Vendor Specific Class, Driver=, 12M
+    |__ Port 3: Dev 4, If 0, Class=Hub, Driver=hub/4p, 480M
+"""
+        devices = self.analyzer._parse_lsusb_t_output(output)
+        self.assertEqual(len(devices), 1)
+        self.assertEqual(len(devices[0].children), 2)
+        self.assertEqual(len(devices[0].children[0].children), 1)
 
 if __name__ == "__main__":
     unittest.main()

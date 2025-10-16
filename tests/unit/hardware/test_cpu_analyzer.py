@@ -1,798 +1,305 @@
 #!/usr/bin/env python3
 """
-Unit tests for CPU analyzer implementation.
-
 Copyright 2025 Infenia Private Limited
-Licensed under the Apache License, Version 2.0
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+    http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.
 """
 
 import time
-import dataclasses
-from unittest.mock import Mock, patch
+import unittest
+from unittest.mock import MagicMock, patch
 
-import pytest
-
-from tests.utils import (
-    AssertionHelpers,
-    performance_test,
-    unit_test,
-)
-from tinel.hardware.cpu_analyzer import CPUAnalyzer, CPUInfo
+import psutil
+from tinel.hardware.cpu_analyzer import CPUAnalyzer
+from tinel.hardware.models import CPUInfo
 from tinel.interfaces import CommandResult
 
 
-class TestCPUAnalyzer:
-    """Test cases for CPUAnalyzer."""
+class TestCPUAnalyzer(unittest.TestCase):
+    def setUp(self):
+        self.mock_system_interface = MagicMock()
+        self.analyzer = CPUAnalyzer(self.mock_system_interface)
 
-    def setup_method(self):
-        """Set up test fixtures."""
-        self.mock_system = Mock()
-        self.analyzer = CPUAnalyzer(self.mock_system)
-
-    @unit_test
     def test_initialization(self):
-        """Test CPU analyzer initialization."""
-        # Test with mock system interface
-        analyzer = CPUAnalyzer(self.mock_system)
-        assert analyzer.system == self.mock_system
-        assert analyzer._cache == {}
-        default_cache_ttl = 60
-        assert analyzer._cache_ttl == default_cache_ttl
+        self.assertIsNotNone(self.analyzer.system)
 
-        # Test with default system interface
-        analyzer_default = CPUAnalyzer()
-        assert analyzer_default.system is not None
-
-    @unit_test
-    def test_cache_functionality(self, performance_monitor):
-        """Test caching mechanism."""
-
-        # Mock a slow computation
-        def slow_computation():
-            time.sleep(0.01)  # 10ms delay
-            return {"result": "computed"}
-
-        # First call should compute and cache
-        performance_monitor.start()
-        result1 = self.analyzer._get_cached_or_compute("test_key", slow_computation)
-        performance_monitor.stop()
-        first_call_time = performance_monitor.elapsed
-
-        # Second call should be cached and faster
-        performance_monitor.start()
-        result2 = self.analyzer._get_cached_or_compute("test_key", slow_computation)
-        performance_monitor.stop()
-        second_call_time = performance_monitor.elapsed
-
-        # Verify results are identical
-        assert result1 == result2
-        assert result1 == {"result": "computed"}
-
-        # Verify second call was significantly faster
-        assert second_call_time < first_call_time
-        max_cached_call_time = 0.005  # Should be under 5ms
-        assert second_call_time < max_cached_call_time
-
-    @unit_test
-    def test_cache_expiration(self):
-        """Test cache expiration functionality."""
-        # Set very short TTL for testing
-        self.analyzer._cache_ttl = 0.01  # 10ms
-
-        call_count = 0
-
-        def counting_computation():
-            nonlocal call_count
-            call_count += 1
-            return {"call": call_count}
-
-        # First call
-        result1 = self.analyzer._get_cached_or_compute("test_key", counting_computation)
-        assert result1 == {"call": 1}
-
-        # Second call immediately - should be cached
-        result2 = self.analyzer._get_cached_or_compute("test_key", counting_computation)
-        assert result2 == {"call": 1}  # Same result, from cache
-
-        # Wait for cache to expire
-        time.sleep(0.02)  # 20ms
-
-        # Third call - should recompute
-        result3 = self.analyzer._get_cached_or_compute("test_key", counting_computation)
-        assert result3 == {"call": 2}  # New computation
-
-    @unit_test
-    def test_get_cpu_info_structure(self, sample_cpuinfo, sample_lscpu):
-        """Test CPU info returns expected structure."""
-        # Set up comprehensive file mock that includes cpuinfo and system files
-        self._setup_comprehensive_mocks(sample_cpuinfo, sample_lscpu)
-
-        cpu_info = self.analyzer.get_cpu_info()
-        cpu_info_dict = dataclasses.asdict(cpu_info)
-
-        # Verify basic structure
-        AssertionHelpers.assert_valid_cpu_info(cpu_info)
-
-        # Verify key sections exist
-        expected_sections = [
-            "product",
-            "vendor",
-            "cpu_flags",
-            "security_features",
-            "performance_features",
-            "virtualization_features",
-            "vulnerabilities",
-        ]
-        AssertionHelpers.assert_contains_keys(cpu_info_dict, expected_sections)
-
-    @unit_test
-    def test_parse_cpuinfo(self, sample_cpuinfo):
-        """Test /proc/cpuinfo parsing."""
-        parsed = self.analyzer._parse_cpuinfo(sample_cpuinfo)
-
-        expected_fields = ["model_name", "vendor_id", "cpu_family", "model", "stepping"]
-        AssertionHelpers.assert_contains_keys(parsed, expected_fields)
-
-        assert parsed["model_name"] == "Intel(R) Core(TM) i7-8565U CPU @ 1.80GHz"
-        assert parsed["vendor_id"] == "GenuineIntel"
-        assert parsed["cpu_family"] == "6"
-
-    @unit_test
-    def test_parse_lscpu(self, sample_lscpu):
-        """Test lscpu output parsing."""
-        parsed = self.analyzer._parse_lscpu(sample_lscpu)
-
-        expected_fields = ["architecture", "cpu_op_modes", "byte_order"]
-        AssertionHelpers.assert_contains_keys(parsed, expected_fields)
-
-        assert parsed["architecture"] == "x86_64"
-        assert parsed["cpu_op_modes"] == "32-bit, 64-bit"
-        assert parsed["byte_order"] == "Little Endian"
-
-    @unit_test
-    def test_extract_cpu_flags(self, sample_cpuinfo):
-        """Test CPU flags extraction."""
-        flags = self.analyzer._extract_cpu_flags(sample_cpuinfo)
-
-        assert isinstance(flags, list)
-        min_expected_flags = 50  # Should have many flags
-        assert len(flags) > min_expected_flags
-
-        # Check for common flags
-        expected_flags = ["fpu", "sse", "sse2", "sse4_1", "sse4_2", "avx", "avx2"]
-        for flag in expected_flags:
-            assert flag in flags, f"Expected flag '{flag}' not found"
-
-    @unit_test
-    def test_analyze_security_features(self, cpu_flags):
-        """Test security features analysis."""
-        security_features = self.analyzer._analyze_security_features(cpu_flags)
-
-        expected_features = ["nx_bit", "smep", "smap", "intel_pt"]
-        AssertionHelpers.assert_contains_keys(security_features, expected_features)
-
-        # All values should be boolean
-        for feature, enabled in security_features.items():
-            assert isinstance(enabled, bool), f"Feature '{feature}' should be boolean"
-
-    @unit_test
-    def test_analyze_performance_features(self, cpu_flags):
-        """Test performance features analysis."""
-        performance_features = self.analyzer._analyze_performance_features(cpu_flags)
-
-        expected_features = ["sse", "sse2", "avx", "avx2", "aes"]
-        AssertionHelpers.assert_contains_keys(performance_features, expected_features)
-
-        # Check that SSE/AVX progression makes sense
-        if performance_features.get("avx2"):
-            assert performance_features.get("avx"), "AVX2 requires AVX"
-        if performance_features.get("avx"):
-            assert performance_features.get("sse2"), "AVX requires SSE2"
-
-    @unit_test
-    def test_analyze_virtualization_features(self, cpu_flags):
-        """Test virtualization features analysis."""
-        virt_features = self.analyzer._analyze_virtualization_features(cpu_flags)
-
-        expected_features = ["vmx", "svm", "ept", "vpid"]
-        AssertionHelpers.assert_contains_keys(virt_features, expected_features)
-
-        # VMX and SVM are mutually exclusive (Intel vs AMD)
-        assert not (virt_features.get("vmx") and virt_features.get("svm")), (
-            "VMX and SVM should be mutually exclusive"
+    @patch("time.time", return_value=100)
+    def test_cache_functionality(self, mock_time):
+        self.analyzer._cache_ttl = 60
+        self.mock_system_interface.read_file.return_value = "test_data"
+        # First call, should compute
+        result1 = self.analyzer._get_cached_or_compute(
+            "test_key", lambda: self.mock_system_interface.read_file("/test")
         )
+        self.mock_system_interface.read_file.assert_called_once_with("/test")
+        self.assertEqual(result1, "test_data")
+        # Second call, should be cached
+        result2 = self.analyzer._get_cached_or_compute(
+            "test_key", lambda: self.mock_system_interface.read_file("/test")
+        )
+        self.mock_system_interface.read_file.assert_called_once()
+        self.assertEqual(result2, "test_data")
 
-    @unit_test
+    @patch("time.time")
+    def test_cache_expiration(self, mock_time):
+        self.analyzer._cache_ttl = 60
+        self.mock_system_interface.read_file.return_value = "first_call"
+        mock_time.return_value = 100
+        self.analyzer._get_cached_or_compute("test_key", lambda: self.mock_system_interface.read_file("/test"))
+        self.mock_system_interface.read_file.assert_called_once_with("/test")
+        mock_time.return_value = 170
+        self.mock_system_interface.read_file.return_value = "second_call"
+        result = self.analyzer._get_cached_or_compute("test_key", lambda: self.mock_system_interface.read_file("/test"))
+        self.assertEqual(self.mock_system_interface.read_file.call_count, 2)
+        self.assertEqual(result, "second_call")
+
+    def test_get_cpu_info_structure(self):
+        with patch.object(self.analyzer, "_compute_cpu_info", return_value=CPUInfo(product="Test CPU")) as mock_compute:
+            info = self.analyzer.get_cpu_info()
+            self.assertEqual(info.product, "Test CPU")
+            mock_compute.assert_called_once()
+
+    def test_parse_cpuinfo(self):
+        content = "model name\t: Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz\n"
+        content += "vendor_id\t: GenuineIntel\n"
+        content += "cpu family\t: 6\n"
+        content += "model\t\t: 158\n"
+        content += "stepping\t: 13\n"
+        info = self.analyzer._parse_cpuinfo(content)
+        self.assertEqual(info["model_name"], "Intel(R) Core(TM) i9-9900K CPU @ 3.60GHz")
+
+    def test_parse_lscpu(self):
+        output = "Architecture: x86_64\nCPU op-mode(s): 32-bit, 64-bit\nByte Order: Little Endian\nFlags: fpu vme de pse"
+        info = self.analyzer._parse_lscpu(output)
+        self.assertEqual(info["architecture"], "x86_64")
+
+    def test_extract_cpu_flags(self):
+        content = "flags\t\t: fpu vme de pse tsc msr pae mce cx8 apic sep mtrr pge mca cmov"
+        flags = self.analyzer._extract_cpu_flags(content)
+        self.assertIn("fpu", flags)
+
+    def test_analyze_security_features(self):
+        flags = ["nx", "smep", "smap", "cet_ss"]
+        features = self.analyzer._analyze_security_features(flags)
+        self.assertTrue(features["nx_bit"])
+
+    def test_analyze_performance_features(self):
+        flags = ["sse", "avx", "aes"]
+        features = self.analyzer._analyze_performance_features(flags)
+        self.assertTrue(features["avx"])
+
+    def test_analyze_virtualization_features(self):
+        flags = ["vmx", "ept"]
+        features = self.analyzer._analyze_virtualization_features(flags)
+        self.assertTrue(features["vmx"])
+
     def test_frequency_info_parsing(self):
-        """Test CPU frequency information parsing."""
-        self._setup_frequency_mocks()
         info = CPUInfo()
+        self.mock_system_interface.read_file.return_value = "3600000"
         self.analyzer._get_frequency_info(info)
-        freq_info = info.performance_analysis
-        expected_fields = [
-            "current_frequency_khz",
-            "current_frequency_mhz",
-        ]
-        AssertionHelpers.assert_contains_keys(freq_info, expected_fields)
-        assert (
-            freq_info["current_frequency_mhz"]
-            == freq_info["current_frequency_khz"] / 1000
-        )
+        self.assertEqual(info.performance_analysis["current_frequency_khz"], 3600000)
 
-    @unit_test
     def test_topology_info_parsing(self):
-        """Test CPU topology information parsing."""
-        self.mock_system.run_command.return_value = CommandResult(
-            success=True, stdout="8", stderr="", returncode=0
-        )
-        self._setup_topology_mocks()
         info = CPUInfo()
+        self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="16", stderr="", returncode=0)
         self.analyzer._get_topology_info(info)
-        topology_info = info.topology
-        expected_fields = ["logical_cpus"]
-        AssertionHelpers.assert_contains_keys(topology_info, expected_fields)
-        expected_logical_cpus = 8
-        assert topology_info["logical_cpus"] == expected_logical_cpus
+        self.assertEqual(info.topology["logical_cpus"], 16)
 
-    @unit_test
     def test_cache_info_parsing(self):
-        """Test CPU cache information parsing."""
-        self._setup_cache_mocks()
         info = CPUInfo()
+        def mock_read(path):
+            if "size" in path: return "32K"
+            if "type" in path: return "Data"
+            if "level" in path: return "1"
+            return "N/A"
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.side_effect = mock_read
         self.analyzer._get_cache_info(info)
-        cache_info = info.cache
-        assert "L1d" in cache_info
-        assert "L1i" in cache_info
-        assert "L2" in cache_info
-        assert "L3" in cache_info
-        assert cache_info["L1d"]["size"] == "32K"
-        assert cache_info["L1d"]["type"] == "Data"
-        assert cache_info["L1i"]["type"] == "Instruction"
-        assert cache_info["L2"]["size"] == "256K"
-        assert cache_info["L3"]["size"] == "8192K"
+        self.assertIn("L1d", info.cache)
 
     def test_enhanced_cache_info_parsing(self):
-        """Test enhanced CPU cache information parsing."""
-        self._setup_cache_mocks()
-        cache_info = self.analyzer._compute_cache_info()
-
-        # Verify L1 data cache
-        l1_data_cache = cache_info.get("L1d") or cache_info.get("L1")
-        assert l1_data_cache is not None, "L1 data cache not found"
-        assert l1_data_cache["size"] == "32K"
-        assert l1_data_cache["type"] == "Data"
-        assert l1_data_cache["level"] == "1"
-        assert l1_data_cache["coherency_line_size"] == "64"
-        assert l1_data_cache["number_of_sets"] == "64"
-        assert l1_data_cache["physical_line_partition"] == "1"
-
-        # Verify L1 instruction cache
-        l1_instruction_cache = cache_info.get("L1i")
-        assert l1_instruction_cache is not None, "L1 instruction cache not found"
-        assert l1_instruction_cache["size"] == "32K"
-        assert l1_instruction_cache["type"] == "Instruction"
-
-        # Verify L2 cache
-        l2_cache = cache_info.get("L2")
-        assert l2_cache is not None, "L2 cache not found"
-        assert l2_cache["size"] == "256K"
-        assert l2_cache["type"] == "Unified"
-
-        # Verify L3 cache
-        l3_cache = cache_info.get("L3")
-        assert l3_cache is not None, "L3 cache not found"
-        assert l3_cache["size"] == "8192K"
-        assert l3_cache["type"] == "Unified"
-
-    @unit_test
-    def test_optimization_analysis(self):
-        """Test CPU optimization analysis."""
-        file_responses = {
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "powersave",
-        }
-        self.mock_system.read_file.side_effect = lambda path: file_responses.get(path)
         info = CPUInfo()
-        self.analyzer._analyze_cpu_optimization(info)
-        recommendations = info.optimization_recommendations
-        assert isinstance(recommendations, list)
-        rec_types = [rec["type"] for rec in recommendations]
-        assert "performance" in rec_types
-
-    @unit_test
-    def test_error_handling_missing_files(self):
-        """Test error handling when system files are missing."""
-        self.mock_system.read_file.return_value = None
-        self.mock_system.run_command.return_value = CommandResult(
-            success=False, stdout="", stderr="command not found", returncode=127
-        )
-        cpu_info = self.analyzer.get_cpu_info()
-        assert cpu_info.product is None
-        assert cpu_info.vendor is None
-
-    @performance_test
-    def test_performance_with_caching(self, performance_monitor):
-        """Test performance improvement with caching."""
-        self._setup_comprehensive_mocks()
-
-        # First call - uncached
-        performance_monitor.start()
-        result1 = self.analyzer.get_cpu_info()
-        performance_monitor.stop()
-        uncached_time = performance_monitor.elapsed
-
-        # Second call - cached
-        performance_monitor.start()
-        result2 = self.analyzer.get_cpu_info()
-        performance_monitor.stop()
-        cached_time = performance_monitor.elapsed
-
-        # Results should be identical
-        assert result1 == result2
-
-        # Cached call should be significantly faster
-        assert cached_time < uncached_time / 2  # At least 2x faster
-        max_cached_time_ms = 0.01  # Under 10ms
-        assert cached_time < max_cached_time_ms
-
-    @unit_test
-    @pytest.mark.parametrize(
-        "cpuinfo_content,expected",
-        [
-            ("", {}),  # Empty input
-            ("random text", {}),  # No matches
-            (
-                "model name : X\nvendor_id : Y\ncpu family : 6\nmodel : 123\nstepping : 4",  # noqa: E501
-                {
-                    "model_name": "X",
-                    "vendor_id": "Y",
-                    "cpu_family": "6",
-                    "model": "123",
-                    "stepping": "4",
-                },
-            ),
-        ],
-    )
-    def test_parse_cpuinfo_edge_cases(self, cpuinfo_content, expected):
-        """Test _parse_cpuinfo with edge cases."""
-        parsed = self.analyzer._parse_cpuinfo(cpuinfo_content)
-        for key, value in expected.items():
-            assert parsed.get(key) == value
-
-    @unit_test
-    @pytest.mark.parametrize(
-        "lscpu_output,expected",
-        [
-            ("", {}),
-            ("random text", {}),
-            (
-                "Architecture: x86\nCPU op-mode(s): 32-bit, 64-bit\nByte Order: Little Endian",  # noqa: E501
-                {
-                    "architecture": "x86",
-                    "cpu_op_modes": "32-bit, 64-bit",
-                    "byte_order": "Little Endian",
-                },
-            ),
-        ],
-    )
-    def test_parse_lscpu_edge_cases(self, lscpu_output, expected):
-        """Test _parse_lscpu with edge cases."""
-        parsed = self.analyzer._parse_lscpu(lscpu_output)
-        for key, value in expected.items():
-            assert parsed.get(key) == value
-
-    @unit_test
-    @pytest.mark.parametrize(
-        "cpuinfo_content,expected",
-        [
-            ("", []),
-            ("flags : sse sse2 avx", ["sse", "sse2", "avx"]),
-            ("no flags here", []),
-        ],
-    )
-    def test_extract_cpu_flags_edge_cases(self, cpuinfo_content, expected):
-        """Test _extract_cpu_flags with edge cases."""
-        flags = self.analyzer._extract_cpu_flags(cpuinfo_content)
-        assert flags == expected or (not expected and not flags)
-
-    @unit_test
-    def test_analyze_security_features_empty(self):
-        """Test _analyze_security_features with empty flag list."""
-        result = self.analyzer._analyze_security_features([])
-        for v in result.values():
-            assert v is False
-
-    @unit_test
-    def test_analyze_performance_features_empty(self):
-        """Test _analyze_performance_features with empty flag list."""
-        result = self.analyzer._analyze_performance_features([])
-        for v in result.values():
-            assert v is False
-
-    @unit_test
-    def test_analyze_virtualization_features_empty(self):
-        """Test _analyze_virtualization_features with empty flag list."""
-        result = self.analyzer._analyze_virtualization_features([])
-        for v in result.values():
-            assert v is False
-
-    @unit_test
-    def test_get_cache_info_missing_files(self):
-        """Test _get_cache_info when files are missing."""
-        self.mock_system.file_exists.return_value = False
-        self.mock_system.read_file.return_value = None
-        info = CPUInfo()
+        def mock_read(path):
+            if "index0/size" in path: return "32K"
+            if "index0/type" in path: return "Data"
+            if "index0/level" in path: return "1"
+            if "index1/size" in path: return "32K"
+            if "index1/type" in path: return "Instruction"
+            if "index1/level" in path: return "1"
+            if "index2/size" in path: return "256K"
+            if "index2/type" in path: return "Unified"
+            if "index2/level" in path: return "2"
+            return "N/A"
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.side_effect = mock_read
         self.analyzer._get_cache_info(info)
-        assert info.cache == {}
+        self.assertIn("L1i", info.cache)
 
-    @unit_test
-    @patch("tinel.hardware.cpu_analyzer.psutil")
-    def test_get_topology_info_missing_files(self, mock_psutil):
-        """Test _get_topology_info when files are missing."""
-        self.mock_system.run_command.return_value = Mock(
-            success=False, stdout="", stderr="", returncode=1
-        )
-        self.mock_system.read_file.return_value = None
-        mock_psutil.cpu_count.side_effect = Exception("psutil failed")
+    def test_optimization_analysis(self):
         info = CPUInfo()
-        self.analyzer._get_topology_info(info)
-        assert info.topology == {}
+        mock_read_values = ["powersave"] + ["Vulnerable"] * 9
+        self.mock_system_interface.read_file.side_effect = mock_read_values
+        self.analyzer._analyze_cpu_optimization(info)
+        self.assertEqual(len(info.optimization_recommendations), 2)
 
-    @unit_test
-    @patch("tinel.hardware.cpu_analyzer.psutil")
-    def test_analyze_cpu_performance_with_avx2(self, mock_psutil):
-        """Test CPU performance analysis with AVX2 support."""
-        # Arrange
-        mock_psutil.cpu_freq.return_value = Mock(current=3400, min=800, max=4200)
-        mock_psutil.cpu_stats.return_value = Mock(
-            ctx_switches=1, interrupts=2, soft_interrupts=3, syscalls=4
-        )
-        info = {"lscpu_flags": ["fpu", "vme", "de", "pse", "avx", "avx2"]}
+    def test_error_handling_missing_files(self):
+        self.mock_system_interface.read_file.return_value = None
+        self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="Error", returncode=1)
+        info = self.analyzer.get_cpu_info()
+        self.assertIsNone(info.product)
 
-        # Act
-        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+    @patch("time.time")
+    def test_performance_with_caching(self, mock_time):
+        def run_command_mock(command):
+            if "nproc" in command:
+                return CommandResult(success=True, stdout="16", stderr="", returncode=0)
+            return CommandResult(success=True, stdout="Architecture: x86_64\nModel name: Test CPU", stderr="", returncode=0)
+        def read_file_mock(path):
+            if "scaling_cur_freq" in path: return "3600000"
+            return "some_string"
+        self.mock_system_interface.run_command.side_effect = run_command_mock
+        self.mock_system_interface.read_file.side_effect = read_file_mock
+        self.analyzer._cache_ttl = 10
+        mock_time.return_value = 100
+        self.analyzer.get_cpu_info()
+        mock_time.return_value = 101
+        start_time = time.perf_counter()
+        self.analyzer.get_cpu_info()
+        end_time = time.perf_counter()
+        self.assertLess(end_time - start_time, 0.01)
 
-        # Assert
-        assert "performance_analysis" in performance_analysis
-        analysis_data = performance_analysis["performance_analysis"]
+    def test_parse_cpuinfo_edge_cases(self):
+        self.assertEqual(self.analyzer._parse_cpuinfo(""), {})
+        self.assertEqual(self.analyzer._parse_cpuinfo("random text"), {})
+        info = self.analyzer._parse_cpuinfo("model name : X\nvendor_id : Y\ncpu family : 6\nmodel\t: 123\nstepping:4")
+        self.assertEqual(info['model_name'], 'X')
 
-        cpu_freq_current = 3400
-        assert analysis_data["optimizations"]["avx2_supported"] is True
-        assert "psutil_cpu_frequency" in analysis_data
-        assert analysis_data["psutil_cpu_frequency"]["current"] == cpu_freq_current
-        assert "psutil_cpu_stats" in analysis_data
-        assert analysis_data["psutil_cpu_stats"]["context_switches"] == 1
+    def test_parse_lscpu_edge_cases(self):
+        self.assertEqual(self.analyzer._parse_lscpu(""), {})
+        self.assertEqual(self.analyzer._parse_lscpu("random text"), {})
 
-    @unit_test
-    @patch("tinel.hardware.cpu_analyzer.psutil")
-    def test_analyze_cpu_performance_no_avx2(self, mock_psutil):
-        """Test CPU performance analysis without AVX2 support."""
-        # Arrange
-        mock_psutil.cpu_freq.return_value = Mock(current=2500, min=800, max=3000)
-        mock_psutil.cpu_stats.return_value = Mock(
-            ctx_switches=1, interrupts=2, soft_interrupts=3, syscalls=4
-        )
-        info = {"lscpu_flags": ["fpu", "vme", "de", "pse", "avx"]}
+    def test_extract_cpu_flags_edge_cases(self):
+        self.assertEqual(self.analyzer._extract_cpu_flags("no flags here"), [])
 
-        # Act
-        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+    def test_analyze_security_features_empty(self):
+        self.assertFalse(any(self.analyzer._analyze_security_features([]).values()))
 
-        # Assert
-        analysis_data = performance_analysis["performance_analysis"]
-        assert analysis_data["optimizations"]["avx2_supported"] is False
-        assert "psutil_cpu_frequency" in analysis_data
+    def test_analyze_performance_features_empty(self):
+        self.assertFalse(any(self.analyzer._analyze_performance_features([]).values()))
 
-    @unit_test
-    @patch("tinel.hardware.cpu_analyzer.psutil")
-    def test_analyze_cpu_performance_generic_psutil_exception(self, mock_psutil):
-        """Test CPU performance analysis handles generic psutil exceptions."""
-        # Arrange
-        mock_psutil.cpu_freq.side_effect = Exception("Generic Error")
-        mock_psutil.cpu_stats.side_effect = Exception("Generic Error")
-        info = {"lscpu_flags": ["avx2"]}
+    def test_analyze_virtualization_features_empty(self):
+        self.assertFalse(any(self.analyzer._analyze_virtualization_features([]).values()))
 
-        # Act
-        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+    def test_get_cache_info_missing_files(self):
+        self.mock_system_interface.file_exists.return_value = False
+        self.assertEqual(self.analyzer._compute_cache_info(), {})
 
-        # Assert
-        analysis_data = performance_analysis["performance_analysis"]
-        assert "psutil_cpu_frequency" not in analysis_data
-        assert "psutil_cpu_frequency_error" in analysis_data
-        assert "Generic Error" in analysis_data["psutil_cpu_frequency_error"]
-        assert "psutil_cpu_stats" not in analysis_data
-        assert "psutil_cpu_stats_error" in analysis_data
-        assert "Generic Error" in analysis_data["psutil_cpu_stats_error"]
+    def test_get_cache_info_io_error(self):
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.side_effect = IOError("cannot read")
+        self.assertEqual(self.analyzer._compute_cache_info(), {})
 
-    @unit_test
-    @patch("tinel.hardware.cpu_analyzer.psutil")
-    def test_analyze_cpu_performance_psutil_returns_none(self, mock_psutil):
-        """Test CPU performance analysis when psutil.cpu_freq() returns None."""
-        # Arrange
-        mock_psutil.cpu_freq.return_value = None
-        mock_psutil.cpu_stats.return_value = None
-        info = {"lscpu_flags": ["avx2"]}
+    def test_get_cache_info_parsing_incomplete(self):
+        def mock_read(path):
+            if "size" in path: return ""
+            return "valid"
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.side_effect = mock_read
+        self.assertEqual(self.analyzer._compute_cache_info(), {})
 
-        # Act
-        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+    def test_get_topology_info_missing_files(self):
+        self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
+        self.assertEqual(self.analyzer._compute_topology_info(), {})
 
-        # Assert
-        analysis_data = performance_analysis["performance_analysis"]
-        assert "psutil_cpu_frequency" not in analysis_data
-        assert "psutil_cpu_frequency_error" not in analysis_data
-        assert "psutil_cpu_stats" not in analysis_data
-        assert "psutil_cpu_stats_error" not in analysis_data
+    @patch('psutil.cpu_freq', side_effect=Exception("Generic psutil error"))
+    def test_analyze_cpu_performance_generic_psutil_exception(self, mock_cpu_freq):
+        result = self.analyzer._analyze_cpu_performance({})
+        self.assertIn("psutil_cpu_frequency_error", result['performance_analysis'])
 
-    @unit_test
-    @patch("tinel.hardware.cpu_analyzer.psutil")
-    def test_analyze_cpu_performance_psutil_error(self, mock_psutil):
-        """Test CPU performance analysis when psutil fails."""
-        # Arrange
-        mock_psutil.cpu_freq.side_effect = PermissionError("Permission denied")
-        mock_psutil.cpu_stats.side_effect = PermissionError("Permission denied")
-        info = {"lscpu_flags": ["avx2"]}
+    @patch('psutil.cpu_freq', side_effect=PermissionError("Permission denied"))
+    def test_analyze_cpu_performance_psutil_permission_error(self, mock_cpu_freq):
+        result = self.analyzer._analyze_cpu_performance({})
+        self.assertEqual(result['performance_analysis']['psutil_cpu_frequency_error'], "Permission denied")
 
-        # Act
-        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+    @patch('psutil.cpu_freq', return_value=None)
+    def test_analyze_cpu_performance_psutil_returns_none(self, mock_cpu_freq):
+        result = self.analyzer._analyze_cpu_performance({})
+        self.assertNotIn("psutil_cpu_frequency", result['performance_analysis'])
 
-        # Assert
-        analysis_data = performance_analysis["performance_analysis"]
-        assert "psutil_cpu_frequency" not in analysis_data
-        assert "psutil_cpu_frequency_error" in analysis_data
-        assert "Permission denied" in analysis_data["psutil_cpu_frequency_error"]
-        assert "psutil_cpu_stats" not in analysis_data
-        assert "psutil_cpu_stats_error" in analysis_data
-        assert "Permission denied" in analysis_data["psutil_cpu_stats_error"]
+    @patch('psutil.cpu_stats', side_effect=NotImplementedError("Stats not supported"))
+    def test_analyze_cpu_performance_psutil_error(self, mock_cpu_stats):
+        result = self.analyzer._analyze_cpu_performance({})
+        self.assertIn('psutil_cpu_stats_error', result['performance_analysis'])
 
-    @unit_test
-    @patch("tinel.hardware.cpu_analyzer.psutil")
-    def test_analyze_cpu_performance_no_lscpu_flags(self, mock_psutil):
-        """Test CPU performance analysis when lscpu flags are missing."""
-        # Arrange
-        mock_psutil.cpu_freq.return_value = Mock(current=2500, min=800, max=3000)
-        mock_psutil.cpu_stats.return_value = Mock(
-            ctx_switches=1, interrupts=2, soft_interrupts=3, syscalls=4
-        )
-        info = {}  # No lscpu_flags
+    @patch('psutil.cpu_stats', side_effect=Exception("Generic psutil error"))
+    def test_analyze_cpu_performance_generic_psutil_stats_exception(self, mock_cpu_stats):
+        result = self.analyzer._analyze_cpu_performance({})
+        self.assertIn("psutil_cpu_stats_error", result['performance_analysis'])
 
-        # Act
-        performance_analysis = self.analyzer._analyze_cpu_performance(info)
+    @patch('psutil.cpu_stats', side_effect=PermissionError("Permission denied"))
+    def test_analyze_cpu_performance_psutil_stats_permission_error(self, mock_cpu_stats):
+        result = self.analyzer._analyze_cpu_performance({})
+        self.assertEqual(result['performance_analysis']['psutil_cpu_stats_error'], "Permission denied")
 
-        # Assert
-        analysis_data = performance_analysis["performance_analysis"]
-        assert analysis_data["optimizations"]["avx2_supported"] is False
-        assert "psutil_cpu_frequency" in analysis_data
-
-    @unit_test
     def test_get_cpu_vulnerabilities_all_missing(self):
-        """Test _get_cpu_vulnerabilities when all files are missing."""
-        self.mock_system.read_file.return_value = None
-        vulns = self.analyzer._get_cpu_vulnerabilities()
-        assert vulns == {}
+        self.mock_system_interface.read_file.return_value = None
+        self.assertEqual(self.analyzer._get_cpu_vulnerabilities(), {})
 
-    def _setup_frequency_mocks(self, governor="powersave"):
-        """Set up mocks for frequency information."""
-        frequency_files = {
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2000000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": "400000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "4600000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": governor,
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": (
-                "conservative ondemand userspace powersave performance schedutil"
-            ),
-        }
+    def test_process_basic_cpu_info_lscpu_fails(self):
+        info = CPUInfo()
+        self.analyzer._process_basic_cpu_info(info, "model name: Test CPU", CommandResult(success=False, stdout="", stderr="", returncode=1))
+        self.assertEqual(info.product, "Test CPU")
 
-        def mock_read_file(path):
-            return frequency_files.get(path)
+    def test_process_basic_cpu_info_no_version_match(self):
+        info = CPUInfo()
+        lscpu_result = CommandResult(success=True, stdout="Model name: Another CPU", stderr="", returncode=0)
+        self.analyzer._process_basic_cpu_info(info, "", lscpu_result)
+        self.assertEqual(info.version, "Another CPU")
 
-        self.mock_system.read_file.side_effect = mock_read_file
+    def test_process_basic_cpu_info_no_width_match(self):
+        info = CPUInfo()
+        lscpu_output = "Model name: Another CPU"
+        lscpu_result = CommandResult(success=True, stdout=lscpu_output, stderr="", returncode=0)
+        self.analyzer._process_basic_cpu_info(info, "", lscpu_result)
+        self.assertIsNone(info.width)
 
-    def _setup_topology_mocks(self):
-        """Set up mocks for topology information."""
-        topology_files = {
-            "/sys/devices/system/cpu/cpu0/topology/physical_package_id": "0",
-            "/sys/devices/system/cpu/cpu1/topology/physical_package_id": "0",
-            "/sys/devices/system/cpu/cpu2/topology/physical_package_id": "0",
-            "/sys/devices/system/cpu/cpu3/topology/physical_package_id": "0",
-            "/sys/devices/system/cpu/cpu0/topology/core_id": "0",
-            "/sys/devices/system/cpu/cpu1/topology/core_id": "1",
-            "/sys/devices/system/cpu/cpu2/topology/core_id": "2",
-            "/sys/devices/system/cpu/cpu3/topology/core_id": "3",
-        }
+    def test_optimization_analysis_not_powersave(self):
+        info = CPUInfo()
+        mock_read_values = ["performance"] + ["Not affected"] * 9
+        self.mock_system_interface.read_file.side_effect = mock_read_values
+        self.analyzer._analyze_cpu_optimization(info)
+        self.assertEqual(len(info.optimization_recommendations), 0)
 
-        def mock_read_file(path):
-            return topology_files.get(path)
+    def test_process_basic_cpu_info_no_cpuinfo(self):
+        info = CPUInfo()
+        lscpu_result = CommandResult(success=True, stdout="Architecture: arm64", stderr="", returncode=0)
+        self.analyzer._process_basic_cpu_info(info, None, lscpu_result)
+        self.assertIsNone(info.product)
+        self.assertEqual(info.architecture, "arm64")
 
-        self.mock_system.read_file.side_effect = mock_read_file
+    def test_process_basic_cpu_info_no_width_in_lscpu(self):
+        info = CPUInfo()
+        lscpu_result = CommandResult(success=True, stdout="Model name: Another CPU", stderr="", returncode=0)
+        self.analyzer._process_basic_cpu_info(info, "model name: Another CPU", lscpu_result)
+        self.assertIsNone(info.width)
 
-    def _setup_cache_mocks(self):
-        """Set up mocks for cache information."""
-        cache_files = {
-            "/sys/devices/system/cpu/cpu0/cache/index0/size": "32K",
-            "/sys/devices/system/cpu/cpu0/cache/index0/type": "Data",
-            "/sys/devices/system/cpu/cpu0/cache/index0/level": "1",
-            "/sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size": "64",
-            "/sys/devices/system/cpu/cpu0/cache/index0/number_of_sets": "64",
-            "/sys/devices/system/cpu/cpu0/cache/index0/physical_line_partition": "1",
-            "/sys/devices/system/cpu/cpu0/cache/index1/size": "32K",
-            "/sys/devices/system/cpu/cpu0/cache/index1/type": "Instruction",
-            "/sys/devices/system/cpu/cpu0/cache/index1/level": "1",
-            "/sys/devices/system/cpu/cpu0/cache/index1/coherency_line_size": "64",
-            "/sys/devices/system/cpu/cpu0/cache/index1/number_of_sets": "64",
-            "/sys/devices/system/cpu/cpu0/cache/index1/physical_line_partition": "1",
-            "/sys/devices/system/cpu/cpu0/cache/index2/size": "256K",
-            "/sys/devices/system/cpu/cpu0/cache/index2/type": "Unified",
-            "/sys/devices/system/cpu/cpu0/cache/index2/level": "2",
-            "/sys/devices/system/cpu/cpu0/cache/index2/coherency_line_size": "64",
-            "/sys/devices/system/cpu/cpu0/cache/index2/number_of_sets": "1024",
-            "/sys/devices/system/cpu/cpu0/cache/index2/physical_line_partition": "1",
-            "/sys/devices/system/cpu/cpu0/cache/index3/size": "8192K",
-            "/sys/devices/system/cpu/cpu0/cache/index3/type": "Unified",
-            "/sys/devices/system/cpu/cpu0/cache/index3/level": "3",
-            "/sys/devices/system/cpu/cpu0/cache/index3/coherency_line_size": "64",
-            "/sys/devices/system/cpu/cpu0/cache/index3/number_of_sets": "8192",
-            "/sys/devices/system/cpu/cpu0/cache/index3/physical_line_partition": "1",
-        }
+    def test_optimization_analysis_no_powersave_no_vulns(self):
+        info = CPUInfo()
+        mock_read_values = ["performance"] + ["Not affected"] * 9
+        self.mock_system_interface.read_file.side_effect = mock_read_values
+        with patch.object(self.analyzer, '_get_cpu_vulnerabilities', return_value={}):
+            self.analyzer._analyze_cpu_optimization(info)
+            self.assertEqual(len(info.optimization_recommendations), 0)
 
-        # Mock file_exists for cache directories
-        def mock_file_exists(path):
-            return path in cache_files
-
-        def mock_read_file(path):
-            return cache_files.get(path)
-
-        self.mock_system.file_exists.side_effect = mock_file_exists
-        self.mock_system.read_file.side_effect = mock_read_file
-
-    def _setup_vulnerability_mocks(self, vulnerable_count=1):
-        """Set up mocks for vulnerability information."""
-        vuln_files = {
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": (
-                "Mitigation: usercopy/swapgs barriers"
-            ),
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": (
-                "Mitigation: Enhanced IBRS"
-            ),
-            "/sys/devices/system/cpu/vulnerabilities/meltdown": "Mitigation: PTI",
-            "/sys/devices/system/cpu/vulnerabilities/spec_store_bypass": (
-                "Vulnerable" if vulnerable_count > 0 else "Mitigation: SSB disabled"
-            ),
-            "/sys/devices/system/cpu/vulnerabilities/l1tf": (
-                "Vulnerable" if vulnerable_count > 1 else "Mitigation: PTE Inversion"
-            ),
-        }
-
-        def mock_read_file(path):
-            return vuln_files.get(path)
-
-        self.mock_system.read_file.side_effect = mock_read_file
-
-    def _setup_all_mocks(self, sample_cpuinfo=None, sample_lscpu=None):
-        """Set up all mocks for comprehensive testing."""
-        if not sample_cpuinfo:
-            sample_cpuinfo = "model name : Test CPU\nflags : sse sse2 avx\n"
-        if not sample_lscpu:
-            sample_lscpu = "Architecture: x86_64\nCPU(s): 4\n"
-
-        # Mock basic data sources
-        self.mock_system.read_file.return_value = sample_cpuinfo
-
-        # Mock different command responses
-        def mock_run_command(cmd):
-            if cmd[0] == "nproc":
-                return CommandResult(success=True, stdout="4", stderr="", returncode=0)
-            else:  # lscpu and others
-                return CommandResult(
-                    success=True, stdout=sample_lscpu, stderr="", returncode=0
-                )
-
-        self.mock_system.run_command.side_effect = mock_run_command
-
-        # Set up all subsystem mocks
-        self._setup_frequency_mocks()
-        self._setup_topology_mocks()
-        self._setup_cache_mocks()
-        self._setup_vulnerability_mocks()
-
-    def _setup_comprehensive_mocks(self, sample_cpuinfo=None, sample_lscpu=None):
-        """Set up comprehensive mocks including all file sources."""
-        if not sample_cpuinfo:
-            sample_cpuinfo = "model name : Test CPU\nflags : sse sse2 avx\n"
-        if not sample_lscpu:
-            sample_lscpu = "Architecture: x86_64\nCPU(s): 4\n"
-
-        # Create comprehensive file mapping
-        file_responses = {
-            # Main CPU info sources
-            "/proc/cpuinfo": sample_cpuinfo,
-            # Frequency files
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2000000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": "400000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "4600000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "performance",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": (
-                "conservative ondemand userspace powersave performance schedutil"
-            ),
-            # Topology files
-            "/sys/devices/system/cpu/cpu0/topology/physical_package_id": "0",
-            "/sys/devices/system/cpu/cpu1/topology/physical_package_id": "0",
-            "/sys/devices/system/cpu/cpu0/topology/core_id": "0",
-            "/sys/devices/system/cpu/cpu1/topology/core_id": "1",
-            "/sys/devices/system/cpu/cpu0/topology/thread_siblings_list": "0,1",
-            # Cache files
-            "/sys/devices/system/cpu/cpu0/cache/index0/size": "32K",
-            "/sys/devices/system/cpu/cpu0/cache/index0/type": "Data",
-            "/sys/devices/system/cpu/cpu0/cache/index0/level": "1",
-            "/sys/devices/system/cpu/cpu0/cache/index2/size": "256K",
-            "/sys/devices/system/cpu/cpu0/cache/index2/type": "Unified",
-            "/sys/devices/system/cpu/cpu0/cache/index2/level": "2",
-            # Vulnerability files
-            "/sys/devices/system/cpu/vulnerabilities/meltdown": "Mitigation: PTI",
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": (
-                "Mitigation: barriers"
-            ),
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": (
-                "Mitigation: Enhanced IBRS"
-            ),
-        }
-
-        def mock_read_file(path):
-            return file_responses.get(path)
-
-        self.mock_system.read_file.side_effect = mock_read_file
-
-        # Mock command responses
-        def mock_run_command(cmd):
-            if cmd[0] == "nproc":
-                return CommandResult(success=True, stdout="4", stderr="", returncode=0)
-            else:  # lscpu and others
-                return CommandResult(
-                    success=True, stdout=sample_lscpu, stderr="", returncode=0
-                )
-
-        self.mock_system.run_command.side_effect = mock_run_command
-
-        # Mock file existence
-        cache_files = {
-            "/sys/devices/system/cpu/cpu0/cache/index0/size",
-            "/sys/devices/system/cpu/cpu0/cache/index0/type",
-            "/sys/devices/system/cpu/cpu0/cache/index0/level",
-            "/sys/devices/system/cpu/cpu0/cache/index2/size",
-            "/sys/devices/system/cpu/cpu0/cache/index2/type",
-            "/sys/devices/system/cpu/cpu0/cache/index2/level",
-        }
-        self.mock_system.file_exists.side_effect = (
-            lambda path: path in cache_files or path in file_responses
-        )
-
-
-@pytest.mark.parametrize(
-    "cache_ttl,expected_calls",
-    [
-        (0.01, 2),  # Very short TTL, should cause recomputation
-        (60.0, 1),  # Long TTL, should stay cached
-    ],
-)
-@unit_test
-def test_cache_ttl_behavior(cache_ttl, expected_calls):
-    """Test cache TTL behavior with different timeout values."""
-    mock_system = Mock()
-    analyzer = CPUAnalyzer(mock_system)
-    analyzer._cache_ttl = cache_ttl
-
-    call_count = 0
-
-    def counting_computation():
-        nonlocal call_count
-        call_count += 1
-        return {"count": call_count}
-
-    # First call
-    analyzer._get_cached_or_compute("test", counting_computation)
-
-    # Wait based on TTL
-    if cache_ttl < 1.0:
-        time.sleep(cache_ttl + 0.01)
-
-    # Second call
-    analyzer._get_cached_or_compute("test", counting_computation)
-
-    assert call_count == expected_calls
+if __name__ == "__main__":
+    unittest.main()

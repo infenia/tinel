@@ -36,7 +36,7 @@ class TestSystemAnalyzer(unittest.TestCase):
         system_info = self.analyzer.get_system_info()
 
         # Assert the results
-        self.assertEqual(system_info.product, "test-hostname")
+        self.assertEqual(system_info.product, "Test Product")
         self.assertEqual(system_info.vendor, "Test Vendor")
         self.assertEqual(system_info.version, "1.0")
         self.assertEqual(system_info.serial, "12345")
@@ -45,6 +45,50 @@ class TestSystemAnalyzer(unittest.TestCase):
         self.assertEqual(system_info.family, "Test Family")
         self.assertEqual(system_info.width, 64)
         self.assertIn("smp", system_info.capabilities)
+
+    def test_get_system_info_32bit(self):
+        # Mock lscpu to return 32-bit architecture
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.side_effect = self._mock_read_file
+        self.mock_system_interface.run_command.side_effect = self._mock_run_command_32bit
+
+        system_info = self.analyzer.get_system_info()
+        self.assertEqual(system_info.width, 32)
+        self.assertNotIn("smp", system_info.capabilities)
+
+    def test_get_system_info_exception_on_check(self):
+        # Mock file_exists to raise an exception
+        self.mock_system_interface.file_exists.side_effect = Exception("Test Exception")
+
+        system_info = self.analyzer.get_system_info()
+
+        # Should return an empty SystemInfo object
+        self.assertEqual(system_info, SystemInfo())
+
+    def test_get_system_info_dmi_file_whitespace(self):
+        self.mock_system_interface.file_exists.return_value = True
+        def _mock_read_file(path):
+            if "product_name" in path:
+                return "   "
+            return "good value"
+        self.mock_system_interface.read_file.side_effect = _mock_read_file
+
+        # Make sure hostname command is successful to cover the fallback
+        self.mock_system_interface.run_command.return_value = CommandResult(success=True, stdout="test-hostname", stderr="", returncode=0)
+
+        system_info = self.analyzer.get_system_info()
+        self.assertEqual(system_info.product, "test-hostname")
+        self.assertEqual(system_info.vendor, "good value")
+
+    def test_read_dmi_file_exception(self):
+        self.mock_system_interface.read_file.side_effect = Exception("generic error")
+        result = self.analyzer._read_dmi_file("any_file")
+        self.assertIsNone(result)
+
+    def test_read_dmi_file_returns_none(self):
+        self.mock_system_interface.read_file.return_value = None
+        result = self.analyzer._read_dmi_file("any_file")
+        self.assertIsNone(result)
 
     def test_get_system_info_dmi_path_not_found(self):
         # Mock the DMI path to not exist
@@ -104,6 +148,18 @@ class TestSystemAnalyzer(unittest.TestCase):
             return CommandResult(
                 success=True,
                 stdout="CPU op-mode(s): 32-bit, 64-bit\nsmp",
+                stderr="",
+                returncode=0,
+            )
+        return CommandResult(success=False, stdout="", stderr="Command not found", returncode=127)
+
+    def _mock_run_command_32bit(self, command):
+        if command == ["hostname"]:
+            return CommandResult(success=True, stdout="test-hostname", stderr="", returncode=0)
+        elif command == ["lscpu"]:
+            return CommandResult(
+                success=True,
+                stdout="CPU op-mode(s): 32-bit",
                 stderr="",
                 returncode=0,
             )

@@ -81,6 +81,48 @@ ROM Size: 16 MB
         self.assertIsNone(bios_info.version)
         self.assertIsNone(bios_info.date)
 
+    def test_get_bios_info_exception_on_check(self):
+        # Mock file_exists to raise an exception
+        self.mock_system_interface.file_exists.side_effect = Exception("Test Exception")
+        self.mock_system_interface.run_command.return_value = CommandResult(success=False, stdout="", stderr="", returncode=1)
+        bios_info = self.analyzer.get_bios_info()
+        self.assertEqual(bios_info, BIOSInfo())
+
+    def test_dmidecode_no_size(self):
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.side_effect = self._mock_read_file
+        self.mock_system_interface.run_command.return_value = CommandResult(
+            success=True, stdout="BIOS characteristics:\n\tTest capability\n", stderr="", returncode=0
+        )
+        bios_info = self.analyzer.get_bios_info()
+        self.assertIsNone(bios_info.size)
+        self.assertIn("Test capability", bios_info.capabilities)
+
+    def test_dmidecode_no_capabilities(self):
+        self.mock_system_interface.file_exists.return_value = True
+        self.mock_system_interface.read_file.side_effect = self._mock_read_file
+        self.mock_system_interface.run_command.return_value = CommandResult(
+            success=True, stdout="ROM Size: 8 MB", stderr="", returncode=0
+        )
+        bios_info = self.analyzer.get_bios_info()
+        self.assertEqual(bios_info.size, "8 MB")
+        self.assertEqual(bios_info.capabilities, {})
+
+    def test_read_dmi_file_whitespace(self):
+        self.mock_system_interface.read_file.return_value = "   "
+        result = self.analyzer._read_dmi_file("any")
+        self.assertIsNone(result)
+
+    def test_read_dmi_file_empty(self):
+        self.mock_system_interface.read_file.return_value = ""
+        result = self.analyzer._read_dmi_file("any")
+        self.assertIsNone(result)
+
+    def test_read_dmi_file_exception(self):
+        self.mock_system_interface.read_file.side_effect = Exception("generic error")
+        result = self.analyzer._read_dmi_file("any")
+        self.assertIsNone(result)
+
     def _mock_read_file(self, path):
         if path.endswith("bios_vendor"):
             return "Test BIOS Vendor"

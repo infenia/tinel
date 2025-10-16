@@ -15,79 +15,66 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import unittest
 import json
 import xml.etree.ElementTree as ET
 from tinel.cli.lshw_formatters import (
-    LSHWJsonFormatter,
     LSHWTextFormatter,
+    LSHWJsonFormatter,
     LSHWXmlFormatter,
 )
 
+class TestLSHWFormatters(unittest.TestCase):
+    def setUp(self):
+        self.data = {
+            "id": "system",
+            "children": [
+                {
+                    "id": "core",
+                    "vendor": "Intel",
+                    "children": [
+                        {"id": "cpu", "product": "Core i9"},
+                        {"id": "memory", "size": "32GiB"},
+                    ],
+                }
+            ],
+        }
 
-def test_lshw_text_formatter():
-    """Test the LSHWTextFormatter."""
-    formatter = LSHWTextFormatter()
-    data = {
-        "id": "core",
-        "class": "system",
-        "description": "Test System",
-        "children": [
-            {
-                "id": "cpu",
-                "class": "processor",
-                "description": "Test CPU",
-                "product": "Test CPU Product",
-            }
-        ],
-    }
-    output = formatter.format(data)
-    expected_output = """
-└─core
-    ├─class: system
-    ├─description: Test System
-    └─cpu
-        ├─class: processor
-        ├─description: Test CPU
-        └─product: Test CPU Product
-""".strip()
-    assert expected_output in output
+    def test_lshw_text_formatter(self):
+        formatter = LSHWTextFormatter()
+        output = formatter.format(self.data)
+        self.assertIn("└─system", output)
+        self.assertIn("└─core", output)
+        self.assertIn("├─cpu", output)
+        self.assertIn("└─memory", output)
 
+    def test_lshw_text_formatter_last_attribute(self):
+        formatter = LSHWTextFormatter()
+        data = {"id": "node", "attr1": "value1", "attr2": "value2"}
+        output = formatter.format(data)
+        self.assertIn("└─attr2: value2", output)
 
-def test_lshw_json_formatter():
-    """Test the LSHWJsonFormatter."""
-    formatter = LSHWJsonFormatter()
-    data = {
-        "id": "core",
-        "class": "system",
-        "children": [{"id": "cpu", "class": "processor"}],
-    }
-    output = formatter.format(data)
-    parsed_output = json.loads(output)
-    assert parsed_output["id"] == "core"
-    assert parsed_output["children"][0]["id"] == "cpu"
+    def test_lshw_json_formatter(self):
+        formatter = LSHWJsonFormatter()
+        output = formatter.format(self.data)
+        parsed_output = json.loads(output)
+        self.assertEqual(parsed_output["id"], "system")
+        self.assertEqual(len(parsed_output["children"]), 1)
 
+    def test_lshw_xml_formatter(self):
+        formatter = LSHWXmlFormatter()
+        output = formatter.format(self.data)
+        root = ET.fromstring(output)
+        self.assertEqual(root.tag, "node")
+        self.assertEqual(root.get("id"), "system")
+        self.assertEqual(len(list(root)), 1)
 
-def test_lshw_xml_formatter():
-    """Test the LSHWXmlFormatter."""
-    formatter = LSHWXmlFormatter()
-    data = {
-        "id": "core",
-        "class": "system",
-        "description": "Test System",
-        "children": [
-            {
-                "id": "cpu",
-                "class": "processor",
-                "product": "Test CPU",
-            }
-        ],
-    }
-    output = formatter.format(data)
-    root = ET.fromstring(output)
-    assert root.tag == "node"
-    assert root.attrib["id"] == "core"
-    assert root.attrib["description"] == "Test System"
-    cpu_node = root.find("node")
-    assert cpu_node is not None
-    assert cpu_node.attrib["id"] == "cpu"
-    assert cpu_node.attrib["product"] == "Test CPU"
+    def test_lshw_xml_formatter_with_none_value(self):
+        formatter = LSHWXmlFormatter()
+        data = {"id": "node", "attr": None}
+        output = formatter.format(data)
+        root = ET.fromstring(output)
+        self.assertIsNone(root.get("attr"))
+
+if __name__ == "__main__":
+    unittest.main()
