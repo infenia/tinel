@@ -18,7 +18,8 @@ from tinel.cli.commands.hardware import HardwareCommands
 from tinel.cli.error_handler import HardwareError
 from tinel.hardware.cpu_analyzer import CPUAnalyzer
 from tinel.hardware.device_analyzer import DeviceAnalyzer
-from tinel.hardware.models import HardwareInfo, PCIInfo, USBInfo
+import dataclasses
+from tinel.hardware.models import CPUInfo, HardwareInfo, PCIInfo, USBInfo
 from tinel.interfaces import CommandResult
 from tinel.tools.hardware_tools import AllHardwareToolProvider, CPUInfoToolProvider
 
@@ -70,9 +71,8 @@ class TestCPUAnalyzerIntegration:
         cpu_info = self.analyzer.get_cpu_info()
 
         # Should handle missing data gracefully
-        assert "lscpu_error" in cpu_info
-        assert cpu_info["model_name"] == "Test CPU"
-        assert "sse" in cpu_info["cpu_flags"]
+        assert cpu_info.product == "Test CPU"
+        assert "sse" in cpu_info.cpu_flags
 
     @integration_test
     def test_cpu_optimization_recommendations(self):
@@ -83,8 +83,8 @@ class TestCPUAnalyzerIntegration:
         cpu_info = self.analyzer.get_cpu_info()
 
         # Should generate recommendations
-        assert "optimization_recommendations" in cpu_info
-        recommendations = cpu_info["optimization_recommendations"]
+        assert hasattr(cpu_info, "optimization_recommendations")
+        recommendations = cpu_info.optimization_recommendations
 
         # Should have performance and security recommendations
         rec_types = {rec["type"] for rec in recommendations}
@@ -202,45 +202,41 @@ flags		: fpu vme de pse tsc msr pae
 
     def _verify_complete_cpu_info(self, cpu_info):
         """Verify that CPU info contains expected comprehensive data."""
+        cpu_info_dict = dataclasses.asdict(cpu_info)
         # Basic parsing results
         AssertionHelpers.assert_contains_keys(
-            cpu_info, ["model_name", "vendor_id", "cpu_flags"]
+            cpu_info_dict, ["product", "vendor", "cpu_flags"]
         )
 
         # Feature analysis
         AssertionHelpers.assert_contains_keys(
-            cpu_info,
+            cpu_info_dict,
             ["security_features", "performance_features", "virtualization_features"],
         )
 
         # System information sections
         expected_sections = [
-            "current_frequency_mhz",
-            "min_frequency_mhz",
-            "max_frequency_mhz",
-            "current_governor",
-            "available_governors",
             "logical_cpus",
             "vulnerabilities",
         ]
 
         for section in expected_sections:
-            if section not in cpu_info:
+            if section not in cpu_info_dict["topology"] and section not in cpu_info_dict:
                 # Some sections might be missing on test systems - that's OK
                 continue
 
         # Verify data types
-        assert isinstance(cpu_info["cpu_flags"], list)
-        assert len(cpu_info["cpu_flags"]) > 0
+        assert isinstance(cpu_info.cpu_flags, list)
+        assert len(cpu_info.cpu_flags) > 0
 
         for feature_set in [
             "security_features",
             "performance_features",
             "virtualization_features",
         ]:
-            if feature_set in cpu_info:
-                assert isinstance(cpu_info[feature_set], dict)
-                for _feature, enabled in cpu_info[feature_set].items():
+            if hasattr(cpu_info, feature_set):
+                assert isinstance(getattr(cpu_info, feature_set), dict)
+                for _feature, enabled in getattr(cpu_info, feature_set).items():
                     assert isinstance(enabled, bool)
 
     def _verify_caching_works(self, first_result):
@@ -381,7 +377,7 @@ class TestHardwareToolsIntegration:
             memory={"ram": "16GB"},
             storage={"ssd": "1TB"},
             pci=PCIInfo(devices=[]),
-            usb=USBInfo(tree={}),
+            usb=USBInfo(devices=[]),
         )
 
         with patch.object(
@@ -397,7 +393,7 @@ class TestHardwareToolsIntegration:
             assert result["cpu"] == {"model": "Test CPU", "cores": 4}
             assert result["memory"] == {"ram": "16GB"}
             assert result["pci"] == {"devices": []}
-            assert result["usb"] == {"tree": {}}
+            assert result["usb"] == {"devices": []}
 
     @integration_test
     def test_tool_provider_metadata(self):
@@ -466,6 +462,9 @@ class TestHardwareCommandsIntegration:
         args.hardware_command = "all"
         args.detailed = False
         args.summary = False
+        args.output_lshw_text = False
+        args.output_lshw_json = False
+        args.output_lshw_xml = False
 
         # Mock tool execution
         mock_hw_data = {"cpu": {"model": "Test CPU"}}
@@ -530,8 +529,9 @@ class TestEndToEndWorkflow:
         self._setup_realistic_system_mock(mock_system, sample_cpuinfo, sample_lscpu)
 
         # Create analyzer and tool
-        CPUAnalyzer(mock_system)
+        analyzer = CPUAnalyzer(mock_system)
         cpu_tool = CPUInfoToolProvider(mock_system)
+        cpu_tool.device_analyzer.cpu_analyzer = analyzer
 
         # Execute tool
         result = cpu_tool.execute({"detailed": True})
@@ -540,14 +540,14 @@ class TestEndToEndWorkflow:
         AssertionHelpers.assert_valid_cpu_info(result)
 
         # Verify specific data integrity
-        assert "Intel" in result["model_name"]
-        assert result["vendor_id"] == "GenuineIntel"
-        assert len(result["cpu_flags"]) > MIN_CPU_FLAGS_COUNT  # Should have many flags
+        assert "Intel" in result["product"]
+        assert result["vendor"] == "GenuineIntel"
+        assert len(result["cpu_flags"]) > MIN_CPU_FLAGS_COUNT
 
         # Verify feature analysis
-        assert result["security_features"]["nx_bit"] is True  # nx flag present
-        assert result["performance_features"]["avx2"] is True  # avx2 flag present
-        assert result["virtualization_features"]["vmx"] is True  # vmx flag present
+        assert result["security_features"]["nx_bit"] is True
+        assert result["performance_features"]["avx2"] is True
+        assert result["virtualization_features"]["vmx"] is True
 
     @integration_test
     def test_error_propagation_workflow(self):
@@ -567,8 +567,8 @@ class TestEndToEndWorkflow:
         result = cpu_tool.execute({})
 
         # Should have error indicators but not crash
-        assert "proc_cpuinfo_error" in result
-        assert "lscpu_error" in result
+        assert result["product"] is None
+        assert result["vendor"] is None
 
     def _setup_realistic_system_mock(self, mock_system, cpuinfo, lscpu):
         """Set up realistic system mock for end-to-end testing."""
@@ -625,6 +625,9 @@ def test_command_title_mapping(command_name, expected_title):
     args.summary = False
     args.temperature = False
     args.features = False
+    args.output_lshw_text = False
+    args.output_lshw_json = False
+    args.output_lshw_xml = False
 
     # Mock tool responses
     mock_data = {"test": "data"}

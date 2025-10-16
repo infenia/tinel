@@ -16,14 +16,13 @@ limitations under the License.
 """
 
 import re
-from dataclasses import asdict
 from typing import Any, Dict, List, Optional
 
 import psutil
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
-from .models import MemoryDeviceDetails
+from .models import MemoryDeviceDetails, MemoryInfo
 
 """Analyzes system memory, including virtual, swap, and physical devices.
 
@@ -38,7 +37,7 @@ on the data collected from `dmidecode`.
 """
 
 
-def analyze_memory_performance(info: Dict[str, Any]) -> Dict[str, Any]:
+def analyze_memory_performance(info: MemoryInfo) -> Dict[str, Any]:
     """Analyzes memory performance metrics from dmidecode info.
 
     This function calculates effective speed and other metrics based on the
@@ -50,17 +49,17 @@ def analyze_memory_performance(info: Dict[str, Any]) -> Dict[str, Any]:
     Returns:
         A dictionary with calculated performance metrics.
     """
-    if "memory_devices" not in info or not info["memory_devices"]:
+    if not info.memory_devices:
         return {}
 
     analysis: Dict[str, Any] = {"effective_speed_mhz": 0}
     speeds = []
 
-    for device in info["memory_devices"]:
+    for device in info.memory_devices:
         if not device:
             continue
         try:
-            speed_str = device.get("speed")
+            speed_str = device.speed
             if speed_str and "MT/s" in speed_str:
                 # Extract numeric value from "2400 MT/s"
                 match = re.match(r"(\d+)", speed_str)
@@ -105,7 +104,7 @@ class MemoryAnalyzer:
         """
         self.system = system_interface or LinuxSystemInterface()
 
-    def get_memory_info(self) -> Dict[str, Any]:
+    def get_memory_info(self) -> MemoryInfo:
         """Retrieves comprehensive information about the system's memory.
 
         This method aggregates memory data from two primary sources:
@@ -125,42 +124,46 @@ class MemoryAnalyzer:
             The 'memory_devices' key holds a list of dictionaries, each
             representing a physical memory module.
         """
-        info: Dict[str, Any] = {}
+        info = MemoryInfo()
         psutil_errors: List[str] = []
 
         try:
             virtual_mem = psutil.virtual_memory()
-            info["total_memory_bytes"] = virtual_mem.total
-            info["available_memory_bytes"] = virtual_mem.available
-            info["used_memory_bytes"] = virtual_mem.used
-            info["memory_usage_percent"] = virtual_mem.percent
+            info.total_memory_bytes = virtual_mem.total
+            info.available_memory_bytes = virtual_mem.available
+            info.used_memory_bytes = virtual_mem.used
+            info.memory_usage_percent = virtual_mem.percent
         except Exception as e:
             psutil_errors.append(f"virtual_memory: {e}")
 
         try:
             swap_mem = psutil.swap_memory()
-            info["total_swap_bytes"] = swap_mem.total
-            info["used_swap_bytes"] = swap_mem.used
-            info["free_swap_bytes"] = swap_mem.free
-            info["swap_usage_percent"] = swap_mem.percent
+            info.total_swap_bytes = swap_mem.total
+            info.used_swap_bytes = swap_mem.used
+            info.free_swap_bytes = swap_mem.free
+            info.swap_usage_percent = swap_mem.percent
         except Exception as e:
             psutil_errors.append(f"swap_memory: {e}")
 
         if psutil_errors:
-            info["psutil_error"] = "; ".join(psutil_errors)
+            info.psutil_error = "; ".join(psutil_errors)
 
         dmi_info = self._get_dmidecode_info()
         if dmi_info:
             if dmi_info.get("memory_devices"):
-                # Convert list of dataclasses to list of dicts for JSON serialization
-                info["memory_devices"] = [asdict(d) for d in dmi_info["memory_devices"]]
+                info.memory_devices = dmi_info["memory_devices"]
                 performance_analysis = analyze_memory_performance(info)
                 if performance_analysis:
-                    info["performance_analysis"] = performance_analysis
+                    info.performance_analysis = performance_analysis
             elif "dmidecode_error" in dmi_info:
-                info["dmidecode_error"] = dmi_info["dmidecode_error"]
+                info.dmidecode_error = dmi_info["dmidecode_error"]
             elif "dmidecode_parse_error" in dmi_info:
-                info["dmidecode_parse_error"] = dmi_info["dmidecode_parse_error"]
+                info.dmidecode_parse_error = dmi_info["dmidecode_parse_error"]
+
+        # Add top-level memory info, similar to lshw
+        if info.total_memory_bytes:
+            info.size = info.total_memory_bytes
+            info.units = "bytes"
 
         return info
 
@@ -236,8 +239,13 @@ class MemoryAnalyzer:
                         speed=raw_details.get("speed"),
                         manufacturer=raw_details.get("manufacturer"),
                         serial_number=raw_details.get("serial_number"),
+                        asset_tag=raw_details.get("asset_tag"),
                         part_number=raw_details.get("part_number"),
                         attributes=raw_details.get("attributes"),
+                        configured_clock_speed=raw_details.get("configured_clock_speed"),
+                        configured_voltage=raw_details.get("configured_voltage"),
+                        min_voltage=raw_details.get("minimum_voltage"),
+                        max_voltage=raw_details.get("maximum_voltage"),
                         raw_details=raw_details,
                     )
                 )

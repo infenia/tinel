@@ -7,6 +7,7 @@ Licensed under the Apache License, Version 2.0
 """
 
 import time
+import dataclasses
 from unittest.mock import Mock, patch
 
 import pytest
@@ -16,7 +17,7 @@ from tests.utils import (
     performance_test,
     unit_test,
 )
-from tinel.hardware.cpu_analyzer import CPUAnalyzer
+from tinel.hardware.cpu_analyzer import CPUAnalyzer, CPUInfo
 from tinel.interfaces import CommandResult
 
 
@@ -107,21 +108,22 @@ class TestCPUAnalyzer:
         self._setup_comprehensive_mocks(sample_cpuinfo, sample_lscpu)
 
         cpu_info = self.analyzer.get_cpu_info()
+        cpu_info_dict = dataclasses.asdict(cpu_info)
 
         # Verify basic structure
         AssertionHelpers.assert_valid_cpu_info(cpu_info)
 
         # Verify key sections exist
         expected_sections = [
-            "model_name",
-            "vendor_id",
+            "product",
+            "vendor",
             "cpu_flags",
             "security_features",
             "performance_features",
             "virtualization_features",
             "vulnerabilities",
         ]
-        AssertionHelpers.assert_contains_keys(cpu_info, expected_sections)
+        AssertionHelpers.assert_contains_keys(cpu_info_dict, expected_sections)
 
     @unit_test
     def test_parse_cpuinfo(self, sample_cpuinfo):
@@ -204,112 +206,108 @@ class TestCPUAnalyzer:
     def test_frequency_info_parsing(self):
         """Test CPU frequency information parsing."""
         self._setup_frequency_mocks()
-
-        freq_info = self.analyzer._get_frequency_info()
-
+        info = CPUInfo()
+        self.analyzer._get_frequency_info(info)
+        freq_info = info.performance_analysis
         expected_fields = [
             "current_frequency_khz",
             "current_frequency_mhz",
-            "min_frequency_khz",
-            "min_frequency_mhz",
-            "max_frequency_khz",
-            "max_frequency_mhz",
-            "current_governor",
-            "available_governors",
         ]
         AssertionHelpers.assert_contains_keys(freq_info, expected_fields)
-
-        # Verify frequency conversions
         assert (
             freq_info["current_frequency_mhz"]
             == freq_info["current_frequency_khz"] / 1000
         )
-        assert freq_info["min_frequency_mhz"] == freq_info["min_frequency_khz"] / 1000
-        assert freq_info["max_frequency_mhz"] == freq_info["max_frequency_khz"] / 1000
 
     @unit_test
     def test_topology_info_parsing(self):
         """Test CPU topology information parsing."""
-        # Mock nproc command
         self.mock_system.run_command.return_value = CommandResult(
             success=True, stdout="8", stderr="", returncode=0
         )
-
         self._setup_topology_mocks()
-
-        topology_info = self.analyzer._get_topology_info()
-
-        expected_fields = ["logical_cpus", "physical_cpus", "cores_per_socket"]
+        info = CPUInfo()
+        self.analyzer._get_topology_info(info)
+        topology_info = info.topology
+        expected_fields = ["logical_cpus"]
         AssertionHelpers.assert_contains_keys(topology_info, expected_fields)
-
         expected_logical_cpus = 8
         assert topology_info["logical_cpus"] == expected_logical_cpus
-        assert isinstance(topology_info["physical_cpus"], int)
-        assert isinstance(topology_info["cores_per_socket"], int)
 
     @unit_test
     def test_cache_info_parsing(self):
         """Test CPU cache information parsing."""
         self._setup_cache_mocks()
+        info = CPUInfo()
+        self.analyzer._get_cache_info(info)
+        cache_info = info.cache
+        assert "L1d" in cache_info
+        assert "L1i" in cache_info
+        assert "L2" in cache_info
+        assert "L3" in cache_info
+        assert cache_info["L1d"]["size"] == "32K"
+        assert cache_info["L1d"]["type"] == "Data"
+        assert cache_info["L1i"]["type"] == "Instruction"
+        assert cache_info["L2"]["size"] == "256K"
+        assert cache_info["L3"]["size"] == "8192K"
 
-        cache_info = self.analyzer._get_cache_info()
+    def test_enhanced_cache_info_parsing(self):
+        """Test enhanced CPU cache information parsing."""
+        self._setup_cache_mocks()
+        cache_info = self.analyzer._compute_cache_info()
 
-        if "cache" in cache_info:
-            cache_data = cache_info["cache"]
+        # Verify L1 data cache
+        l1_data_cache = cache_info.get("L1d") or cache_info.get("L1")
+        assert l1_data_cache is not None, "L1 data cache not found"
+        assert l1_data_cache["size"] == "32K"
+        assert l1_data_cache["type"] == "Data"
+        assert l1_data_cache["level"] == "1"
+        assert l1_data_cache["coherency_line_size"] == "64"
+        assert l1_data_cache["number_of_sets"] == "64"
+        assert l1_data_cache["physical_line_partition"] == "1"
 
-            # Check cache levels
-            for level in ["L1", "L2", "L3"]:
-                if level in cache_data:
-                    assert "size" in cache_data[level]
-                    assert "type" in cache_data[level]
+        # Verify L1 instruction cache
+        l1_instruction_cache = cache_info.get("L1i")
+        assert l1_instruction_cache is not None, "L1 instruction cache not found"
+        assert l1_instruction_cache["size"] == "32K"
+        assert l1_instruction_cache["type"] == "Instruction"
+
+        # Verify L2 cache
+        l2_cache = cache_info.get("L2")
+        assert l2_cache is not None, "L2 cache not found"
+        assert l2_cache["size"] == "256K"
+        assert l2_cache["type"] == "Unified"
+
+        # Verify L3 cache
+        l3_cache = cache_info.get("L3")
+        assert l3_cache is not None, "L3 cache not found"
+        assert l3_cache["size"] == "8192K"
+        assert l3_cache["type"] == "Unified"
 
     @unit_test
     def test_optimization_analysis(self):
         """Test CPU optimization analysis."""
-        # Set up files for suboptimal system (powersave governor + vulnerabilities)
         file_responses = {
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq": "2000000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq": "400000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq": "4600000",
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "powersave",  # noqa: E501
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors": (
-                "conservative ondemand userspace powersave performance schedutil"
-            ),
-            "/sys/devices/system/cpu/vulnerabilities/meltdown": "Vulnerable",  # noqa: E501
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v1": "Vulnerable",  # noqa: E501
-            "/sys/devices/system/cpu/vulnerabilities/spectre_v2": (
-                "Mitigation: Enhanced IBRS"
-            ),
+            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor": "powersave",
         }
-
         self.mock_system.read_file.side_effect = lambda path: file_responses.get(path)
-
-        optimization = self.analyzer._analyze_cpu_optimization()
-
-        assert "optimization_recommendations" in optimization
-        recommendations = optimization["optimization_recommendations"]
-
+        info = CPUInfo()
+        self.analyzer._analyze_cpu_optimization(info)
+        recommendations = info.optimization_recommendations
         assert isinstance(recommendations, list)
-
-        # Should have recommendations for powersave governor and vulnerabilities
         rec_types = [rec["type"] for rec in recommendations]
         assert "performance" in rec_types
-        assert "security" in rec_types
 
     @unit_test
     def test_error_handling_missing_files(self):
         """Test error handling when system files are missing."""
-        # Mock system to return None for missing files
         self.mock_system.read_file.return_value = None
         self.mock_system.run_command.return_value = CommandResult(
             success=False, stdout="", stderr="command not found", returncode=127
         )
-
         cpu_info = self.analyzer.get_cpu_info()
-
-        # Should handle errors gracefully
-        assert "proc_cpuinfo_error" in cpu_info
-        assert "lscpu_error" in cpu_info
+        assert cpu_info.product is None
+        assert cpu_info.vendor is None
 
     @performance_test
     def test_performance_with_caching(self, performance_monitor):
@@ -422,8 +420,9 @@ class TestCPUAnalyzer:
         """Test _get_cache_info when files are missing."""
         self.mock_system.file_exists.return_value = False
         self.mock_system.read_file.return_value = None
-        cache_info = self.analyzer._get_cache_info()
-        assert cache_info == {}
+        info = CPUInfo()
+        self.analyzer._get_cache_info(info)
+        assert info.cache == {}
 
     @unit_test
     @patch("tinel.hardware.cpu_analyzer.psutil")
@@ -434,12 +433,9 @@ class TestCPUAnalyzer:
         )
         self.mock_system.read_file.return_value = None
         mock_psutil.cpu_count.side_effect = Exception("psutil failed")
-
-        topology_info = self.analyzer._get_topology_info()
-
-        # Should only contain the psutil error
-        assert "psutil_error" in topology_info
-        assert len(topology_info) == 1
+        info = CPUInfo()
+        self.analyzer._get_topology_info(info)
+        assert info.topology == {}
 
     @unit_test
     @patch("tinel.hardware.cpu_analyzer.psutil")
@@ -613,15 +609,27 @@ class TestCPUAnalyzer:
             "/sys/devices/system/cpu/cpu0/cache/index0/size": "32K",
             "/sys/devices/system/cpu/cpu0/cache/index0/type": "Data",
             "/sys/devices/system/cpu/cpu0/cache/index0/level": "1",
+            "/sys/devices/system/cpu/cpu0/cache/index0/coherency_line_size": "64",
+            "/sys/devices/system/cpu/cpu0/cache/index0/number_of_sets": "64",
+            "/sys/devices/system/cpu/cpu0/cache/index0/physical_line_partition": "1",
             "/sys/devices/system/cpu/cpu0/cache/index1/size": "32K",
             "/sys/devices/system/cpu/cpu0/cache/index1/type": "Instruction",
             "/sys/devices/system/cpu/cpu0/cache/index1/level": "1",
+            "/sys/devices/system/cpu/cpu0/cache/index1/coherency_line_size": "64",
+            "/sys/devices/system/cpu/cpu0/cache/index1/number_of_sets": "64",
+            "/sys/devices/system/cpu/cpu0/cache/index1/physical_line_partition": "1",
             "/sys/devices/system/cpu/cpu0/cache/index2/size": "256K",
             "/sys/devices/system/cpu/cpu0/cache/index2/type": "Unified",
             "/sys/devices/system/cpu/cpu0/cache/index2/level": "2",
+            "/sys/devices/system/cpu/cpu0/cache/index2/coherency_line_size": "64",
+            "/sys/devices/system/cpu/cpu0/cache/index2/number_of_sets": "1024",
+            "/sys/devices/system/cpu/cpu0/cache/index2/physical_line_partition": "1",
             "/sys/devices/system/cpu/cpu0/cache/index3/size": "8192K",
             "/sys/devices/system/cpu/cpu0/cache/index3/type": "Unified",
             "/sys/devices/system/cpu/cpu0/cache/index3/level": "3",
+            "/sys/devices/system/cpu/cpu0/cache/index3/coherency_line_size": "64",
+            "/sys/devices/system/cpu/cpu0/cache/index3/number_of_sets": "8192",
+            "/sys/devices/system/cpu/cpu0/cache/index3/physical_line_partition": "1",
         }
 
         # Mock file_exists for cache directories

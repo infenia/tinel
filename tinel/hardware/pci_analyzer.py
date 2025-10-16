@@ -15,157 +15,151 @@ See the License for the specific language governing permissions and
 limitations under the License.
 """
 
+import json
+import logging
 import re
-from typing import Any, Dict, List, Optional
+from dataclasses import asdict
 
 from tinel.hardware.models import PCIInfo
+from tinel.hardware.models import PCIDevice
 from tinel.interfaces import SystemInterface
-from tinel.system import LinuxSystemInterface
 
-"""This module provides an analyzer for PCI devices.
-
-It includes the `PCIAnalyzer` class, which is responsible for gathering and
-parsing information about the system's PCI devices. The analyzer uses the
-`lspci` command to obtain the raw data and then processes it to extract
-detailed information about each device.
-"""
+log = logging.getLogger(__name__)
 
 
 class PCIAnalyzer:
-    """Analyzes and retrieves information about PCI devices.
-
-    This class uses the `lspci` command to gather data about the devices
-    connected to the PCI bus and parses the output to provide a structured
-    representation of the information.
-
-    Args:
-        system_interface: An optional `SystemInterface` for system interactions.
-                          If not provided, a `LinuxSystemInterface` is used.
-    """
-
-    def __init__(self, system_interface: Optional[SystemInterface] = None):
-        """Initializes the PCIAnalyzer.
-
-        Args:
-            system_interface: An optional `SystemInterface` for system
-                              interactions.
-        """
-        self.system = system_interface or LinuxSystemInterface()
+    def __init__(self, system_interface: SystemInterface, use_cache: bool = True):
+        self.system = system_interface
+        self.use_cache = use_cache
+        self._cache = None
 
     def get_pci_info(self) -> PCIInfo:
-        """Retrieves and parses information about all PCI devices.
+        if self.use_cache and self._cache:
+            return self._cache
 
-        This method executes the `lspci -vnnk` command to get a verbose,
-        numeric listing of PCI devices, including kernel driver information.
-        It then parses this output to construct a `PCIInfo` object.
-
-        Returns:
-            A `PCIInfo` object containing a list of all found PCI devices. If
-            the `lspci` command fails or returns no output, an empty `PCIInfo`
-            object is returned.
-        """
-        lspci_output = self.system.run_command(["lspci", "-vnnk"])
-        if lspci_output.success and lspci_output.stdout:
-            devices = self._parse_lspci_vnnk_output(lspci_output.stdout)
-            return PCIInfo(devices=devices)
-        else:
-            # Fallback to sysfs if lspci fails
-            devices = self._get_pci_info_from_sysfs()
-            return PCIInfo(devices=devices)
-
-    def _get_pci_info_from_sysfs(self) -> List[Dict[str, Any]]:
-        """Retrieves basic PCI device information from sysfs.
-
-        This method serves as a fallback when `lspci` is not available. It
-        parses the `/sys/bus/pci/devices` directory to gather information
-        about each PCI device.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a
-            single PCI device and its properties.
-        """
-        devices = []
-        pci_path = "/sys/bus/pci/devices"
-        device_dirs = self.system.list_dir(pci_path)
-        if not device_dirs:
-            return []
-
-        for device_dir in device_dirs:
+        # Try lshw first
+        result = self.system.run_command("lshw -json -numeric")
+        if result.success and result.stdout:
             try:
-                device_path = f"{pci_path}/{device_dir}"
-                vendor_file = self.system.read_file(f"{device_path}/vendor")
-                device_file = self.system.read_file(f"{device_path}/device")
-                class_file = self.system.read_file(f"{device_path}/class")
+                hardware_data = json.loads(result.stdout)
+                devices = self._parse_lshw_json_output(hardware_data)
+                pci_info = PCIInfo(devices=devices)
+                if self.use_cache:
+                    self._cache = pci_info
+                return pci_info
+            except json.JSONDecodeError:
+                log.warning("Failed to parse lshw JSON output.")
 
-                if not (vendor_file and device_file and class_file):
-                    continue
+        # Fallback or if lshw fails
+        log.warning("lshw failed, falling back to lspci.")
+        return self._get_pci_info_from_lspci()
 
-                driver_path = self.system.readlink(f"{device_path}/driver")
-                driver = driver_path.split("/")[-1] if driver_path else "N/A"
+    def _get_pci_info_from_lspci(self) -> PCIInfo:
+        result = self.system.run_command("lspci -vmmk")
+        if not result.success:
+            log.error("Failed to run lspci.")
+            return PCIInfo(devices=[])
+
+        devices = self._parse_lspci_vmmk_output(result.stdout)
+        return PCIInfo(devices=devices)
+
+    def _parse_id(self, text: str, is_vendor: bool) -> tuple[str | None, str | None]:
+        # Tries to find [vendor:device] first
+        match = re.search(r'\[([0-9a-fA-F]{4}):([0-9a-fA-F]{4})\]', text)
+        if match:
+            return match.group(1).lower(), match.group(2).lower()
+
+        # Then tries to find [xxxx]
+        match = re.search(r'\[([0-9a-fA-F]{4})\]', text)
+        if match:
+            if is_vendor:
+                return match.group(1).lower(), None
+            else:
+                return None, match.group(1).lower()
+
+        return None, None
+
+    def _clean_name(self, text: str) -> str:
+        return re.sub(r'\s*\[[0-9a-fA-F:]+\]', '', text).strip()
+
+    def _parse_lshw_json_output(self, hardware_data: dict) -> list[PCIDevice]:
+        devices = []
+
+        def find_pci_devices(node):
+            if isinstance(node, dict) and node.get("businfo", "").startswith("pci@") and "slot" in node:
+                vendor_str = node.get("vendor", "")
+                product_str = node.get("product", "")
+
+                vendor_id_from_vendor, _ = self._parse_id(vendor_str, is_vendor=True)
+                vendor_id_from_product, device_id_from_product = self._parse_id(product_str, is_vendor=False)
+
+                vendor_id = vendor_id_from_vendor or vendor_id_from_product
+                device_id = device_id_from_product
+
+                vendor_name = self._clean_name(vendor_str)
+                product_name = self._clean_name(product_str)
 
                 devices.append(
-                    {
-                        "slot": device_dir,
-                        "vendor_id": vendor_file.strip(),
-                        "device_id": device_file.strip(),
-                        "class": class_file.strip(),
-                        "driver": driver,
-                        "description": "N/A (from sysfs)",
-                    }
+                    PCIDevice(
+                        slot=node.get("slot"),
+                        description=node.get("description"),
+                        vendor_id=vendor_id,
+                        device_id=device_id,
+                        driver=node.get("configuration", {}).get("driver"),
+                        width=node.get("width"),
+                        details={
+                            "vendor": vendor_name,
+                            "device": product_name,
+                            "class": node.get("class"),
+                            "version": node.get("version"),
+                        },
+                        capabilities=list(node.get("capabilities", {}).keys()),
+                        memory=[node.get("resources", {}).get("memory")],
+                    )
                 )
-            except (FileNotFoundError, PermissionError):
-                continue
+
+            if isinstance(node, dict) and "children" in node:
+                for child in node["children"]:
+                    find_pci_devices(child)
+            elif isinstance(node, list):
+                for item in node:
+                    find_pci_devices(item)
+
+        find_pci_devices(hardware_data)
         return devices
 
-    def _parse_lspci_vnnk_output(self, output: str) -> List[Dict[str, Any]]:
-        """Parses the verbose output of the `lspci -vnnk` command.
-
-        This method processes the raw text output from `lspci -vnnk` and
-        extracts structured information about each PCI device, including its
-        slot, description, vendor/device IDs, and kernel driver.
-
-        Args:
-            output: The raw string output from the `lspci -vnnk` command.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a single
-            PCI device and its properties.
-        """
+    def _parse_lspci_vmmk_output(self, output: str) -> list[PCIDevice]:
         devices = []
-        current_device: Dict[str, Any] = {}
-        device_header_re = re.compile(
-            r"^([0-9a-fA-F]{2}:[0-9a-fA-F]{2}\.\d)\s+(.*)\s+\[([0-9a-fA-F]{4}):([0-9a-fA-F]{4})\]"
-        )
-
-        for line in output.strip().split("\n"):
-            header_match = device_header_re.match(line)
-            if header_match:
+        current_device = {}
+        for line in output.splitlines():
+            if not line.strip():
                 if current_device:
-                    devices.append(current_device)
-
-                slot, description, vendor_id, device_id = header_match.groups()
-                current_device = {
-                    "slot": slot.strip(),
-                    "description": description.strip(),
-                    "vendor_id": vendor_id.strip(),
-                    "device_id": device_id.strip(),
-                }
-            elif current_device and line.strip():
-                line_content = line.strip()
-                kv_match = re.match(r"([^:]+):\s+(.*)", line_content)
-                if kv_match:
-                    key, value = kv_match.groups()
-                    key = key.lower().replace(" ", "_").replace("-", "_")
-                    if key == "kernel_driver_in_use":
-                        current_device["driver"] = value
-                    else:
-                        current_device[key] = value
-                else:
-                    if "details" not in current_device:
-                        current_device["details"] = []
-                    current_device["details"].append(line_content)
-
+                    devices.append(self._create_pci_device_from_lspci(current_device))
+                    current_device = {}
+                continue
+            try:
+                key, value = line.split("\t", 1)
+                key = key.strip().replace(":", "").lower()
+                current_device[key] = value.strip()
+            except ValueError:
+                log.debug(f"Skipping malformed line in lspci output: {line}")
         if current_device:
-            devices.append(current_device)
-
+            devices.append(self._create_pci_device_from_lspci(current_device))
         return devices
+
+    def _create_pci_device_from_lspci(self, data: dict) -> PCIDevice:
+        vendor_id, _ = self._parse_id(data.get("vendor", ""), is_vendor=True)
+        _, device_id = self._parse_id(data.get("device", ""), is_vendor=False)
+
+        return PCIDevice(
+            slot=data.get("slot"),
+            subsystem=self._clean_name(data.get("subsystem", "")),
+            driver=data.get("driver"),
+            vendor_id=vendor_id,
+            device_id=device_id,
+            details={
+                "vendor": self._clean_name(data.get("vendor", "")),
+                "device": self._clean_name(data.get("device", "")),
+                "class": self._clean_name(data.get("class", "")),
+            }
+        )
