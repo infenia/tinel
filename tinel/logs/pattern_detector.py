@@ -58,6 +58,7 @@ def detect_patterns(entries: List[LogEntry]) -> List[LogAnalysis]:
         patterns are matched, an empty list is returned.
     """
     analyses: Dict[str, LogAnalysis] = {}
+    analyses: Dict[str, LogAnalysis] = {}
     for entry in entries:
         for issue_type, pattern in PATTERNS.items():
             if pattern.search(entry.message):

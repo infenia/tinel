@@ -26,12 +26,13 @@
 
 import io
 import json
+import subprocess
 import time
 from datetime import datetime
 from unittest.mock import MagicMock, patch
 
+import pytest
 from tinel.logs.log_parser import (
-    _infer_log_level,
     parse_journald,
     parse_logs,
     parse_syslog,
@@ -67,40 +68,37 @@ MOCK_JOURNALD_JSON = [
     },
 ]
 
-
 def test_parse_syslog_valid_and_malformed(tmp_path):
     """Tests syslog parsing with a mix of valid and malformed lines."""
     log_file = tmp_path / "syslog"
     log_file.write_text(MOCK_SYSLOG_CONTENT)
 
-    expected_syslog_entries = 5
     entries = parse_syslog(str(log_file))
-    assert len(entries) == expected_syslog_entries
+    assert len(entries) == 5
     assert entries[0].message == "[12345.67890] hardware error - high temperature"
     assert entries[0].level == "ERROR"
     assert entries[0].facility == "kernel"
     assert entries[0].host == "my-host"
     assert entries[1].process == "systemd[1]"
-    assert entries[2].level == "UNKNOWN"  # No keyword
-    assert entries[3].level == "ERROR"  # "Failed" keyword
-    assert entries[4].level == "WARNING"  # "warning" keyword
-
+    assert entries[2].level == "UNKNOWN" # No keyword
+    assert entries[3].level == "ERROR" # "Failed" keyword
+    assert entries[4].level == "WARNING" # "warning" keyword
 
 def test_parse_syslog_file_not_found():
     """Tests that parse_syslog handles a non-existent file gracefully."""
     entries = parse_syslog("non_existent_file.log")
     assert len(entries) == 0
 
-
 @patch("subprocess.run")
 def test_parse_journald_valid(mock_run):
     """Tests journald parsing with valid JSON output."""
     mock_stdout = "\n".join(json.dumps(entry) for entry in MOCK_JOURNALD_JSON)
-    mock_run.return_value = MagicMock(stdout=mock_stdout, stderr="", returncode=0)
+    mock_run.return_value = MagicMock(
+        stdout=mock_stdout, stderr="", returncode=0
+    )
 
-    expected_journald_entries = 2
     entries = parse_journald()
-    assert len(entries) == expected_journald_entries
+    assert len(entries) == 2
     assert entries[0].message == "hardware error - high temperature"
     assert entries[0].level == "ERR"
     assert entries[0].facility == "kernel"
@@ -108,7 +106,6 @@ def test_parse_journald_valid(mock_run):
     assert entries[0].process == "kernel"
     ts = datetime.fromtimestamp(1665932400000000 / 1_000_000)
     assert entries[0].timestamp == ts
-
 
 @patch("subprocess.run")
 def test_parse_journald_command_fails(mock_run):
@@ -119,15 +116,15 @@ def test_parse_journald_command_fails(mock_run):
     entries = parse_journald()
     assert len(entries) == 0
 
-
 @patch("subprocess.run")
 def test_parse_journald_malformed_json(mock_run):
     """Tests that journald parsing handles malformed JSON."""
     mock_stdout = '{"__REALTIME_TIMESTAMP": "123"}\nthis is not json'
-    mock_run.return_value = MagicMock(stdout=mock_stdout, stderr="", returncode=0)
+    mock_run.return_value = MagicMock(
+        stdout=mock_stdout, stderr="", returncode=0
+    )
     entries = parse_journald()
-    assert len(entries) == 1  # Should parse the first valid line and skip the second
-
+    assert len(entries) == 1 # Should parse the first valid line and skip the second
 
 def test_parse_logs_dispatcher(tmp_path):
     """Tests the main dispatcher function."""
@@ -150,7 +147,6 @@ def test_parse_logs_dispatcher(tmp_path):
     entries = parse_logs(None, "invalid_format")
     assert len(entries) == 0
 
-
 def test_syslog_parsing_performance():
     """Tests the performance of parsing a large number of syslog lines."""
     num_lines = 1000
@@ -167,7 +163,6 @@ def test_syslog_parsing_performance():
     print(f"Parsed {num_lines} syslog lines in {duration:.4f} seconds.")
     assert duration < 1.0
 
-
 def test_parse_syslog_timestamp_value_error(tmp_path, caplog):
     """Tests that a ValueError during timestamp parsing is handled."""
     log_file = tmp_path / "syslog"
@@ -178,7 +173,6 @@ def test_parse_syslog_timestamp_value_error(tmp_path, caplog):
     assert len(entries) == 0
     assert "Could not parse timestamp" in caplog.text
 
-
 @patch("subprocess.run", side_effect=FileNotFoundError("journalctl not found"))
 def test_parse_journald_command_not_found(mock_run, caplog):
     """Tests that a FileNotFoundError for journalctl is handled."""
@@ -186,20 +180,17 @@ def test_parse_journald_command_not_found(mock_run, caplog):
     assert len(entries) == 0
     assert "journalctl command not found" in caplog.text
 
-
 def test_parse_logs_syslog_no_path(caplog):
     """Tests calling parse_logs for syslog with no file_path."""
     entries = parse_logs(None, "syslog")
     assert len(entries) == 0
     assert "File path is required for syslog format" in caplog.text
 
-
 def test_infer_log_level_coverage():
     """Ensures all branches of _infer_log_level are covered."""
-
+    from tinel.logs.log_parser import _infer_log_level
     assert _infer_log_level("this is a notice") == "NOTICE"
     assert _infer_log_level("this is some info") == "INFO"
-
 
 @patch("builtins.open", side_effect=Exception("Unexpected error"))
 def test_parse_syslog_generic_exception(mock_open, caplog):
@@ -207,7 +198,6 @@ def test_parse_syslog_generic_exception(mock_open, caplog):
     entries = parse_syslog("any/path")
     assert len(entries) == 0
     assert "An unexpected error occurred" in caplog.text
-
 
 @patch("subprocess.run")
 @patch("json.loads", side_effect=Exception("Unexpected JSON error"))

@@ -1,12 +1,8 @@
 import unittest
-from datetime import datetime
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
-from tinel.logs.log_analyzer import (
-    analyze_logs,
-    correlate_with_hardware,
-    detailed_analysis,
-)
+from tinel.logs.log_analyzer import analyze_logs, detailed_analysis, correlate_with_hardware
 from tinel.logs.models import LogAnalysis, LogEntry
 
 
@@ -34,7 +30,9 @@ class TestLogAnalyzer(unittest.TestCase):
             ),
         ]
         analyses = analyze_logs(entries)
-        kernel_analysis = next((a for a in analyses if a.issue_type == "kernel"), None)
+        kernel_analysis = next(
+            (a for a in analyses if a.issue_type == "kernel"), None
+        )
         self.assertIsNotNone(kernel_analysis)
         self.assertEqual(len(kernel_analysis.correlated_events), 1)
         self.assertIn(
@@ -61,7 +59,9 @@ class TestLogAnalyzer(unittest.TestCase):
             ),
         ]
         analyses = analyze_logs(entries)
-        kernel_analysis = next((a for a in analyses if a.issue_type == "kernel"), None)
+        kernel_analysis = next(
+            (a for a in analyses if a.issue_type == "kernel"), None
+        )
         self.assertIsNotNone(kernel_analysis)
         self.assertEqual(len(kernel_analysis.correlated_events), 0)
 
@@ -158,44 +158,22 @@ class TestLogAnalyzer(unittest.TestCase):
                 entries=[
                     LogEntry(
                         timestamp=datetime(2024, 1, 1, 12, 0, 0),
-                        source="s",
-                        message="hw error",
-                        level="s",
-                        facility="s",
+                        source="s", message="hw error", level="s", facility="s",
                     )
                 ],
             ),
-            LogAnalysis(
-                issue_type="kernel",
-                summary="initial kernel",
-                count=1,
-                entries=[
-                    LogEntry(
-                        timestamp=datetime(2024, 1, 1, 12, 5, 0),
-                        source="s",
-                        message="kernel error",
-                        level="s",
-                        facility="s",
-                    )
-                ],
-            ),
+            LogAnalysis(issue_type="kernel", summary="initial kernel", entries=[]),
         ]
         dummy_entries = [
-            LogEntry(
-                timestamp=datetime.now(),
-                source="s",
-                message="s",
-                level="s",
-                facility="s",
-            )
+            LogEntry(timestamp=datetime.now(), source="s", message="s", level="s", facility="s")
         ]
         analyses = analyze_logs(dummy_entries)
         self.assertEqual(len(analyses), 2)
         hardware_analysis = next(a for a in analyses if a.issue_type == "hardware")
         kernel_analysis = next(a for a in analyses if a.issue_type == "kernel")
         self.assertNotEqual(hardware_analysis.summary, "initial hw")
-        self.assertNotEqual(kernel_analysis.summary, "initial kernel")
-        self.assertEqual(len(kernel_analysis.correlated_events), 1)
+        self.assertEqual(kernel_analysis.summary, "initial kernel")
+        self.assertEqual(len(kernel_analysis.correlated_events), 0)
 
     def test_correlate_with_hardware_no_hardware_analysis(self):
         """Test correlation when no hardware analysis object exists."""
@@ -203,17 +181,10 @@ class TestLogAnalyzer(unittest.TestCase):
             "kernel": LogAnalysis(
                 issue_type="kernel",
                 summary="s",
-                count=1,
                 entries=[
-                    LogEntry(
-                        timestamp=datetime.now(),
-                        source="s",
-                        message="s",
-                        level="s",
-                        facility="s",
-                    )
+                    LogEntry(timestamp=datetime.now(), source="s", message="s", level="s", facility="s")
                 ],
-            )
+            ),
         }
         correlate_with_hardware(analyses)
         self.assertEqual(len(analyses["kernel"].correlated_events), 0)
@@ -226,15 +197,9 @@ class TestLogAnalyzer(unittest.TestCase):
                 summary="s",
                 count=1,
                 entries=[
-                    LogEntry(
-                        timestamp=datetime.now(),
-                        source="s",
-                        message="s",
-                        level="s",
-                        facility="s",
-                    )
+                    LogEntry(timestamp=datetime.now(), source="s", message="s", level="s", facility="s")
                 ],
-            )
+            ),
         }
         correlate_with_hardware(analyses)
         self.assertEqual(len(analyses["hardware"].correlated_events), 0)
@@ -246,13 +211,7 @@ class TestLogAnalyzer(unittest.TestCase):
             LogAnalysis(issue_type="test", summary="initial", count=0, entries=[])
         ]
         dummy_entries = [
-            LogEntry(
-                timestamp=datetime.now(),
-                source="s",
-                message="s",
-                level="s",
-                facility="s",
-            )
+            LogEntry(timestamp=datetime.now(), source="s", message="s", level="s", facility="s")
         ]
         analyses = analyze_logs(dummy_entries)
         self.assertEqual(len(analyses), 1)

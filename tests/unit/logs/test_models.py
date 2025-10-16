@@ -29,7 +29,6 @@
 from datetime import datetime
 
 import pytest
-
 from tinel.logs.models import LogAnalysis, LogEntry
 
 
@@ -63,10 +62,7 @@ def test_log_entry_repr():
         timestamp=now,
         source="syslog",
         level="INFO",
-        message=(
-            "This is a test log message that is longer than 50 characters to test "
-            "truncation."
-        ),
+        message="This is a test log message that is longer than 50 characters to test truncation.",
         facility="auth",
     )
     expected_repr = (
@@ -100,19 +96,14 @@ def test_log_analysis_add_entry():
     entry1 = LogEntry(
         timestamp=datetime.now(),
         source="journald",
-        message=(
-            "Kernel panic - not syncing: VFS: Unable to mount root fs on "
-            "unknown-block(0,0)"
-        ),
+        message="Kernel panic - not syncing: VFS: Unable to mount root fs on unknown-block(0,0)",
         level="CRITICAL",
         facility="kernel",
     )
     entry2 = LogEntry(
         timestamp=datetime.now(),
         source="journald",
-        message=(
-            "CPU: 1 PID: 1 Comm: swapper/0 Not tainted 5.15.0-101-generic #111-Ubuntu"
-        ),
+        message="CPU: 1 PID: 1 Comm: swapper/0 Not tainted 5.15.0-101-generic #111-Ubuntu",
         level="INFO",
         facility="kernel",
     )
@@ -123,9 +114,8 @@ def test_log_analysis_add_entry():
     assert analysis.entries[0] == entry1
 
     analysis.add_entry(entry2)
-    expected_count = 2
-    assert analysis.count == expected_count
-    assert len(analysis.entries) == expected_count
+    assert analysis.count == 2
+    assert len(analysis.entries) == 2
     assert analysis.entries[1] == entry2
 
 
@@ -145,8 +135,5 @@ def test_log_analysis_repr():
     )
     analysis.add_entry(entry)
 
-    expected_repr = (
-        "LogAnalysis(issue_type='security', count=1, "
-        "summary='Multiple failed login attempts')"
-    )
+    expected_repr = "LogAnalysis(issue_type='security', count=1, summary='Multiple failed login attempts')"
     assert repr(analysis) == expected_repr

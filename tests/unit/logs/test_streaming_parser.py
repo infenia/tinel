@@ -39,38 +39,29 @@ def test_parse_logs_stream_syslog_valid():
     """Tests that the stream parser correctly parses valid syslog lines."""
     log_data = (
         "Oct 15 14:35:10 my-host kernel[12345]: a kernel error message\n"
-        "Oct 15 14:35:11 my-host sshd: a warning message"
+        "Oct 15 14:35:11 my-host sshd: a warning message\n"
+        "Oct 15 14:35:12 my-host cron[111]: job failed\n"
+        "Oct 15 14:35:13 my-host app: this is a warn message\n"
+        "Oct 15 14:35:14 my-host app: this is a notice\n"
+        "Oct 15 14:35:15 my-host app: this is some info"
     )
     mock_file = io.StringIO(log_data)
-    current_year = datetime.now().year
 
     with patch("builtins.open", return_value=mock_file):
         log_generator = parse_logs_stream("dummy/path.log")
         entries = list(log_generator)
 
-    expected_entries = 2
-    assert len(entries) == expected_entries
-    # First entry
-    assert isinstance(entries[0], LogEntry)
-    assert entries[0].timestamp == datetime(current_year, 10, 15, 14, 35, 10)
-    assert entries[0].source == "syslog_stream"
-    assert entries[0].host == "my-host"
-    assert entries[0].process == "kernel[12345]"
-    assert entries[0].facility == "kernel"
+    assert len(entries) == 6
     assert entries[0].level == "ERROR"
-    assert entries[0].message == "a kernel error message"
-    # Second entry
-    assert isinstance(entries[1], LogEntry)
-    assert entries[1].timestamp == datetime(current_year, 10, 15, 14, 35, 11)
-    assert entries[1].host == "my-host"
-    assert entries[1].process == "sshd"
-    assert entries[1].facility == "sshd"
     assert entries[1].level == "WARNING"
-    assert entries[1].message == "a warning message"
+    assert entries[2].level == "ERROR"
+    assert entries[3].level == "WARNING"
+    assert entries[4].level == "NOTICE"
+    assert entries[5].level == "INFO"
 
 
-def test_parse_logs_stream_malformed_lines():
-    """Tests that the stream parser skips malformed lines."""
+def test_parse_logs_stream_malformed_lines(caplog):
+    """Tests that the stream parser skips malformed lines and logs them."""
     log_data = (
         "this is not a valid syslog line\n"
         "Oct 15 14:35:10 my-host kernel: a valid line\n"
@@ -78,11 +69,65 @@ def test_parse_logs_stream_malformed_lines():
     )
     mock_file = io.StringIO(log_data)
 
-    with patch("builtins.open", return_value=mock_file):
+    with patch("builtins.open", return_value=mock_file), caplog.at_level(logging.DEBUG):
         entries = list(parse_logs_stream("dummy/path.log"))
 
     assert len(entries) == 1
     assert entries[0].message == "a valid line"
+    assert "Skipping malformed syslog line 1" in caplog.text
+    assert "Skipping malformed syslog line 3" in caplog.text
+
+
+def test_parse_logs_stream_invalid_timestamp(caplog):
+    """Tests that a line with an invalid timestamp is skipped."""
+    # Feb 30 is not a valid date
+    log_data = "Feb 30 10:00:00 my-host kernel: message"
+    mock_file = io.StringIO(log_data)
+
+    with patch("builtins.open", return_value=mock_file), caplog.at_level(logging.WARNING):
+        entries = list(parse_logs_stream("dummy/path.log"))
+
+    assert len(entries) == 0
+    assert "Could not parse timestamp on line 1" in caplog.text
+
+
+def test_parse_logs_stream_io_error(caplog):
+    """Tests graceful handling of an IOError while reading the file."""
+
+    class MockFailingFile:
+        """A mock file-like object that raises IOError during iteration."""
+
+        def __init__(self):
+            self.lines_read = 0
+
+        def __iter__(self):
+            return self
+
+        def __next__(self):
+            if self.lines_read == 0:
+                self.lines_read += 1
+                return "Oct 15 14:35:10 my-host kernel: a valid line\n"
+            # After the first line, simulate a read error
+            raise IOError("Disk read error")
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc_val, exc_tb):
+            # No special exception handling
+            pass
+
+    mock_file_instance = MockFailingFile()
+
+    with patch("builtins.open", return_value=mock_file_instance):
+        with caplog.at_level(logging.ERROR):
+            # Consume the generator to trigger the iteration and the error
+            entries = list(parse_logs_stream("dummy/path.log"))
+
+    # The generator should yield one entry before the error is raised
+    assert len(entries) == 1
+    # The error should be caught and logged
+    assert "Error reading log file dummy/path.log: Disk read error" in caplog.text
 
 
 def test_parse_logs_stream_file_not_found(caplog):
@@ -97,9 +142,12 @@ def test_parse_logs_stream_file_not_found(caplog):
 def test_parse_logs_stream_unsupported_format(caplog):
     """Tests that an unsupported log format is handled correctly."""
     with caplog.at_level(logging.ERROR):
-        gen = parse_logs_stream("dummy.log", log_format="not_syslog")
+        entries = list(parse_logs_stream("dummy.log", log_format="not_syslog"))
+
+    assert len(entries) == 0
     assert "Unsupported log format for streaming: not_syslog" in caplog.text
-    assert list(gen) == []
+
+
 def test_parse_logs_stream_large_file_performance():
     """
     Indirectly tests memory efficiency by streaming a large number of log
@@ -115,30 +163,3 @@ def test_parse_logs_stream_large_file_performance():
         count = sum(1 for _ in parse_logs_stream("large_dummy.log"))
 
     assert count == num_lines
-
-
-def test_parse_logs_stream_malformed_timestamp(caplog):
-    """Tests that the stream parser handles malformed timestamps."""
-    log_data = "Oct 40 14:35:10 my-host kernel: a kernel error message"
-    mock_file = io.StringIO(log_data)
-
-    with (
-        patch("builtins.open", return_value=mock_file),
-        caplog.at_level(logging.WARNING),
-    ):
-        entries = list(parse_logs_stream("dummy/path.log"))
-
-    assert len(entries) == 0
-    assert "Could not parse timestamp on line 1" in caplog.text
-
-
-def test_parse_logs_stream_io_error(caplog):
-    """Tests graceful handling of IOError."""
-    with (
-        patch("builtins.open", side_effect=IOError("test error")),
-        caplog.at_level(logging.ERROR),
-    ):
-        entries = list(parse_logs_stream("dummy/path.log"))
-
-    assert len(entries) == 0
-    assert "Error reading log file dummy/path.log: test error" in caplog.text

@@ -31,7 +31,7 @@ import logging
 import re
 import subprocess
 from datetime import datetime
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from tinel.logs.models import LogEntry
 
@@ -46,7 +46,6 @@ SYSLOG_REGEX = re.compile(
     r"(?P<message>.*)$"
 )
 
-
 def _infer_log_level(message: str) -> str:
     """Infers the log level from the message content."""
     message_lower = message.lower()
@@ -60,7 +59,6 @@ def _infer_log_level(message: str) -> str:
         return "INFO"
     return "UNKNOWN"
 
-
 def parse_syslog(file_path: str) -> List[LogEntry]:
     """
     Parses a syslog file line by line.
@@ -71,16 +69,14 @@ def parse_syslog(file_path: str) -> List[LogEntry]:
     Returns:
         A list of parsed LogEntry objects.
     """
-    entries: List[LogEntry] = []
+    entries = []
     current_year = datetime.now().year
     try:
         with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
             for i, line in enumerate(f):
                 match = SYSLOG_REGEX.match(line.strip())
                 if not match:
-                    LOG.warning(
-                        "Skipping malformed syslog line %d: %s", i + 1, line.strip()
-                    )
+                    LOG.warning("Skipping malformed syslog line %d: %s", i + 1, line.strip())
                     continue
 
                 data = match.groupdict()
@@ -90,9 +86,7 @@ def parse_syslog(file_path: str) -> List[LogEntry]:
                     timestamp_str = f"{data['timestamp']} {current_year}"
                     timestamp = datetime.strptime(timestamp_str, "%b %d %H:%M:%S %Y")
                 except (ValueError, TypeError):
-                    LOG.warning(
-                        "Could not parse timestamp on line %d: %s", i + 1, line.strip()
-                    )
+                    LOG.warning("Could not parse timestamp on line %d: %s", i + 1, line.strip())
                     continue
 
                 entries.append(
@@ -103,10 +97,7 @@ def parse_syslog(file_path: str) -> List[LogEntry]:
                         level=_infer_log_level(data["message"]),
                         facility=data["process"],
                         host=data["host"],
-                        process=(
-                            f"{data['process']}"
-                            + (f"[{data['pid']}]" if data.get("pid") else "")
-                        ),
+                        process=f"{data['process']}" + (f"[{data['pid']}]" if data.get("pid") else ""),
                     )
                 )
     except FileNotFoundError:
@@ -138,7 +129,7 @@ def parse_journald() -> List[LogEntry]:
     Returns:
         A list of parsed LogEntry objects.
     """
-    entries: List[LogEntry] = []
+    entries = []
     try:
         # Execute journalctl to get logs in JSON format
         result = subprocess.run(
