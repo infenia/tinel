@@ -1,34 +1,9 @@
-# --- T-NEL LINUX SYSTEM ANALYZER ---
-#
-# Copyright (c) 2024 Battelle Memorial Institute
-#
-# Battelle Memorial Institute (hereinafter Battelle) hereby grants permission
-# to any person or entity obtaining a copy of this software and associated
-# documentation files (hereinafter "the Software") to deal in the Software
-# without restriction, including without limitation the rights to use, copy,
-# modify, merge, publish, distribute, sublicense, and/or sell copies of the
-# Software, and to permit persons to whom the Software is furnished to do so,
-# subject to the following conditions:
-#
-# 1. The above copyright notice and this permission notice shall be included
-#    in all copies or substantial portions of the Software.
-#
-# 2. The Software is licensed under the MIT License, which can be found in the
-#    LICENSE file accompanying the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-# SOFTWARE.
-
 import unittest
 from datetime import datetime, timedelta
+from unittest.mock import patch
 
-from tinel.logs.log_analyzer import analyze_logs, detailed_analysis
-from tinel.logs.models import LogEntry
+from tinel.logs.log_analyzer import analyze_logs, detailed_analysis, correlate_with_hardware
+from tinel.logs.models import LogAnalysis, LogEntry
 
 
 class TestLogAnalyzer(unittest.TestCase):
@@ -133,6 +108,7 @@ class TestLogAnalyzer(unittest.TestCase):
         )
         analysis_str = detailed_analysis(entry)
         self.assertIn("Timestamp: 2024-01-01T12:00:00", analysis_str)
+        self.assertIn("Level: error", analysis_str)
         self.assertIn("Potential Cause(s): oom", analysis_str)
 
     def test_detailed_analysis_multiple_causes(self):
@@ -148,9 +124,129 @@ class TestLogAnalyzer(unittest.TestCase):
         )
         analysis_str = detailed_analysis(entry)
         # The order of causes is not guaranteed, so check for both
+        self.assertIn("Timestamp: 2024-01-01T12:00:00", analysis_str)
+        self.assertIn("Level: emerg", analysis_str)
         self.assertIn("Potential Cause(s):", analysis_str)
         self.assertIn("hardware", analysis_str)
         self.assertIn("kernel", analysis_str)
+
+    def test_analyze_logs_no_patterns_detected(self):
+        """Test analyze_logs when no patterns are detected in the entries."""
+        entries = [
+            LogEntry(
+                timestamp=datetime(2023, 1, 1, 12, 0, 0),
+                source="test",
+                message="this is a completely normal log message",
+                level="info",
+                facility="test",
+            )
+        ]
+        result = analyze_logs(entries)
+        self.assertEqual(result, [])
+
+    @patch("tinel.logs.log_analyzer.detect_patterns")
+    def test_branch_coverage_with_mocking(self, mock_detect_patterns):
+        """
+        Test branch coverage for correlate_with_hardware and summary generation
+        using mocked data.
+        """
+        mock_detect_patterns.return_value = [
+            LogAnalysis(
+                issue_type="hardware",
+                summary="initial hw",
+                count=1,
+                entries=[
+                    LogEntry(
+                        timestamp=datetime(2024, 1, 1, 12, 0, 0),
+                        source="s", message="hw error", level="s", facility="s",
+                    )
+                ],
+            ),
+            LogAnalysis(issue_type="kernel", summary="initial kernel", entries=[]),
+        ]
+        dummy_entries = [
+            LogEntry(timestamp=datetime.now(), source="s", message="s", level="s", facility="s")
+        ]
+        analyses = analyze_logs(dummy_entries)
+        self.assertEqual(len(analyses), 2)
+        hardware_analysis = next(a for a in analyses if a.issue_type == "hardware")
+        kernel_analysis = next(a for a in analyses if a.issue_type == "kernel")
+        self.assertNotEqual(hardware_analysis.summary, "initial hw")
+        self.assertEqual(kernel_analysis.summary, "initial kernel")
+        self.assertEqual(len(kernel_analysis.correlated_events), 0)
+
+    def test_correlate_with_hardware_no_hardware_analysis(self):
+        """Test correlation when no hardware analysis object exists."""
+        analyses = {
+            "kernel": LogAnalysis(
+                issue_type="kernel",
+                summary="s",
+                entries=[
+                    LogEntry(timestamp=datetime.now(), source="s", message="s", level="s", facility="s")
+                ],
+            ),
+        }
+        correlate_with_hardware(analyses)
+        self.assertEqual(len(analyses["kernel"].correlated_events), 0)
+
+    def test_correlate_with_hardware_only_hardware_events(self):
+        """Test correlation with only hardware events present."""
+        analyses = {
+            "hardware": LogAnalysis(
+                issue_type="hardware",
+                summary="s",
+                count=1,
+                entries=[
+                    LogEntry(timestamp=datetime.now(), source="s", message="s", level="s", facility="s")
+                ],
+            ),
+        }
+        correlate_with_hardware(analyses)
+        self.assertEqual(len(analyses["hardware"].correlated_events), 0)
+
+    @patch("tinel.logs.log_analyzer.detect_patterns")
+    def test_analyze_logs_with_zero_count_analysis(self, mock_detect_patterns):
+        """Test that summary is not generated for analysis with zero count."""
+        mock_detect_patterns.return_value = [
+            LogAnalysis(issue_type="test", summary="initial", count=0, entries=[])
+        ]
+        dummy_entries = [
+            LogEntry(timestamp=datetime.now(), source="s", message="s", level="s", facility="s")
+        ]
+        analyses = analyze_logs(dummy_entries)
+        self.assertEqual(len(analyses), 1)
+        self.assertEqual(analyses[0].summary, "initial")
+
+    def test_correlation_already_exists(self):
+        """Test that a correlation is not added twice."""
+        entries = [
+            LogEntry(
+                timestamp=datetime(2024, 1, 1, 12, 0, 0),
+                source="test",
+                message="Critical hardware error",
+                level="error",
+                facility="kern",
+            ),
+            LogEntry(
+                timestamp=datetime(2024, 1, 1, 12, 1, 0),
+                source="test",
+                message="Kernel panic",
+                level="emerg",
+                facility="kern",
+            ),
+            LogEntry(
+                timestamp=datetime(2024, 1, 1, 12, 2, 0),
+                source="test",
+                message="Another Kernel panic",
+                level="emerg",
+                facility="kern",
+            ),
+        ]
+        analyses = analyze_logs(entries)
+        kernel_analysis = next((a for a in analyses if a.issue_type == "kernel"), None)
+        self.assertIsNotNone(kernel_analysis)
+        self.assertEqual(len(kernel_analysis.correlated_events), 1)
+        self.assertEqual(kernel_analysis.count, 2)
 
 
 if __name__ == "__main__":

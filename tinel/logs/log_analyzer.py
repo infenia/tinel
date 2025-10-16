@@ -94,7 +94,7 @@ def detailed_analysis(entry: LogEntry) -> str:
         f"Timestamp: {entry.timestamp.isoformat()}\n"
         f"Source: {entry.source}\n"
         f"Facility: {entry.facility}\n"
-#        f"Level: {entry.level}\n"
+        f"Level: {entry.level}\n"
         f"Host: {entry.host or 'N/A'}\n"
         f"Process: {entry.process or 'N/A'}\n"
         f"Message: {entry.message}\n"
