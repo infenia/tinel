@@ -48,7 +48,8 @@ def test_parse_logs_stream_syslog_valid():
         log_generator = parse_logs_stream("dummy/path.log")
         entries = list(log_generator)
 
-    assert len(entries) == 2
+    expected_entries = 2
+    assert len(entries) == expected_entries
     # First entry
     assert isinstance(entries[0], LogEntry)
     assert entries[0].timestamp == datetime(current_year, 10, 15, 14, 35, 10)
@@ -96,12 +97,9 @@ def test_parse_logs_stream_file_not_found(caplog):
 def test_parse_logs_stream_unsupported_format(caplog):
     """Tests that an unsupported log format is handled correctly."""
     with caplog.at_level(logging.ERROR):
-        entries = list(parse_logs_stream("dummy.log", log_format="not_syslog"))
-
-    assert len(entries) == 0
+        gen = parse_logs_stream("dummy.log", log_format="not_syslog")
     assert "Unsupported log format for streaming: not_syslog" in caplog.text
-
-
+    assert list(gen) == []
 def test_parse_logs_stream_large_file_performance():
     """
     Indirectly tests memory efficiency by streaming a large number of log
@@ -117,3 +115,30 @@ def test_parse_logs_stream_large_file_performance():
         count = sum(1 for _ in parse_logs_stream("large_dummy.log"))
 
     assert count == num_lines
+
+
+def test_parse_logs_stream_malformed_timestamp(caplog):
+    """Tests that the stream parser handles malformed timestamps."""
+    log_data = "Oct 40 14:35:10 my-host kernel: a kernel error message"
+    mock_file = io.StringIO(log_data)
+
+    with (
+        patch("builtins.open", return_value=mock_file),
+        caplog.at_level(logging.WARNING),
+    ):
+        entries = list(parse_logs_stream("dummy/path.log"))
+
+    assert len(entries) == 0
+    assert "Could not parse timestamp on line 1" in caplog.text
+
+
+def test_parse_logs_stream_io_error(caplog):
+    """Tests graceful handling of IOError."""
+    with (
+        patch("builtins.open", side_effect=IOError("test error")),
+        caplog.at_level(logging.ERROR),
+    ):
+        entries = list(parse_logs_stream("dummy/path.log"))
+
+    assert len(entries) == 0
+    assert "Error reading log file dummy/path.log: test error" in caplog.text

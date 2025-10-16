@@ -89,7 +89,9 @@ def parse_logs_stream(
             for i, line in enumerate(f):
                 match = SYSLOG_REGEX.match(line.strip())
                 if not match:
-                    LOG.debug("Skipping malformed syslog line %d: %s", i + 1, line.strip())
+                    LOG.debug(
+                        "Skipping malformed syslog line %d: %s", i + 1, line.strip()
+                    )
                     continue
 
                 data = match.groupdict()

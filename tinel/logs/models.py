@@ -33,6 +33,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
+
 class LogEntry(BaseModel):
     """
     Represents a single log entry.
@@ -46,6 +47,7 @@ class LogEntry(BaseModel):
         host: The hostname where the log was generated.
         process: The process that generated the log.
     """
+
     timestamp: datetime
     source: str
     message: str
@@ -60,6 +62,7 @@ class LogEntry(BaseModel):
             f"level='{self.level}', message='{self.message[:50]}...')"
         )
 
+
 class LogAnalysis(BaseModel):
     """
     Represents an analysis of a set of log entries.
@@ -71,13 +74,14 @@ class LogAnalysis(BaseModel):
         summary: An aggregated description of the issue.
         correlated_events: A list of timestamps or IDs of correlated hardware events.
     """
+
     issue_type: str
     summary: str
     count: int = 0
     entries: List[LogEntry] = Field(default_factory=list)
     correlated_events: List[str] = Field(default_factory=list)
 
-    def add_entry(self, entry: LogEntry):
+    def add_entry(self, entry: LogEntry) -> None:
         """
         Adds a log entry to the analysis.
 

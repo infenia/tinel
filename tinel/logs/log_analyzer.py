@@ -29,7 +29,7 @@
 from __future__ import annotations
 
 import re
-from datetime import datetime, timedelta
+from datetime import timedelta
 from typing import Dict, List
 
 from .models import LogAnalysis, LogEntry
@@ -62,7 +62,10 @@ def correlate_with_hardware(
                 continue
             for entry in analysis.entries:
                 if start_window <= entry.timestamp <= end_window:
-                    correlation_id = f"Correlated with hardware event at {hw_event.timestamp.isoformat()}"
+                    correlation_id = (
+                        f"Correlated with hardware event at "
+                        f"{hw_event.timestamp.isoformat()}"
+                    )
                     if correlation_id not in analysis.correlated_events:
                         analysis.correlated_events.append(correlation_id)
 
@@ -87,7 +90,9 @@ def detailed_analysis(entry: LogEntry) -> str:
     ]
 
     causes_str = (
-        ", ".join(potential_causes) if potential_causes else "No specific pattern detected."
+        ", ".join(potential_causes)
+        if potential_causes
+        else "No specific pattern detected."
     )
 
     return (

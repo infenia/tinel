@@ -5,6 +5,7 @@ Unit tests for the kernel tools module.
 Copyright 2025 Infenia Private Limited
 Licensed under the Apache License, Version 2.0
 """
+
 import unittest
 from unittest.mock import MagicMock, patch
 
@@ -45,9 +46,7 @@ class TestKernelTools(unittest.TestCase):
         mock_recommend_optimizations.assert_called_once_with(mock_config, None)
 
     @patch("tinel.tools.kernel_tools.parse_kernel_config")
-    def test_run_kernel_config_check_failure(
-        self, mock_parse_kernel_config: MagicMock
-    ):
+    def test_run_kernel_config_check_failure(self, mock_parse_kernel_config: MagicMock):
         """Test the run_kernel_config_check function for a failure case."""
         # Arrange
         error_message = "File not found"
