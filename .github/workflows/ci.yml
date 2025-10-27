@@ -134,7 +134,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Upload test results
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       if: always()
       with:
         name: test-results-${{ matrix.python-version }}-${{ github.run_id }}
@@ -230,7 +230,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: build-artifacts-${{ github.run_id }}
         path: dist/
@@ -274,7 +274,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Upload documentation
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: documentation-${{ github.run_id }}
         path: docs/

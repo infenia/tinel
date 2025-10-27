@@ -154,7 +154,7 @@ jobs:
 
     - name: Upload release artifacts
       if: steps.validation.outputs.should_release == 'true'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: release-validation-${{ github.run_id }}
         path: |
@@ -278,7 +278,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Upload build artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: release-${{ matrix.target }}-${{ github.run_id }}
         path: |

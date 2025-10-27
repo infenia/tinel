@@ -459,7 +459,7 @@ jobs:
         echo "Metrics collection completed at $(date)" > metrics-timestamp.txt
       
     - name: Upload metrics
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v5
       with:
         name: workflow-metrics-${{ github.run_id }}
         path: |
