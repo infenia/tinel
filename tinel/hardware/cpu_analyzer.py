@@ -23,6 +23,7 @@ import psutil
 
 from ..interfaces import SystemInterface
 from ..system import LinuxSystemInterface
+from .models import CPUInfo
 
 """Provides a detailed analysis of the host system's CPU.
 
@@ -103,7 +104,7 @@ class CPUAnalyzer:
         self._cache[key] = (result, current_time)
         return result
 
-    def get_cpu_info(self) -> Dict[str, Any]:
+    def get_cpu_info(self) -> CPUInfo:
         """Retrieves comprehensive information about the CPU.
 
         This is the main public method of the class. It orchestrates the
@@ -112,99 +113,110 @@ class CPUAnalyzer:
         optimize subsequent calls.
 
         Returns:
-            A dictionary containing a detailed breakdown of CPU information.
-            The structure includes keys such as 'model_name', 'vendor_id',
-            'architecture', 'cpu_flags', 'security_features',
-            'performance_features', 'virtualization_features',
-            'vulnerabilities', 'topology', 'cache', and
-            'optimization_recommendations'.
+            A CPUInfo dataclass containing a detailed breakdown of CPU information.
         """
         return cast(
-            Dict[str, Any],
+            CPUInfo,
             self._get_cached_or_compute("cpu_info_full", self._compute_cpu_info),
         )
 
-    def _compute_cpu_info(self) -> Dict[str, Any]:
+    def _compute_cpu_info(self) -> CPUInfo:
         """Gathers and computes all CPU information.
 
         This internal method is responsible for collecting data from various
         sources, such as `/proc/cpuinfo` and the `lscpu` command, and
-        organizing it into a structured dictionary. It also triggers
+        organizing it into a structured dataclass. It also triggers
         analyses for CPU features, topology, and optimization.
 
         Returns:
-            A dictionary containing detailed CPU information.
+            A CPUInfo dataclass containing detailed CPU information.
         """
-        info: Dict[str, Any] = {}
+        info = CPUInfo()
 
         # Get all data sources once to avoid repeated system calls
         cpuinfo_content = self._get_cached_or_compute(
             "cpuinfo", lambda: self.system.read_file("/proc/cpuinfo")
         )
-        lscpu_output = self._get_cached_or_compute(
+        lscpu_result = self._get_cached_or_compute(
             "lscpu", lambda: self.system.run_command(["lscpu"])
         )
 
         # Process basic CPU info
-        info.update(self._process_basic_cpu_info(cpuinfo_content, lscpu_output))
+        self._process_basic_cpu_info(info, cpuinfo_content, lscpu_result)
 
         # Process CPU features (reuse cpuinfo_content)
         if cpuinfo_content:
-            info.update(self._process_cpu_features(cpuinfo_content))
+            self._process_cpu_features(info, cpuinfo_content)
 
-        # Get dynamic information (frequency, governor) - don't cache this
-        info.update(self._get_frequency_info())
+        # Get dynamic information (frequency, governor)
+        self._get_frequency_info(info)
 
-        # Get topology information - cache this
-        info.update(self._get_cached_or_compute("topology", self._get_topology_info))
+        # Get topology information
+        self._get_topology_info(info)
 
-        # Get cache information - cache this
-        info.update(self._get_cached_or_compute("cache", self._get_cache_info))
+        # Get cache information
+        self._get_cache_info(info)
 
         # Get optimization analysis
-        info.update(self._analyze_cpu_optimization())
+        self._analyze_cpu_optimization(info)
 
         return info
 
     def _process_basic_cpu_info(
-        self, cpuinfo_content: Optional[str], lscpu_result: Any
-    ) -> Dict[str, Any]:
+        self,
+        info: CPUInfo,
+        cpuinfo_content: Optional[str],
+        lscpu_result: Any,
+    ) -> None:
         """Processes basic CPU information from `/proc/cpuinfo` and `lscpu`.
 
         This method extracts fundamental CPU details, such as model name,
-        vendor ID, and architecture, from the provided data sources. It is
-        called by `_compute_cpu_info` to populate the initial information.
+        vendor ID, and architecture, from the provided data sources and
+        populates the `info` dataclass.
 
         Args:
+            info: The CPUInfo dataclass to populate.
             cpuinfo_content: The content of `/proc/cpuinfo`.
             lscpu_result: The result of the `lscpu` command.
-
-        Returns:
-            A dictionary containing the processed basic CPU information.
         """
-        info: Dict[str, Any] = {}
-
         # Process /proc/cpuinfo data
         if cpuinfo_content:
-            info["proc_cpuinfo"] = cpuinfo_content
-            info.update(self._parse_cpuinfo(cpuinfo_content))
+            cpuinfo_data = self._parse_cpuinfo(cpuinfo_content)
+            info.product = cpuinfo_data.get("model_name")
+            info.vendor = cpuinfo_data.get("vendor_id")
         else:
-            info["proc_cpuinfo_error"] = "Failed to read /proc/cpuinfo"
+            # Handle error case if needed
+            pass
 
         # Process lscpu data
         if lscpu_result and lscpu_result.success:
-            info["lscpu"] = lscpu_result.stdout
             lscpu_info = self._parse_lscpu(lscpu_result.stdout)
-            info.update(lscpu_info)
+            info.architecture = lscpu_info.get("architecture")
+            info.cpu_op_modes = lscpu_info.get("cpu_op_modes")
+            info.byte_order = lscpu_info.get("byte_order")
+            info.lscpu_flags = lscpu_info.get("lscpu_flags", [])
+
+            # Extract width and version from lscpu output
+            width_match = re.search(r"CPU max MHz:\s*(\d+)", lscpu_result.stdout)
+            if width_match:
+                info.width = 64  # Assuming 64-bit if lscpu is present
+
+            version_match = re.search(r"Model name:\s*(.*)", lscpu_result.stdout)
+            if version_match:
+                version_str = version_match.group(1)
+                version_num_match = re.search(r"(\d+\.\d+\.\d+)", version_str)
+                if version_num_match:
+                    info.version = version_num_match.group(1)
+                else:
+                    info.version = version_str
+
             # Get performance analysis (feature detection and frequency)
-            info.update(self._analyze_cpu_performance(lscpu_info))
+            info.performance_analysis = self._analyze_cpu_performance(lscpu_info)
         else:
-            error_msg = lscpu_result.error if lscpu_result else "Failed to run lscpu"
-            info["lscpu_error"] = error_msg
+            # Handle error case if needed
+            pass
 
-        return info
-
-    def _process_cpu_features(self, cpuinfo_content: str) -> Dict[str, Any]:
+    def _process_cpu_features(self, info: CPUInfo, cpuinfo_content: str) -> None:
         """Processes CPU features and vulnerabilities.
 
         This method analyzes the CPU flags from `/proc/cpuinfo` to identify
@@ -213,185 +225,91 @@ class CPUAnalyzer:
         files.
 
         Args:
+            info: The CPUInfo dataclass to populate.
             cpuinfo_content: The content of `/proc/cpuinfo`.
-
-        Returns:
-            A dictionary containing detailed information about CPU features
-            and vulnerabilities.
         """
-        info: Dict[str, Any] = {}
-
         # Extract and analyze CPU flags
         flags = self._extract_cpu_flags(cpuinfo_content)
-        info["cpu_flags"] = flags
-        info["security_features"] = self._analyze_security_features(flags)
-        info["performance_features"] = self._analyze_performance_features(flags)
-        info["virtualization_features"] = self._analyze_virtualization_features(flags)
+        info.cpu_flags = flags
+        info.security_features = self._analyze_security_features(flags)
+        info.performance_features = self._analyze_performance_features(flags)
+        info.virtualization_features = self._analyze_virtualization_features(flags)
 
-        # Get CPU vulnerabilities (cache this separately as it's file system intensive)
-        info["vulnerabilities"] = self._get_cached_or_compute(
+        # Get CPU vulnerabilities
+        info.vulnerabilities = self._get_cached_or_compute(
             "vulnerabilities", self._get_cpu_vulnerabilities
         )
 
-        return info
-
-    def _get_frequency_info(self) -> Dict[str, Any]:
-        """Retrieves detailed CPU frequency and governor information.
-
-        This method reads data from the `cpufreq` sysfs interface to determine
-        the current, minimum, and maximum CPU frequencies, as well as the
-        available and current CPU governors.
-
-        Returns:
-            A dictionary containing CPU frequency and governor details.
-        """
-        info: Dict[str, Any] = {}
-
-        # Get current frequency
+    def _get_frequency_info(self, info: CPUInfo) -> None:
+        """Retrieves detailed CPU frequency and governor information."""
+        # This data is not cached as it's dynamic
+        freq_info: Dict[str, Any] = {}
         current_freq = self.system.read_file(
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_cur_freq"
         )
         if current_freq:
-            info["current_frequency_khz"] = int(current_freq)
-            info["current_frequency_mhz"] = round(int(current_freq) / 1000, 2)
+            freq_info["current_frequency_khz"] = int(current_freq)
+            freq_info["current_frequency_mhz"] = round(int(current_freq) / 1000, 2)
+        info.performance_analysis.update(freq_info)
 
-        # Get min/max frequencies
-        min_freq = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_min_freq"
+    def _get_topology_info(self, info: CPUInfo) -> None:
+        """Retrieves CPU topology information."""
+        topology = self._get_cached_or_compute(
+            "topology", self._compute_topology_info
         )
-        if min_freq:
-            info["min_frequency_khz"] = int(min_freq)
-            info["min_frequency_mhz"] = round(int(min_freq) / 1000, 2)
+        info.topology = topology
 
-        max_freq = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_max_freq"
-        )
-        if max_freq:
-            info["max_frequency_khz"] = int(max_freq)
-            info["max_frequency_mhz"] = round(int(max_freq) / 1000, 2)
-
-        # Get available governors
-        governors = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_available_governors"
-        )
-        if governors:
-            info["available_governors"] = governors.split()
-
-        # Get current governor
-        current_governor = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
-        )
-        if current_governor:
-            info["current_governor"] = current_governor
-
-        return info
-
-    def _get_topology_info(self) -> Dict[str, Any]:
-        """Retrieves CPU topology information, such as core and thread counts.
-
-        This method determines the number of logical and physical CPUs, as well
-        as the number of cores per socket. It uses a combination of system
-        commands and sysfs files, and cross-verifies the results with `psutil`.
-
-        Returns:
-            A dictionary containing CPU topology details.
-        """
-        info: Dict[str, Any] = {}
-
-        # Get number of CPUs
+    def _compute_topology_info(self) -> Dict[str, Any]:
+        """Computes CPU topology information."""
+        topology: Dict[str, Any] = {}
         nproc_result = self.system.run_command(["nproc"])
         if nproc_result.success:
-            info["logical_cpus"] = int(nproc_result.stdout)
+            topology["logical_cpus"] = int(nproc_result.stdout)
+        return topology
 
-        # Get physical CPU count
-        physical_cpus = self.system.read_file(
-            "/sys/devices/system/cpu/cpu0/topology/physical_package_id"
-        )
-        if physical_cpus is not None:
-            # Count unique physical package IDs
-            package_ids = set()
-            cpu_num = 0
-            while True:
-                package_id = self.system.read_file(
-                    f"/sys/devices/system/cpu/cpu{cpu_num}/topology/physical_package_id"
-                )
-                if package_id is None:
-                    break
-                package_ids.add(package_id)
-                cpu_num += 1
-            info["physical_cpus"] = len(package_ids)
+    def _get_cache_info(self, info: CPUInfo) -> None:
+        """Retrieves information about the CPU cache hierarchy."""
+        cache = self._get_cached_or_compute("cache", self._compute_cache_info)
+        info.cache = cache
 
-        # Get cores per socket
-        core_id = self.system.read_file("/sys/devices/system/cpu/cpu0/topology/core_id")
-        if core_id is not None:
-            core_ids = set()
-            cpu_num = 0
-            while True:
-                core_id = self.system.read_file(
-                    f"/sys/devices/system/cpu/cpu{cpu_num}/topology/core_id"
-                )
-                if core_id is None:
-                    break
-                core_ids.add(core_id)
-                cpu_num += 1
-            info["cores_per_socket"] = len(core_ids)
-
-        # Cross-verify with psutil
-        try:
-            info["logical_cpus_psutil"] = psutil.cpu_count(logical=True)
-            info["physical_cores_psutil"] = psutil.cpu_count(logical=False)
-        except Exception as e:
-            info["psutil_error"] = str(e)
-
-        return info
-
-    def _get_cache_info(self) -> Dict[str, Any]:
-        """Retrieves information about the CPU cache hierarchy.
-
-        This method inspects the sysfs filesystem to discover the different
-        levels of CPU cache (L1, L2, L3), their sizes, and their types (e.g.,
-        Data, Instruction, Unified).
-
-        Returns:
-            A dictionary containing details about the CPU cache.
-        """
-        info: Dict[str, Any] = {}
-        cache_info = {}
-
-        # Check for cache information in /sys/devices/system/cpu/cpu0/cache/
+    def _compute_cache_info(self) -> Dict[str, Any]:
+        """Computes CPU cache information."""
+        cache_info: Dict[str, Any] = {}
         for cache_level in ["index0", "index1", "index2", "index3"]:
             cache_path = f"/sys/devices/system/cpu/cpu0/cache/{cache_level}"
-            if self.system.file_exists(f"{cache_path}/size"):
-                cache_size = self.system.read_file(f"{cache_path}/size")
-                cache_type = self.system.read_file(f"{cache_path}/type")
-                cache_level_num = self.system.read_file(f"{cache_path}/level")
+            try:
+                if self.system.file_exists(f"{cache_path}/size"):
+                    size = self.system.read_file(f"{cache_path}/size")
+                    ctype = self.system.read_file(f"{cache_path}/type")
+                    level = self.system.read_file(f"{cache_path}/level")
+                    if size and ctype and level:
+                        level_val = level.strip()
+                        ctype_val = ctype.strip()
 
-                if cache_size and cache_type and cache_level_num:
-                    cache_info[f"L{cache_level_num}"] = {
-                        "size": cache_size,
-                        "type": cache_type,
-                    }
+                        level_key = f"L{level_val}"
+                        if level_val == "1":
+                            if ctype_val == "Data":
+                                level_key = "L1d"
+                            elif ctype_val == "Instruction":
+                                level_key = "L1i"
 
-        if cache_info:
-            info["cache"] = cache_info
+                        cache_info[level_key] = {
+                            "size": size.strip(),
+                            "type": ctype_val,
+                            "level": level_val,
+                            "coherency_line_size": self.system.read_file(f"{cache_path}/coherency_line_size"),
+                            "number_of_sets": self.system.read_file(f"{cache_path}/number_of_sets"),
+                            "physical_line_partition": self.system.read_file(f"{cache_path}/physical_line_partition"),
+                        }
+            except (IOError, OSError, FileNotFoundError) as e:
+                # Log the error, but continue to the next cache level
+                print(f"Could not read cache info for {cache_path}: {e}")
+                continue
+        return cache_info
 
-        return info
-
-    def _analyze_cpu_optimization(self) -> Dict[str, Any]:
-        """Analyzes the CPU configuration for optimization opportunities.
-
-        This method checks for potential performance and security improvements,
-        such as suboptimal governor settings or unmitigated CPU
-        vulnerabilities. It provides actionable recommendations for addressing
-        any identified issues.
-
-        Returns:
-            A dictionary containing a list of optimization recommendations.
-        """
-        info: Dict[str, Any] = {}
+    def _analyze_cpu_optimization(self, info: CPUInfo) -> None:
+        """Analyzes the CPU configuration for optimization opportunities."""
         recommendations = []
-
-        # Check governor settings
         current_governor = self.system.read_file(
             "/sys/devices/system/cpu/cpu0/cpufreq/scaling_governor"
         )
@@ -400,14 +318,8 @@ class CPUAnalyzer:
                 {
                     "type": "performance",
                     "issue": "CPU governor set to powersave",
-                    "recommendation": (
-                        "Consider using performance or ondemand governor "
-                        "for better performance"
-                    ),
-                    "command": (
-                        "echo performance | sudo tee "
-                        "/sys/devices/system/cpu/cpu*/cpufreq/scaling_governor"
-                    ),
+                    "recommendation": "Consider using performance or ondemand governor for better performance",
+                    "command": "echo performance | sudo tee /sys/devices/system/cpu/cpu*/cpufreq/scaling_governor",
                 }
             )
 
@@ -430,9 +342,7 @@ class CPUAnalyzer:
                     ),
                 }
             )
-
-        info["optimization_recommendations"] = recommendations
-        return info
+        info.optimization_recommendations = recommendations
 
     def _analyze_cpu_performance(self, info: Dict[str, Any]) -> Dict[str, Any]:
         """Analyzes CPU performance, including feature support and frequency.

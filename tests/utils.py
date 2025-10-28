@@ -13,6 +13,7 @@ import tempfile
 import threading
 import time
 from pathlib import Path
+import dataclasses
 from typing import Any, Dict, Generator, List, Optional, Union
 
 import pytest
@@ -169,14 +170,23 @@ class AssertionHelpers:
         assert not missing_keys, f"Missing required keys: {missing_keys}"
 
     @staticmethod
-    def assert_valid_cpu_info(cpu_info: Dict[str, Any]):
+    def assert_valid_cpu_info(cpu_info: Any):
         """Assert that CPU info contains expected structure."""
-        required_keys = ["model_name", "vendor_id", "cpu_flags"]
-        AssertionHelpers.assert_contains_keys(cpu_info, required_keys)
+        if dataclasses.is_dataclass(cpu_info):
+            cpu_info_dict = dataclasses.asdict(cpu_info)
+        else:
+            cpu_info_dict = cpu_info
+
+        required_keys = ["product", "vendor", "cpu_flags"]
+        AssertionHelpers.assert_contains_keys(cpu_info_dict, required_keys)
 
         # Check specific data types
-        assert isinstance(cpu_info["cpu_flags"], list), "CPU flags should be a list"
-        assert len(cpu_info["cpu_flags"]) > 0, "CPU flags list should not be empty"
+        assert isinstance(
+            cpu_info_dict["cpu_flags"], list
+        ), "CPU flags should be a list"
+        assert (
+            len(cpu_info_dict["cpu_flags"]) > 0
+        ), "CPU flags list should not be empty"
 
     @staticmethod
     def assert_performance_within_bounds(

@@ -23,6 +23,11 @@ from ...tools.hardware_tools import (
     AllHardwareToolProvider,
     CPUInfoToolProvider,
 )
+from ..lshw_formatters import (
+    LSHWJsonFormatter,
+    LSHWTextFormatter,
+    LSHWXmlFormatter,
+)
 from .base import BaseCommand
 
 """This module contains the command handler for hardware-related commands.
@@ -112,12 +117,22 @@ class HardwareCommands(BaseCommand):
 
             result = self._execute_tool(self.all_hardware_tool, parameters)
 
-            title = (
-                "Hardware Information Summary"
-                if parameters.get("summary")
-                else "Complete Hardware Information"
-            )
-            self.formatter.print_output(result, title)
+            if getattr(args, "output_lshw_text", False):
+                formatter = LSHWTextFormatter()
+                self.formatter.print_output(formatter.format(result))
+            elif getattr(args, "output_lshw_json", False):
+                formatter = LSHWJsonFormatter()
+                self.formatter.print_output(formatter.format(result))
+            elif getattr(args, "output_lshw_xml", False):
+                formatter = LSHWXmlFormatter()
+                self.formatter.print_output(formatter.format(result))
+            else:
+                title = (
+                    "Hardware Information Summary"
+                    if parameters.get("summary")
+                    else "Complete Hardware Information"
+                )
+                self.formatter.print_output(result, title)
 
             return 0
 

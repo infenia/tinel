@@ -24,6 +24,14 @@ from tinel.interfaces import SystemInterface
 from tinel.system import LinuxSystemInterface
 
 
+from tinel.hardware.models import (
+    BlockDevice,
+    DiskUsage,
+    InodeUsage,
+    StorageInfo,
+)
+
+
 class StorageAnalyzer:
     """Analyzes and retrieves information about the system's storage devices."""
 
@@ -31,20 +39,22 @@ class StorageAnalyzer:
         """Initializes the StorageAnalyzer."""
         self.system = system_interface or LinuxSystemInterface()
 
-    def get_storage_info(self) -> Dict[str, Any]:
+    def get_storage_info(self) -> StorageInfo:
         """Retrieves comprehensive information about the system's storage."""
-        storage_info: Dict[str, Any] = {
-            "block_devices": self._get_lsblk_info_with_fallback(),
-            "disk_usage": self._get_df_info_with_fallback(),
-            "inode_usage": self._get_inode_info(),
-        }
+        block_devices = self._get_lsblk_info_with_fallback() or []
+        disk_usage = self._get_df_info_with_fallback() or []
+        inode_usage = self._get_inode_info() or []
 
-        if storage_info.get("block_devices"):
-            storage_info = self.analyze_storage_health(storage_info)
+        if block_devices:
+            block_devices = self.analyze_storage_health(block_devices)
 
-        return {k: v for k, v in storage_info.items() if v is not None}
+        return StorageInfo(
+            block_devices=block_devices,
+            disk_usage=disk_usage,
+            inode_usage=inode_usage,
+        )
 
-    def analyze_storage_health(self, info: Dict[str, Any]) -> Dict[str, Any]:
+    def analyze_storage_health(self, devices: List[BlockDevice]) -> List[BlockDevice]:
         """
         Analyzes the health of storage devices and extends the provided info.
 
@@ -54,40 +64,34 @@ class StorageAnalyzer:
         statistics for the device's partitions using `psutil`.
 
         Args:
-            info: A dictionary containing existing storage information,
-                  including a 'block_devices' key.
+            devices: A list of `BlockDevice` objects.
 
         Returns:
-            The extended dictionary with health or usage information.
+            The list of `BlockDevice` objects with health or usage information.
         """
-        block_devices = info.get("block_devices", [])
-        if not block_devices:
-            return info
-
-        for device in block_devices:
-            if device.get("type") == "disk" and device.get("name"):
-                device_path = f"/dev/{device['name']}"
+        for device in devices:
+            if device.type == "disk" and device.name:
+                device_path = f"/dev/{device.name}"
                 health_info = self._get_smartctl_info(device_path)
                 detailed_health_info = self._get_detailed_smartctl_info(device_path)
 
                 if health_info or detailed_health_info:
-                    device["health"] = {
+                    device.health = {
                         **(health_info or {}),
                         **(detailed_health_info or {}),
                     }
                 else:  # Fallback to psutil
-                    partitions = device.get("children", [])
+                    partitions = device.children
                     fallback_usage = []
                     if partitions:
                         for part in partitions:
-                            mountpoint = part.get("mountpoint")
-                            if mountpoint:
+                            if part.mountpoint:
                                 try:
-                                    usage = psutil.disk_usage(mountpoint)
+                                    usage = psutil.disk_usage(part.mountpoint)
                                     fallback_usage.append(
                                         {
-                                            "partition": part.get("name"),
-                                            "mountpoint": mountpoint,
+                                            "partition": part.name,
+                                            "mountpoint": part.mountpoint,
                                             "total": usage.total,
                                             "used": usage.used,
                                             "free": usage.free,
@@ -100,14 +104,13 @@ class StorageAnalyzer:
                                 ):
                                     continue  # Skip partitions we can't access
                     if fallback_usage:
-                        device["health"] = {
+                        device.health = {
                             "status": "FALLBACK_PSUTIL_USAGE",
                             "partitions": fallback_usage,
                         }
-        info["block_devices"] = block_devices
-        return info
+        return devices
 
-    def _get_lsblk_info_with_fallback(self) -> Optional[List[Dict[str, Any]]]:
+    def _get_lsblk_info_with_fallback(self) -> Optional[List[BlockDevice]]:
         """Tries to get block device info from `lsblk`, falls back to `psutil`."""
         lsblk_info = self._get_lsblk_info()
         if lsblk_info is not None:
@@ -116,20 +119,19 @@ class StorageAnalyzer:
         try:
             partitions = psutil.disk_partitions()
             return [
-                {
-                    "name": part.device.split("/")[-1],
-                    "size": None,
-                    "type": "part",
-                    "mountpoint": part.mountpoint,
-                    "fstype": part.fstype,
-                    "model": "N/A (from psutil)",
-                }
+                BlockDevice(
+                    name=part.device.split("/")[-1],
+                    type="part",
+                    mountpoint=part.mountpoint,
+                    fstype=part.fstype,
+                    model="N/A (from psutil)",
+                )
                 for part in partitions
             ]
         except Exception:
             return None
 
-    def _get_df_info_with_fallback(self) -> Optional[List[Dict[str, str]]]:
+    def _get_df_info_with_fallback(self) -> Optional[List[DiskUsage]]:
         """Tries to get disk usage from `df`, falls back to `psutil`."""
         df_info = self._get_df_info()
         if df_info is not None:
@@ -141,22 +143,28 @@ class StorageAnalyzer:
             for part in partitions:
                 usage = psutil.disk_usage(part.mountpoint)
                 usage_info.append(
-                    {
-                        "filesystem": part.device,
-                        "size": f"{usage.total // (1024**3)}G",
-                        "used": f"{usage.used // (1024**3)}G",
-                        "available": f"{usage.free // (1024**3)}G",
-                        "use%": f"{usage.percent}%",
-                        "mounted_on": part.mountpoint,
-                    }
+                    DiskUsage(
+                        filesystem=part.device,
+                        size=f"{usage.total // (1024**3)}G",
+                        used=f"{usage.used // (1024**3)}G",
+                        available=f"{usage.free // (1024**3)}G",
+                        use_percent=f"{usage.percent}%",
+                        mounted_on=part.mountpoint,
+                    )
                 )
             return usage_info
         except Exception:
             return None
 
-    def _get_lsblk_info(self) -> Optional[List[Dict[str, Any]]]:
+    def _dict_to_block_device(self, data: Dict[str, Any]) -> BlockDevice:
+        """Converts a dictionary from lsblk to a BlockDevice object."""
+        children_data = data.pop("children", [])
+        children = [self._dict_to_block_device(child) for child in children_data]
+        return BlockDevice(**data, children=children)
+
+    def _get_lsblk_info(self) -> Optional[List[BlockDevice]]:
         """Retrieves block device information using `lsblk`."""
-        cmd = ["lsblk", "-J", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL"]
+        cmd = ["lsblk", "-J", "-b", "-o", "NAME,SIZE,TYPE,MOUNTPOINT,FSTYPE,MODEL,PATH"]
         result = self.system.run_command(cmd)
 
         if not result.success or not result.stdout:
@@ -164,18 +172,29 @@ class StorageAnalyzer:
 
         try:
             lsblk_data = json.loads(result.stdout)
-            block_devices = lsblk_data.get("blockdevices")
-            return block_devices if isinstance(block_devices, list) else None
+            block_devices_dicts = lsblk_data.get("blockdevices")
+
+            if not isinstance(block_devices_dicts, list):
+                return None
+
+            block_devices = []
+            for device_dict in block_devices_dicts:
+                device_dict["businfo"] = device_dict.pop("path", None)
+                device_dict["logicalname"] = f"/dev/{device_dict['name']}"
+                device_dict["units"] = "bytes"
+                block_devices.append(self._dict_to_block_device(device_dict))
+
+            return block_devices
         except json.JSONDecodeError:
             return None
 
-    def _get_df_info(self) -> Optional[List[Dict[str, str]]]:
+    def _get_df_info(self) -> Optional[List[DiskUsage]]:
         """Retrieves disk usage information using `df`."""
         cmd = ["df", "-h"]
         result = self.system.run_command(cmd)
         return self._parse_df_output(result.stdout) if result.success else None
 
-    def _parse_df_output(self, df_output: str) -> List[Dict[str, str]]:
+    def _parse_df_output(self, df_output: str) -> List[DiskUsage]:
         """Parses the output of the `df` command."""
         lines = (df_output or "").strip().split("\n")
         filesystems = []
@@ -184,14 +203,14 @@ class StorageAnalyzer:
             parts = line.split()
             if len(parts) >= min_df_parts:
                 filesystems.append(
-                    {
-                        "filesystem": parts[0],
-                        "size": parts[1],
-                        "used": parts[2],
-                        "available": parts[3],
-                        "use%": parts[4],
-                        "mounted_on": " ".join(parts[5:]),
-                    }
+                    DiskUsage(
+                        filesystem=parts[0],
+                        size=parts[1],
+                        used=parts[2],
+                        available=parts[3],
+                        use_percent=parts[4],
+                        mounted_on=" ".join(parts[5:]),
+                    )
                 )
         return filesystems
 
@@ -213,7 +232,7 @@ class StorageAnalyzer:
         return {"health_status": health_status}
 
     def _get_detailed_smartctl_info(self, device: str) -> Optional[Dict[str, Any]]:
-        """Retrieves detailed health information using `smartctl -i`."""
+        """Retrierives detailed health information using `smartctl -i`."""
         cmd = ["smartctl", "-i", device]
         result = self.system.run_command(cmd)
         return (
@@ -232,13 +251,13 @@ class StorageAnalyzer:
                 attributes[key] = value.strip()
         return attributes
 
-    def _get_inode_info(self) -> Optional[List[Dict[str, str]]]:
+    def _get_inode_info(self) -> Optional[List[InodeUsage]]:
         """Retrieves filesystem inode usage using `df -i`."""
         cmd = ["df", "-i"]
         result = self.system.run_command(cmd)
         return self._parse_df_i_output(result.stdout) if result.success else None
 
-    def _parse_df_i_output(self, df_output: str) -> List[Dict[str, str]]:
+    def _parse_df_i_output(self, df_output: str) -> List[InodeUsage]:
         """Parses the output of the `df -i` command."""
         lines = (df_output or "").strip().split("\n")
         filesystems = []
@@ -247,13 +266,13 @@ class StorageAnalyzer:
             parts = line.split()
             if len(parts) >= min_df_parts:
                 filesystems.append(
-                    {
-                        "filesystem": parts[0],
-                        "inodes": parts[1],
-                        "iused": parts[2],
-                        "ifree": parts[3],
-                        "iuse%": parts[4],
-                        "mounted_on": " ".join(parts[5:]),
-                    }
+                    InodeUsage(
+                        filesystem=parts[0],
+                        inodes=parts[1],
+                        iused=parts[2],
+                        ifree=parts[3],
+                        iuse_percent=parts[4],
+                        mounted_on=" ".join(parts[5:]),
+                    )
                 )
         return filesystems

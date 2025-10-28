@@ -32,6 +32,9 @@ command if necessary.
 """
 
 
+from tinel.hardware.models import GPU, GraphicsInfo
+
+
 class GraphicsAnalyzer:
     """Analyzes and retrieves information about graphics hardware (GPUs).
 
@@ -53,9 +56,9 @@ class GraphicsAnalyzer:
         """
         self.system = system_interface or LinuxSystemInterface()
         self.logger = logging.getLogger(__name__)
-        self._graphics_info_cache: Optional[Dict[str, Any]] = None
+        self._graphics_info_cache: Optional[GraphicsInfo] = None
 
-    def get_graphics_info(self) -> Dict[str, Any]:
+    def get_graphics_info(self) -> GraphicsInfo:
         """Retrieves comprehensive information about the graphics hardware.
 
         This method serves as the primary entry point for gathering graphics
@@ -65,59 +68,40 @@ class GraphicsAnalyzer:
         to improve performance on subsequent calls.
 
         Returns:
-            A dictionary containing detailed graphics hardware information,
-            including the source of the data (e.g., 'nvidia-smi', 'lspci').
+            A `GraphicsInfo` object containing detailed graphics hardware
+            information.
         """
         if self._graphics_info_cache is not None:
             return self._graphics_info_cache
 
-        info: Dict[str, Any] = {}
-
-        # Try NVIDIA's tool first
         nvidia_info = self._get_nvidia_info()
         if nvidia_info:
-            info["gpus"] = nvidia_info
-            info["source"] = "nvidia-smi"
+            info = GraphicsInfo(gpus=nvidia_info, source="nvidia-smi")
             self._graphics_info_cache = info
             return info
 
-        # Try AMD's tool next
         amd_info = self._get_amd_info()
         if amd_info:
-            info["gpus"] = amd_info
-            info["source"] = "rocm-smi"
+            info = GraphicsInfo(gpus=amd_info, source="rocm-smi")
             self._graphics_info_cache = info
             return info
 
-        # Fallback to lspci
         lspci_info = self._get_lspci_info()
         if lspci_info:
-            info["gpus"] = lspci_info
-            info["source"] = "lspci"
+            info = GraphicsInfo(gpus=lspci_info, source="lspci")
             self._graphics_info_cache = info
             return info
 
         self.logger.warning("No GPU information could be gathered.")
+        info = GraphicsInfo()
         self._graphics_info_cache = info
         return info
 
-    def _get_nvidia_info(self) -> Optional[List[Dict[str, Any]]]:
-        """Retrieves GPU information using the `nvidia-smi` command.
-
-        This method queries the `nvidia-smi` utility for detailed information
-        about NVIDIA GPUs, including model, driver version, memory usage,
-        utilization, and temperature.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents an NVIDIA
-            GPU, or None if `nvidia-smi` is not available or fails.
-        """
+    def _get_nvidia_info(self) -> Optional[List[GPU]]:
+        """Retrieves GPU information using the `nvidia-smi` command."""
         command = [
             "nvidia-smi",
-            (
-                "--query-gpu=index,name,driver_version,memory.total,memory.used,"
-                "memory.free,utilization.gpu,temperature.gpu"
-            ),
+            "--query-gpu=index,name,driver_version,memory.total,memory.used,memory.free,utilization.gpu,temperature.gpu",
             "--format=csv,noheader,nounits",
         ]
         result = self.system.run_command(command)
@@ -130,19 +114,19 @@ class GraphicsAnalyzer:
         for line in result.stdout.strip().split("\n"):
             try:
                 parts = [p.strip() for p in line.split(",")]
-                if len(parts) != 8:  # noqa: PLR2004
+                if len(parts) != 8:
                     continue
                 gpus.append(
-                    {
-                        "index": int(parts[0]),
-                        "model": parts[1],
-                        "driver_version": parts[2],
-                        "memory_total_mb": int(parts[3]),
-                        "memory_used_mb": int(parts[4]),
-                        "memory_free_mb": int(parts[5]),
-                        "utilization_percent": int(parts[6]),
-                        "temperature_celsius": int(parts[7]),
-                    }
+                    GPU(
+                        index=int(parts[0]),
+                        model=parts[1],
+                        driver_version=parts[2],
+                        memory_total_mb=int(parts[3]),
+                        memory_used_mb=int(parts[4]),
+                        memory_free_mb=int(parts[5]),
+                        utilization_percent=int(parts[6]),
+                        temperature_celsius=int(parts[7]),
+                    )
                 )
             except (ValueError, IndexError) as e:
                 self.logger.warning(
@@ -151,61 +135,31 @@ class GraphicsAnalyzer:
 
         return gpus if gpus else None
 
-    def _get_amd_info(self) -> Optional[List[Dict[str, Any]]]:
-        """Retrieves GPU information using the `rocm-smi` command.
-
-        This method is intended to query the `rocm-smi` utility for detailed
-        information about AMD GPUs. Currently, it serves as a placeholder
-        as `rocm-smi` is not available in the test environment.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents an AMD
-            GPU, or None if `rocm-smi` is not available or fails.
-        """
-        # rocm-smi is not installed in the test environment.
-        # In a real environment, this would parse the output of `rocm-smi`.
-        # Example: rocm-smi --showproductname --showmeminfo vram ...
-        result = self.system.run_command(
-            ["rocm-smi", "--showallinfo"]
-        )  # A bit generic for a placeholder
-
+    def _get_amd_info(self) -> Optional[List[GPU]]:
+        """Retrieves GPU information using the `rocm-smi` command."""
+        result = self.system.run_command(["rocm-smi", "--showallinfo"])
         if not result.success:
             self.logger.info("'rocm-smi' command failed or not found.")
             return None
 
-        # Placeholder for parsing logic.
-        # This part would need to be implemented and tested on a system
-        # with an AMD GPU and rocm-smi.
         gpus = [
-            {
-                "model": "AMD GPU (rocm-smi placeholder)",
-                "error": "Parsing not implemented",
-            }
+            GPU(
+                model="AMD GPU (rocm-smi placeholder)",
+                details={"error": "Parsing not implemented"},
+            )
         ]
         self.logger.info("rocm-smi parsing is not yet implemented.")
-
         return gpus
 
-    def _get_lspci_info(self) -> Optional[List[Dict[str, Any]]]:
-        """Retrieves basic GPU information using the `lspci` command.
-
-        This method serves as a fallback for when vendor-specific tools are not
-        available. It parses the output of `lspci` to identify VGA-compatible
-        controllers and extracts basic information such as the model, vendor ID,
-        and device ID.
-
-        Returns:
-            A list of dictionaries, where each dictionary represents a GPU
-            found by `lspci`, or None if the command fails.
-        """
+    def _get_lspci_info(self) -> Optional[List[GPU]]:
+        """Retrieves basic GPU information using the `lspci` command."""
         result = self.system.run_command(["lspci", "-vnn"])
-
         if not result.success:
             self.logger.warning("'lspci' command failed or not found.")
             return None
 
-        gpus: List[Dict[str, Any]] = []
-        current_gpu: Optional[Dict[str, Any]] = None
+        gpus: List[GPU] = []
+        current_gpu: Optional[GPU] = None
 
         for line in result.stdout.strip().split("\n"):
             vga_match = re.search(
@@ -218,18 +172,19 @@ class GraphicsAnalyzer:
                 model_match = re.search(r"controller:\s*(.*)", line)
                 model = model_match.group(1).strip() if model_match else "Unknown"
 
-                current_gpu = {
-                    "model": model,
-                    "vendor_id": vga_match.group(1),
-                    "device_id": vga_match.group(2),
-                    "details": {},
-                }
+                current_gpu = GPU(
+                    model=model,
+                    vendor_id=vga_match.group(1),
+                    device_id=vga_match.group(2),
+                    details={},
+                )
             elif current_gpu and line.startswith("\t"):
                 key_value_match = re.match(r"\s*(.*?):\s*(.*)", line)
                 if key_value_match:
                     key = key_value_match.group(1).strip().lower().replace(" ", "_")
                     value = key_value_match.group(2).strip()
-                    current_gpu["details"][key] = value
+                    if current_gpu.details is not None:
+                        current_gpu.details[key] = value
 
         if current_gpu:
             gpus.append(current_gpu)

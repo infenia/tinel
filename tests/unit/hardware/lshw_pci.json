@@ -1,0 +1,68 @@
+[
+    {
+        "id": "pci:0",
+        "class": "bridge",
+        "claimed": true,
+        "handle": "PCIBUS:0000:00",
+        "description": "PCI bridge",
+        "product": "12th Gen Core Processor Host Bridge/DRAM Registers [8a12]",
+        "vendor": "Intel Corporation [8086]",
+        "physid": "0",
+        "businfo": "pci@0000:00:00.0",
+        "version": "01",
+        "width": 32,
+        "clock": 33000000,
+        "children": [
+            {
+                "id": "pci:1",
+                "class": "display",
+                "claimed": true,
+                "handle": "PCIBUS:0000:01:00.0",
+                "description": "VGA compatible controller",
+                "product": "GP107 [GeForce GTX 1050 Ti] [1c82]",
+                "vendor": "NVIDIA Corporation [10de]",
+                "physid": "0",
+                "businfo": "pci@0000:01:00.0",
+                "version": "a1",
+                "width": 64,
+                "clock": 33000000,
+                "configuration": {
+                    "driver": "nvidia",
+                    "latency": "0"
+                },
+                "capabilities": {
+                    "pm": "Power Management",
+                    "msi": "Message Signalled Interrupts",
+                    "pciexpress": "PCI Express",
+                    "vga_controller": "VGA controller",
+                    "bus_master": "bus mastering",
+                    "rom": "extension ROM"
+                }
+            },
+            {
+                "id": "pci:2",
+                "class": "multimedia",
+                "claimed": true,
+                "handle": "PCIBUS:0000:01:00.1",
+                "description": "Audio device",
+                "product": "GP107GL High Definition Audio Controller [0fb9]",
+                "vendor": "NVIDIA Corporation [10de]",
+                "physid": "0.1",
+                "businfo": "pci@0000:01:00.1",
+                "version": "a1",
+                "width": 64,
+                "clock": 33000000,
+                "configuration": {
+                    "driver": "snd_hda_intel",
+                    "latency": "0"
+                },
+                "capabilities": {
+                    "pm": "Power Management",
+                    "msi": "Message Signalled Interrupts",
+                    "pciexpress": "PCI Express",
+                    "bus_master": "bus mastering"
+                }
+            }
+        ]
+    }
+]

@@ -186,6 +186,21 @@ def _add_hardware_commands(subparsers: argparse._SubParsersAction) -> None:
         action="store_true",
         help="Show summary instead of detailed information",
     )
+    all_parser.add_argument(
+        "--output-lshw-text",
+        action="store_true",
+        help="Output in lshw text format",
+    )
+    all_parser.add_argument(
+        "--output-lshw-json",
+        action="store_true",
+        help="Output in lshw JSON format",
+    )
+    all_parser.add_argument(
+        "--output-lshw-xml",
+        action="store_true",
+        help="Output in lshw XML format",
+    )
 
 
 def _validate_verbosity_options(args: argparse.Namespace) -> bool:
