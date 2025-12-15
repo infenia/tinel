@@ -176,7 +176,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Upload package artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ matrix.package_type }}-packages-${{ github.run_id }}
         path: dist/${{ matrix.package_type }}/
@@ -302,7 +302,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Upload binary artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: binary-${{ matrix.arch }}-${{ github.run_id }}
         path: |
@@ -398,7 +398,7 @@ jobs:
         echo "::endgroup::"
 
     - name: Upload universal package artifacts
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@v6
       with:
         name: ${{ matrix.package_type }}-package-${{ github.run_id }}
         path: |
